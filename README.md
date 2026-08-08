@@ -6,7 +6,7 @@ As a high school student exploring quantum computing and computational physics, 
 
 ---
 
-## 🧮 Mathematical & Physical Formulation
+##  Mathematical & Physical Formulation
 
 ### 1. The Time-Dependent Schrödinger Equation (TDSE)
 The time evolution of a complex quantum wavepacket $\psi(x,t)$ in a spatial domain $x \in [x_a, x_b]$ and time domain $t \in [0, T]$ is governed by the 1D TDSE:
@@ -36,7 +36,7 @@ $$\mathcal{R}_v(x,t) = \frac{\partial v}{\partial t} - \frac{1}{2} \frac{\partia
 
 ---
 
-## 🎯 Initial & Boundary Conditions
+##  Initial & Boundary Conditions
 
 ### 1. Initial State (Gaussian Wavepacket)
 At $t = 0$, the quantum state is initialized as a localized Gaussian wavepacket moving with initial momentum $k_0$:
@@ -61,7 +61,7 @@ $$P(t) = \int_{x_a}^{x_b} \vert{}\psi(x,t)\vert{}^2 dx = \int_{x_a}^{x_b} \left(
 
 ---
 
-## 🧠 Neural Network & Loss Formulation
+##  Neural Network & Loss Formulation
 
 The network parameterizes the solution $\hat{\psi}_\theta(x,t) = [\hat{u}_\theta(x,t), \hat{v}_\theta(x,t)]^T$ using model weights $\theta$.
 
@@ -82,7 +82,7 @@ $$\mathcal{L}_{\text{BC}} = \frac{1}{N_{bc}} \sum_{k=1}^{N_{bc}} \left( \left\ve
 
 ---
 
-## 🔍 Debugging Note: Four Bugs Behind One Collapsed Model
+##  Debugging Note: Four Bugs Behind One Collapsed Model
 
 Building this model as a high school student was a great learning experience! The first working version of this PINN silently collapsed to the trivial zero solution. Finding out why took tracking down four compounding issues:
 
@@ -93,13 +93,13 @@ Building this model as a high school student was a great learning experience! Th
 
 ---
 
-## 💡 Why DST, not FFT, for the Reference Solver
+##  Why DST, not FFT, for the Reference Solver
 
 The textbook split-step Fourier method assumes periodic boundaries. This PINN is trained with Dirichlet boundaries ($\psi = 0$ at the walls). The Discrete Sine Transform (DST-I) basis functions $\sin(n \pi x / L)$ are exact Dirichlet-Laplacian eigenfunctions, enforcing boundary conditions by construction without artificial box effects.
 
 ---
 
-## 📊 Visualizations & Results Analysis
+##  Visualizations & Results Analysis
 
 | File Name | Description | Image Preview |
 | :--- | :--- | :--- |
@@ -109,7 +109,7 @@ The textbook split-step Fourier method assumes periodic boundaries. This PINN is
 
 ---
 
-## 📁 Repository Structure
+##  Repository Structure
 
 ```text
 config.py             Single source of truth for all physical/training parameters
@@ -131,7 +131,9 @@ figures/
 ├── l2_error_vs_reference.png
 └── disorder_transmission.png
 
-🛠️ Requirements & Quickstart
+---
+
+ Requirements & Quickstart
 Dependencies
 Python 3.8+
 
@@ -141,7 +143,7 @@ NumPy
 
 Matplotlib / SciPy
 
-📦 Manual Step-by-Step Execution
+ Manual Step-by-Step Execution
 To execute each component manually in your terminal:
 
 # Install required libraries
