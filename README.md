@@ -209,11 +209,3 @@ python visualize.py
 python -m pytest tests/
 ```
 
-## Notes on AI-assisted development
-
-Portions of this codebase (initial architecture drafting, debugging, and
-this README) were developed with Claude. The physics setup, the debugging
-process (identifying and diagnosing all four bugs above), and the
-interpretation of results were directed and verified by the author. See
-the "Debugging note" section for the specific technical reasoning behind
-each fix.
