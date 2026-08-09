@@ -166,3 +166,43 @@ python visualize.py
 
 # 6. Run unit tests
 python -m pytest tests/
+
+1. Raissi, M., Perdikaris, P., & Karniadakis, G. E. (2019). Physics-informed
+neural networks: A deep learning framework for solving forward and
+inverse problems involving nonlinear partial differential equations.
+Journal of Computational Physics, 378, 686-707.
+https://doi.org/10.1016/j.jcp.2018.10.045
+— source of the core PINN methodology used here (autograd PDE residual,
+collocation sampling, Adam + L-BFGS training).
+
+2. Tancik, M., Srinivasan, P. P., Mildenhall, B., Fridovich-Keil, S.,
+Raghavan, N., Singhal, U., Ramamoorthi, R., Barron, J. T., & Ng, R.
+(2020). Fourier features let networks learn high frequency functions in
+low dimensional domains. Advances in Neural Information Processing
+Systems (NeurIPS) 33. https://arxiv.org/abs/2006.10739
+— basis for the Fourier feature input embedding used to fix the
+spectral-bias issue described in "Debugging note" (#2).
+
+3. Rahaman, N., Baratin, A., Arpit, D., Draxler, F., Lin, M., Hamprecht,
+F., Bengio, Y., & Courville, A. (2019). On the spectral bias of neural
+networks. Proceedings of the 36th International Conference on Machine
+Learning (ICML). https://arxiv.org/abs/1806.08734
+— the low-frequency learning bias of MLPs that motivated fix #2.
+
+4. Rebentrost, P., Mohseni, M., Kassal, I., Lloyd, S., & Aspuru-Guzik, A.
+(2009). Environment-assisted quantum transport. New Journal of
+Physics, 11(3), 033003. https://doi.org/10.1088/1367-2630/11/3/033003
+— origin of the Environment-Assisted Quantum Transport (ENAQT) idea
+motivating experiment_disorder.py.
+
+5. Plenio, M. B., & Huelga, S. F. (2008). Dephasing-assisted transport:
+quantum networks and biomolecules. New Journal of Physics, 10(11),
+113019. https://doi.org/10.1088/1367-2630/10/11/113019
+— companion result on noise/disorder-assisted transport in
+photosynthetic light-harvesting complexes, the biological context for
+the disorder experiment.
+
+6. Liu, D. C., & Nocedal, J. (1989). On the limited memory BFGS method for
+large scale optimization. Mathematical Programming, 45(1), 503-528.
+https://doi.org/10.1007/BF01589116
+— L-BFGS, used for the second training phase in train.py.
