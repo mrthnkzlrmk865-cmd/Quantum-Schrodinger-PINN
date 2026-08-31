@@ -246,9 +246,12 @@ def build_comparison_animation(
                         label=f"{t_val:.2f}") for t_val in ts],
         )],
     )
-    fig.write_html(out_html, auto_play=False)
-    print(f"Comparison animation saved -> {out_html}")
-    return fig
+    fig.write_html(
+    out_html,
+    auto_play=False,
+    include_plotlyjs="cdn",   # Plotly.js’i CDN’den yükler, dosya boyutu küçülür
+    full_html=True
+)
 
 
 if __name__ == "__main__":
