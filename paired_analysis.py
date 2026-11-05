@@ -9,7 +9,9 @@ differences between zeta points must be analysed as paired differences
 d_i = T_i(zeta_a) - T_i(zeta_b), resampling seed indices (not the two
 groups independently).
 
-Contrasts (fixed before running this script; see docs/PHASE2_METHOD_SELECTION.md):
+Contrasts (fixed before this script was run, but AFTER the unpaired results
+had been seen, so this is a post-hoc re-analysis, not a confirmatory test;
+see docs/PHASE2_METHOD_SELECTION.md §4):
   C1  T(0.05) - T(0.02)
   C2  T(0.05) - T(0.20)
   C3  curvature at the minimum: K = [T(0.03) + T(0.07)]/2 - T(0.05)
@@ -24,7 +26,9 @@ percentile CI (95 % and Bonferroni 98.33 % for 3 primary contrasts), paired
 Student-t CI, the unpaired (Welch) CI for comparison, the per-seed
 correlation r, effect sizes d_z = mean(d)/sd(d) and
 d_av = mean(d)/[(sd_a + sd_b)/2], a two-sided bootstrap p-value, and the
-paired t and Wilcoxon signed-rank p-values with Holm adjustment over C1-C3.
+paired t and Wilcoxon signed-rank p-values, and a paired-bootstrap p-value
+with the (b+1)/(B+1) finite-resampling correction (bootstrap_p_value), all
+three Holm-adjusted over the primary contrasts C1-C3.
 
 Input: the fingerprinted reproduction of the sweep (bit-identical to the
 committed baseline). Before analysing, the script checks that all points
@@ -77,8 +81,7 @@ def paired_contrast(values: dict, weights: dict, idx, levels=(0.95, 1 - 0.05 / 3
         tq = stats.t.ppf(1 - a, n - 1)
         out[f"boot_ci_{lv:.4f}"] = [float(lo), float(hi)]
         out[f"t_ci_{lv:.4f}"] = [float(mean - tq * sd / np.sqrt(n)), float(mean + tq * sd / np.sqrt(n))]
-    # two-sided bootstrap p-value, shifted-null form: P(|mean* - mean| >= |mean|)
-    out["p_boot"] = float(np.mean(np.abs(boot - mean) >= abs(mean)))
+    out.update(bootstrap_p_value(boot, mean))
     out["p_t"] = float(stats.ttest_1samp(d, 0.0).pvalue)
     out["p_wilcoxon"] = float(stats.wilcoxon(d).pvalue) if np.any(d != 0) else 1.0
     out["d_z"] = float(mean / sd) if sd > 0 else float("inf")
@@ -94,6 +97,27 @@ def paired_contrast(values: dict, weights: dict, idx, levels=(0.95, 1 - 0.05 / 3
         tq = stats.t.ppf(0.975, df)
         out["unpaired_welch_ci_0.95"] = [float(mean - tq * se_u), float(mean + tq * se_u)]
     return out
+
+
+def bootstrap_p_value(boot_means, observed):
+    """Two-sided paired-bootstrap p-value with the finite-resampling (+1)
+    correction (Monte Carlo p-values: Davison & Hinkley 1997;
+    North, Curtis & Sham 2002; Phipson & Smyth 2010).
+
+    Null-centering procedure: the B bootstrap means boot_b are centered at
+    the observed mean, boot_b - observed. This approximates the sampling
+    distribution of (mean - true mean), and hence the null distribution of
+    the mean when the true mean is 0. A replicate is "at least as extreme" as
+    the observation if |boot_b - observed| >= |observed|. With b such
+    replicates,
+        p = (b + 1) / (B + 1).
+    The smallest value this can report is 1/(B + 1) (about 5.0e-5 for
+    B = 20000), so the bootstrap never reports p = 0. Smaller p-values cannot
+    be resolved with B replicates."""
+    boot_means = np.asarray(boot_means, float)
+    B = boot_means.size
+    b = int(np.sum(np.abs(boot_means - observed) >= abs(observed)))
+    return dict(p_boot=(b + 1) / (B + 1), p_boot_count=b, p_boot_B=B, p_boot_resolution=1.0 / (B + 1))
 
 
 def holm(pvals: dict):
@@ -158,6 +182,8 @@ def analyse(data_dir):
         c[name]["p_t_holm"] = p
     for name, p in holm({k_: c[k_]["p_wilcoxon"] for k_ in PRIMARY}).items():
         c[name]["p_wilcoxon_holm"] = p
+    for name, p in holm({k_: c[k_]["p_boot"] for k_ in PRIMARY}).items():
+        c[name]["p_boot_holm"] = p
     res["contrasts"] = c
     # S1: argmin of the bootstrap mean curve
     M = np.stack([T[z][idx].mean(axis=1) for z in zs], axis=1)   # (n_boot, n_zeta)
@@ -188,7 +214,8 @@ def write_outputs(res, T, out_json, out_csv, fig_path):
                          welch_lo95=c.get("unpaired_welch_ci_0.95", [np.nan])[0],
                          welch_hi95=c.get("unpaired_welch_ci_0.95", [np.nan, np.nan])[1],
                          r_pairs=c.get("r_pairs", np.nan), d_z=c["d_z"], d_av=c.get("d_av", np.nan),
-                         p_boot=c["p_boot"], p_t=c["p_t"], p_wilcoxon=c["p_wilcoxon"],
+                         p_boot=c["p_boot"], p_boot_count=c["p_boot_count"], p_boot_B=c["p_boot_B"],
+                         p_boot_holm=c.get("p_boot_holm", np.nan), p_t=c["p_t"], p_wilcoxon=c["p_wilcoxon"],
                          p_t_holm=c.get("p_t_holm", np.nan), p_wilcoxon_holm=c.get("p_wilcoxon_holm", np.nan)))
     with open(out_csv, "w", newline="") as f:
         wr = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
@@ -239,6 +266,7 @@ if __name__ == "__main__":
     for name, c in res["contrasts"].items():
         print(f"{name:24s} mean={c['mean']:+.4f}  paired95={np.round(c['boot_ci_0.9500'], 4).tolist()}  "
               f"Bonf98.3={np.round(c['boot_ci_0.9833'], 4).tolist()}  d_z={c['d_z']:+.2f}  "
-              f"r={c.get('r_pairs', float('nan')):+.2f}  p_t_holm={c.get('p_t_holm', float('nan')):.2g}")
+              f"r={c.get('r_pairs', float('nan')):+.2f}  p_boot={c['p_boot']:.2e} (b={c['p_boot_count']}/{c['p_boot_B']})  "
+              f"p_boot_holm={c.get('p_boot_holm', float('nan')):.2e}  p_t_holm={c.get('p_t_holm', float('nan')):.2g}")
     print("argmin distribution:", res["argmin_distribution"])
     print("vertex k*zeta:", res["vertex_k_zeta"])

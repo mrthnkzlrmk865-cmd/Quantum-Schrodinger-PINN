@@ -38,3 +38,24 @@ def box_eigenmode(X, Y, t, Lx, Ly, m=1, n=1, V0=0.0):
     E = 0.5 * ((m * np.pi / Lx) ** 2 + (n * np.pi / Ly) ** 2) + V0
     return (2.0 / np.sqrt(Lx * Ly) * np.sin(m * np.pi * X / Lx)
             * np.sin(n * np.pi * Y / Ly) * np.exp(-1j * E * t))
+
+
+def rectangular_barrier_transmission(eps, V0, w):
+    """Exact transmission probability of a sharp rectangular barrier of
+    height V0 > 0 and width w for a particle of energy eps > 0 (hbar = m = 1):
+
+        eps > V0:  T = [1 + V0^2 sin^2(q w)  / (4 eps (eps - V0))]^-1,  q = sqrt(2 (eps - V0))
+        eps < V0:  T = [1 + V0^2 sinh^2(k w) / (4 eps (V0 - eps))]^-1,  k = sqrt(2 (V0 - eps))
+
+    Standard textbook result. In this project it is checked against an
+    independent exact plane-wave matching calculation
+    (tests/test_smatrix_spec.py::test_rectangular_barrier_formula_vs_matching).
+    Undefined at eps == V0 (use the limit or avoid that energy)."""
+    eps = np.asarray(eps, dtype=float)
+    out = np.empty_like(eps)
+    above = eps > V0
+    q = np.sqrt(2.0 * (eps[above] - V0))
+    out[above] = 1.0 / (1.0 + V0**2 * np.sin(q * w) ** 2 / (4.0 * eps[above] * (eps[above] - V0)))
+    k = np.sqrt(2.0 * (V0 - eps[~above]))
+    out[~above] = 1.0 / (1.0 + V0**2 * np.sinh(k * w) ** 2 / (4.0 * eps[~above] * (V0 - eps[~above])))
+    return out

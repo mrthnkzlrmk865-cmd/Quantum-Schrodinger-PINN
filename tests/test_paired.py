@@ -77,3 +77,63 @@ def test_load_sweep_on_reproduced_data():
     assert sorted(T) == [0.02, 0.03, 0.05, 0.07, 0.1, 0.15, 0.2]
     assert len(seeds) == 48 and np.isclose(k, np.hypot(20, np.pi))
     assert np.isclose(T[0.05].mean(), 0.494, atol=1e-3)
+
+
+# ----------------------------------------------------------------------
+# bootstrap p-value with the finite-resampling (+1) correction
+# ----------------------------------------------------------------------
+def test_bootstrap_p_value_plus_one_correction():
+    boot = np.full(20000, 0.10) + np.linspace(-0.01, 0.01, 20000)   # all near the observation
+    r = pa.bootstrap_p_value(boot, observed=0.10)
+    assert r["p_boot_count"] == 0
+    assert r["p_boot"] == 1 / 20001 and r["p_boot"] > 0                # never exactly zero
+    assert r["p_boot_resolution"] == 1 / 20001 and r["p_boot_B"] == 20000
+
+
+def test_bootstrap_p_value_counting_and_centering():
+    obs = 0.5
+    boot = np.array([0.5, 0.0, 1.0, 1.2, 0.1, 0.9, -0.2])
+    # centered replicates boot - obs; extreme if |boot - obs| >= |obs| = 0.5
+    expected_b = int(np.sum(np.abs(boot - obs) >= 0.5))
+    assert expected_b == 4                                       # 0.0, 1.0, 1.2, -0.2
+    r = pa.bootstrap_p_value(boot, obs)
+    assert r["p_boot_count"] == 4 and np.isclose(r["p_boot"], 5 / 8)
+
+
+def test_bootstrap_p_value_null_observation_is_one():
+    r = pa.bootstrap_p_value(np.random.default_rng(0).normal(size=1000), 0.0)
+    assert r["p_boot"] == 1.0                                   # every replicate is "as extreme"
+
+
+def test_bootstrap_p_value_finite_resolution_and_holm_floor():
+    """With B replicates no p below 1/(B+1) can be reported; after Holm over
+    three contrasts the smallest reportable value is 3/(B+1)."""
+    B = 20000
+    pmin = pa.bootstrap_p_value(np.zeros(B) + 1.0, 1.0)["p_boot"]
+    adj = pa.holm({"C1": pmin, "C2": pmin, "C3": 0.01})
+    assert np.isclose(adj["C1"], 3 / (B + 1)) and np.isclose(adj["C2"], 3 / (B + 1))
+
+
+def test_paired_contrast_reports_plus_one_fields():
+    rng = np.random.default_rng(2)
+    a = rng.normal(0.5, 0.05, 48)
+    idx = pa.paired_boot_indices(48, n_boot=500)
+    c = pa.paired_contrast({"a": a, "b": a - 0.2}, {"a": 1.0, "b": -1.0}, idx)
+    assert c["p_boot"] == (c["p_boot_count"] + 1) / (500 + 1)
+    assert c["p_boot"] >= 1 / 501
+
+
+def test_analysis_settings_preserved():
+    """Seed set, contrasts, bootstrap seed, B and the primary family are fixed."""
+    assert pa.N_BOOT == 20000 and pa.BOOT_SEED == 20261105
+    assert pa.PRIMARY == ("C1", "C2", "C3")
+
+
+def test_analysis_deterministic_and_plus_one_on_real_data():
+    res1, _ = pa.analyse("results/reproduction/transport/corr_length")
+    res2, _ = pa.analyse("results/reproduction/transport/corr_length")
+    assert res1 == res2
+    for name in pa.PRIMARY:
+        c = res1["contrasts"][name]
+        assert c["p_boot"] == (c["p_boot_count"] + 1) / (pa.N_BOOT + 1) > 0
+        assert "p_boot_holm" in c

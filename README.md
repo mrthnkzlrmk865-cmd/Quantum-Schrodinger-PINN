@@ -330,10 +330,13 @@ areas (∝ L_d L_y / ζ²) and the transmission self-averages less.
 **Paired re-analysis (added in Phase 2 preparation).** The ζ points
 share disorder seeds, so the comparison above was repeated with seed-wise
 paired bootstrap differences (`python paired_analysis.py`, 48 seeds,
-Holm-corrected over three pre-specified contrasts). ⟨T⟩(0.05) − ⟨T⟩(0.02) = −0.176
+Holm-corrected over three primary contrasts; post-hoc, because the contrasts
+were chosen after the unpaired results above had been seen). ⟨T⟩(0.05) − ⟨T⟩(0.02) = −0.176
 [−0.198, −0.154] and ⟨T⟩(0.05) − ⟨T⟩(0.20) = −0.240 [−0.284, −0.193] (paired 95 %
 CIs), and the curvature contrast at ζ = 0.05 is positive (+0.046
-[0.023, 0.068]). The minimum is resolved only coarsely: the difference to
+[0.023, 0.068]). For all three, the bootstrap p-value is at or near its
+resolution limit (p = (b+1)/(B+1) ≈ 5×10⁻⁵ to 1×10⁻⁴ with B = 20 000, i.e.
+p ≲ 10⁻⁴; Holm-adjusted 1.5×10⁻⁴). The minimum is resolved only coarsely: the difference to
 ζ = 0.07 is small, and its multiplicity-corrected interval includes zero
 (kζ ≈ 0.6–1.4). This was a re-analysis after seeing the unpaired results,
 not an independent replication. Details: docs/PHASE2_METHOD_SELECTION.md §4.
