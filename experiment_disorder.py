@@ -1,139 +1,138 @@
 """
-Original-contribution experiment: quantum transport through a barrier with
-smooth, correlated spatial disorder, compared to the clean barrier.
+Transport of a quantum wave packet through a correlated disordered slab in
+a 2D hard-wall waveguide (open boundaries via CAPs). Reference solver only.
 
-Motivation
------------
-This is the piece that moves the project beyond "PINN applied to a textbook
-tunneling problem" (see README "Scope and original contribution"). It asks
-a question inspired by Environment-Assisted Quantum Transport (ENAQT) in
-photosynthetic light-harvesting complexes: static energetic disorder along
-a transport pathway can, counter-intuitively, *increase* transmission
-through constructive interference effects, rather than only hindering it
-via Anderson localization. Most ENAQT literature studies this with open
-quantum system master equations (Lindblad/HEOM) and a *dephasing*
-environment; this experiment asks a narrower, complementary question with
-a much simpler, fully unitary (Schrodinger-only) model: does adding smooth,
-correlated *static* disorder around a tunneling barrier change transmission,
-and does it do so systematically (helps/hurts) or unpredictably
-(seed-dependent)?
+Research question
+-----------------
+How do the disorder strength W and the spatial correlation length zeta of
+a static, Gaussian-correlated random potential control the transmission
+and reflection of a wave packet, and in which parameter range is the
+transport ballistic, diffusive, or strongly suppressed? Are the observed
+trends consistent with the Born-approximation transport mean free path
+l_tr(W, zeta, k) (disorder.born_rates), and where does that perturbative
+picture fail?
 
-This uses the classical DST split-step solver (reference_solver.py), not
-the PINN -- the PINN's job in this project is to reproduce known unitary
-dynamics accurately; the disorder *sweep* itself is intentionally run with
-the solver already validated for probability conservation to machine
-precision (see tests/test_basic.py), so any transmission trend we see here
-is physical, not a training artifact.
+Sweeps (python experiment_disorder.py --sweep NAME [--n-real N]):
+  strength     W in {0,25,50,75,100,150,200,300}, zeta = 0.05, Ld = 1
+  corr_length  zeta in {0.02,...,0.2}, W = 100, Ld = 1
+  momentum     kx0 in {12,16,20,25,30}, W = 100, zeta = 0.05, Ld = 1
+  length       Ld in {0.25,0.5,1,2,3}, W in {100, 200}, zeta = 0.05
+  barrier      barrier (width 0.1, centre of slab) of height 150 or 250
+               with W in {0, 50, 100, 200}
+  convergence  W = 100, zeta = 0.05, many realizations (running mean / SE)
+  all          everything above
 
-Usage:
-    python experiment_disorder.py
+Each configuration point uses seeds 0..N-1 (independent realizations; the
+same seeds are reused across points, which makes neighbouring points
+positively correlated and differences between them less noisy). Outputs:
+  results/transport/<sweep>/<point>.npz   raw T(t), R(t), P_in(t) per seed + config json
+  results/transport/<sweep>/summary.csv   statistics per point
+Existing .npz files are reused (delete them to recompute).
 """
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import os
 
 import numpy as np
 
-from config import cfg
-import reference_solver as rs
+from config import waveguide_config
+from disorder import born_rates
+from stats_utils import summarize
+from transport import run_transport
+
+OUT = "results/transport"
+STRENGTHS = [0, 25, 50, 75, 100, 150, 200, 300]
+ZETAS = [0.02, 0.03, 0.05, 0.07, 0.1, 0.15, 0.2]
+MOMENTA = [12, 16, 20, 25, 30]
+LENGTHS = [0.25, 0.5, 1.0, 2.0, 3.0]
 
 
-def transmitted_probability(psi: np.ndarray, X: np.ndarray, dx: float) -> float:
-    """Probability mass to the right of the barrier center (x > barrier_center)."""
-    mask = X > cfg.barrier_center
-    return float(np.sum(np.abs(psi[mask]) ** 2) * dx * dx)
+def sweep_points(name, n_real):
+    pts = []
+    if name == "strength":
+        for W in STRENGTHS:
+            pts.append((f"W{W}", dict(disorder_strength=float(W)), 1 if W == 0 else n_real, 1.0))
+    elif name == "corr_length":
+        for z in ZETAS:
+            pts.append((f"zeta{z}", dict(disorder_strength=100.0, disorder_corr_length=z), n_real, 1.0))
+    elif name == "momentum":
+        for k in MOMENTA:
+            t_end = max(1.0, 1.0 * 20.0 / k)
+            pts.append((f"k{k}", dict(disorder_strength=100.0, kx0=float(k)), n_real, t_end))
+            pts.append((f"k{k}_clean", dict(disorder_strength=0.0, kx0=float(k)), 1, t_end))
+    elif name == "length":
+        for W in (100, 200):
+            for Ld in LENGTHS:
+                pts.append((f"W{W}_L{Ld}", dict(disorder_strength=float(W), slab_length=Ld), n_real, 1.0 + 0.5 * Ld))
+    elif name == "barrier":
+        for Vb in (150.0, 250.0):
+            for W in (0, 50, 100, 200):
+                pts.append((f"Vb{int(Vb)}_W{W}", dict(disorder_strength=float(W), barrier_height=Vb),
+                            1 if W == 0 else n_real, 1.5))
+    elif name == "convergence":
+        pts.append(("W100_zeta0.05", dict(disorder_strength=100.0), n_real, 1.0))
+    else:
+        raise ValueError(name)
+    return pts
 
 
-def run_scenario(scenario: str, seed: int = 0):
-    cfg.SCENARIO = scenario
-    cfg.disorder_seed = seed
-    X, Y, frame_times, frames = rs.propagate()
-    dx = X[1, 0] - X[0, 0]
-    trans = [transmitted_probability(p, X, dx) for p in frames]
-    total_prob = [rs.total_probability(p, dx) for p in frames]
-    return frame_times, np.array(trans), np.array(total_prob)
+def run_point(sweep, name, overrides, n_real, t_end):
+    d = os.path.join(OUT, sweep)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, f"{name}.npz")
+    cfg = waveguide_config(**dict(overrides))
+    if os.path.exists(path):
+        data = dict(np.load(path, allow_pickle=False))
+        if data["T"].shape[1] >= n_real:
+            return cfg, data
+    r = run_transport(cfg, range(n_real), t_end=t_end, n_frames=41)
+    np.savez_compressed(path, times=r["times"], T=r["T"], R=r["R"], P_in=r["P_in"], seeds=r["seeds"],
+                        wall_time_s=r["wall_time_s"], config_json=json.dumps(cfg.to_dict()))
+    print(f"  {sweep}/{name}: n={n_real} <T>={r['T'][-1].mean():.4f} <R>={r['R'][-1].mean():.4f} "
+          f"<P_in>={r['P_in'][-1].mean():.2e}  ({r['wall_time_s']:.0f}s)", flush=True)
+    return cfg, dict(np.load(path))
 
 
-def run_disorder_sweep(n_seeds: int = 8):
-    """Compare final transmission for the clean barrier vs. several
-    independent disorder realizations, to see if disorder systematically
-    helps/hurts or is just seed-noise."""
-    cfg.eval_n_grid = 96
-    cfg.eval_n_steps = 3000
-
-    t_clean, trans_clean, prob_clean = run_scenario("tunneling")
-    final_clean = trans_clean[-1]
-
-    finals_disordered = []
-    for seed in range(n_seeds):
-        _, trans_d, prob_d = run_scenario("disordered", seed=seed)
-        finals_disordered.append(trans_d[-1])
-        drift = abs(prob_d[-1] - 1.0)
-        assert drift < 1e-6, f"seed {seed}: probability not conserved (drift={drift})"
-
-    finals_disordered = np.array(finals_disordered)
-    return final_clean, finals_disordered, t_clean, trans_clean
+def summarize_point(sweep, name, cfg, data):
+    T, R, P = data["T"][-1], data["R"][-1], data["P_in"][-1]
+    k = float(np.hypot(cfg.kx0, cfg.k_transverse))
+    b = born_rates(cfg.disorder_strength, cfg.disorder_corr_length, k) if cfg.disorder_strength > 0 else None
+    row = dict(sweep=sweep, point=name, W=cfg.disorder_strength, zeta=cfg.disorder_corr_length,
+               kx0=cfg.kx0, k=k, E0=cfg.mean_energy, Ld=cfg.disorder_region[1] - cfg.disorder_region[0],
+               barrier=cfg.barrier_height, t_end=float(data["times"][-1]),
+               l_s_born=float(b["l_s"]) if b else np.inf, l_tr_born=float(b["l_tr"]) if b else np.inf,
+               k_zeta=k * cfg.disorder_corr_length)
+    for key, v in (("T", T), ("R", R), ("P_in", P), ("lnT", np.log(np.maximum(T, 1e-300)))):
+        s = summarize(v)
+        for sk in ("n", "mean", "std", "se", "ci_t_lo", "ci_t_hi", "ci_boot_lo", "ci_boot_hi", "median"):
+            row[f"{key}_{sk}"] = s[sk]
+    return row
 
 
-def make_plot(final_clean, finals_disordered, t_clean, trans_clean):
-    import matplotlib
+def run_sweep(sweep, n_real):
+    rows = []
+    for name, over, n, t_end in sweep_points(sweep, n_real):
+        cfg, data = run_point(sweep, name, over, n, t_end)
+        rows.append(summarize_point(sweep, name, cfg, data))
+    with open(os.path.join(OUT, sweep, "summary.csv"), "w", newline="") as f:
+        wr = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        wr.writeheader()
+        wr.writerows(rows)
+    return rows
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
-
-    ax = axes[0]
-    ax.axhline(final_clean, color="black", linestyle="--", label="clean barrier")
-    ax.scatter(
-        range(len(finals_disordered)), finals_disordered,
-        color="tab:orange", label="disordered (per seed)"
-    )
-    ax.axhline(
-        finals_disordered.mean(), color="tab:orange", linestyle=":",
-        label=f"disordered mean ({finals_disordered.mean():.3f})"
-    )
-    ax.set_xlabel("disorder realization (seed)")
-    ax.set_ylabel("Transmitted probability at t=T")
-    ax.set_title("Final transmission: clean vs. disordered")
-    ax.legend(fontsize=8)
-
-    ax = axes[1]
-    cfg.SCENARIO = "tunneling"
-    t_d, trans_d0, _ = run_scenario("disordered", seed=0)
-    ax.plot(t_clean, trans_clean, label="clean barrier")
-    ax.plot(t_d, trans_d0, label="disordered (seed 0)")
-    ax.set_xlabel("t")
-    ax.set_ylabel("Transmitted probability")
-    ax.set_title("Transmission over time (one realization)")
-    ax.legend(fontsize=8)
-
-    fig.tight_layout()
-    fig.savefig("figures/disorder_transmission.png", dpi=150)
-    print("Saved -> figures/disorder_transmission.png")
-
+DEFAULT_N = dict(strength=48, corr_length=48, momentum=32, length=24, barrier=24, convergence=192)
 
 if __name__ == "__main__":
-    import os
-
-    os.makedirs("figures", exist_ok=True)
-
-    print("Running clean-vs-disordered transmission sweep "
-          "(this uses the classical reference solver, not the PINN)...")
-    final_clean, finals_disordered, t_clean, trans_clean = run_disorder_sweep(n_seeds=8)
-
-    print(f"\nClean barrier, final transmitted probability: {final_clean:.4f}")
-    print(f"Disordered barrier, {len(finals_disordered)} seeds: "
-          f"mean={finals_disordered.mean():.4f} std={finals_disordered.std():.4f}")
-    print(f"Per-seed values: {np.round(finals_disordered, 4).tolist()}")
-
-    delta = finals_disordered.mean() - final_clean
-    direction = "increases" if delta > 0 else "decreases"
-    print(f"\nOn average, this disorder configuration {direction} transmission "
-          f"by {abs(delta):.4f} ({abs(delta)/final_clean*100:.1f}% relative to clean), "
-          f"with realization-to-realization std {finals_disordered.std():.4f}.")
-    if finals_disordered.std() > abs(delta):
-        print("NOTE: the seed-to-seed spread is larger than the mean shift -- "
-              "read this as 'disorder matters, direction is not yet a clean, "
-              "statistically confident trend' rather than a firm effect. "
-              "More seeds and/or a scan over disorder_strength would be the "
-              "natural next step before claiming a directional ENAQT-like effect.")
-
-    make_plot(final_clean, finals_disordered, t_clean, trans_clean)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--sweep", default="all")
+    ap.add_argument("--n-real", type=int, default=None)
+    a = ap.parse_args()
+    names = list(DEFAULT_N) if a.sweep == "all" else [a.sweep]
+    for nm in names:
+        print(f"== sweep {nm}", flush=True)
+        run_sweep(nm, a.n_real or DEFAULT_N[nm])

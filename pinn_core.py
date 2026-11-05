@@ -1,179 +1,116 @@
 """
-Physics components of the PINN: initial condition, PDE residual (via
-autograd), collocation-point sampling, and the total training loss.
+Physics part of the PINN: PDE residual (autograd), collocation sampling
+(uniform or residual-adaptive), normalization loss and total loss.
 
-Key addition vs. the original draft: a NORMALIZATION loss term.
+Residual of i psi_t = -1/2 lap psi + V psi with psi = u + i v:
 
-Why it matters
----------------
-Without it, u = v = 0 everywhere is a near-optimal solution: the PDE
-residual is exactly zero, the boundary loss is exactly zero, and only the
-initial-condition loss pushes back against it. If w_ic isn't large enough
-relative to the rest, gradient descent can collapse toward this trivial
-"empty universe" solution, especially early in training. The normalization
-term directly penalizes any global collapse (or blow-up) of total
-probability by enforcing integral(|Psi|^2) dx dy = 1 at several random time
-slices throughout training, independent of the initial condition.
+    real part of the equation:  f_v = v_t - 1/2 lap u + V u = 0
+    imag part of the equation:  f_u = u_t + 1/2 lap v - V v = 0
 
-This does not replace the post-hoc conservation check in evaluate.py --
-that script verifies the *trained* model actually conserves probability
-over time. This loss term is what makes it plausible that it will.
+The loss uses the scaled residual  (T / A) * f,  where T is the time window
+and A = max|psi0|. This is the residual of the equation written in the
+normalized time tau = t/T and normalized amplitude, so its natural size is
+O(E0 * T), independent of units. (The original code used the raw residual,
+whose mean square was ~1e7 at initialization.)
+
+Normalization loss: (int |psi|^2 dx dy - 1)^2 averaged over a few random
+times, with the integral evaluated by the midpoint rule on a fixed grid.
+The hard-constrained IC already has unit norm at t = 0, so this term only
+penalizes norm drift during the evolution. It is a soft constraint:
+whether the trained model conserves probability is checked separately by
+evaluate.py.
+
+Sampling strategies for interior collocation points:
+  "uniform": i.i.d. uniform in [0,Lx]x[0,Ly]x[0,T], redrawn every
+             resample_every epochs.
+  "rad":     residual-based adaptive distribution (Wu et al., CMAME 403,
+             115671 (2023)): draw a pool of rad_pool_factor * n uniform
+             candidates and pick n of them with probability
+             proportional to |f|^2 / mean|f|^2 + 1.
 """
+
+from __future__ import annotations
 
 import torch
 
-from config import cfg
-from potential import potential_torch
-from initial_condition import initial_condition_torch as initial_condition
+from potential import Potential
 
 
+def _grad(out, inp):
+    return torch.autograd.grad(out, inp, grad_outputs=torch.ones_like(out), create_graph=True)[0]
 
 
-
-def pde_residual(model, x, y, t):
-    x.requires_grad_(True)
-    y.requires_grad_(True)
-    t.requires_grad_(True)
-
+def pde_residual(model, potential: Potential, x, y, t, V=None, scaled=True):
+    """Returns (f_u, f_v). V may be passed precomputed (same points)."""
+    x = x.detach().requires_grad_(True)
+    y = y.detach().requires_grad_(True)
+    t = t.detach().requires_grad_(True)
     u, v = model(x, y, t)
-
-    u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-    v_t = torch.autograd.grad(v, t, grad_outputs=torch.ones_like(v), create_graph=True)[0]
-
-    u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-    u_y = torch.autograd.grad(u, y, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-    v_x = torch.autograd.grad(v, x, grad_outputs=torch.ones_like(v), create_graph=True)[0]
-    v_y = torch.autograd.grad(v, y, grad_outputs=torch.ones_like(v), create_graph=True)[0]
-
-    u_xx = torch.autograd.grad(u_x, x, grad_outputs=torch.ones_like(u_x), create_graph=True)[0]
-    u_yy = torch.autograd.grad(u_y, y, grad_outputs=torch.ones_like(u_y), create_graph=True)[0]
-    v_xx = torch.autograd.grad(v_x, x, grad_outputs=torch.ones_like(v_x), create_graph=True)[0]
-    v_yy = torch.autograd.grad(v_y, y, grad_outputs=torch.ones_like(v_y), create_graph=True)[0]
-
-    lap_u = u_xx + u_yy
-    lap_v = v_xx + v_yy
-
-    V = potential_torch(x, y)
+    u_t, v_t = _grad(u, t), _grad(v, t)
+    u_x, u_y = _grad(u, x), _grad(u, y)
+    v_x, v_y = _grad(v, x), _grad(v, y)
+    lap_u = _grad(u_x, x) + _grad(u_y, y)
+    lap_v = _grad(v_x, x) + _grad(v_y, y)
+    if V is None:
+        V = potential.torch(x.detach(), y.detach())
     f_u = u_t + 0.5 * lap_v - V * v
     f_v = v_t - 0.5 * lap_u + V * u
+    if scaled:
+        s = model.cfg.T / model.amp
+        f_u, f_v = s * f_u, s * f_v
     return f_u, f_v
 
 
-def sample_points():
+def _uniform(cfg, n, gen, device):
+    x = torch.rand(n, 1, generator=gen, device=device, dtype=torch.float64).float() * cfg.Lx
+    y = torch.rand(n, 1, generator=gen, device=device, dtype=torch.float64).float() * cfg.Ly
+    t = torch.rand(n, 1, generator=gen, device=device, dtype=torch.float64).float() * cfg.T
+    return x, y, t
+
+
+def sample_interior(cfg, model, potential, gen):
     dev = cfg.device
-
-    x_int = torch.rand(cfg.n_interior, 1, device=dev) * cfg.L
-    y_int = torch.rand(cfg.n_interior, 1, device=dev) * cfg.L
-    t_int = torch.rand(cfg.n_interior, 1, device=dev) * cfg.T
-
-    # --- Initial-condition points: importance-sampled around the packet ---
-    # A purely uniform sample over [0,L]x[0,L] mostly misses the localized
-    # Gaussian packet (sigma=0.06 in a unit box): only ~5% of uniform draws
-    # land where the envelope is non-negligible. That starves the IC loss of
-    # gradient signal about the packet's actual shape, and the network can
-    # reach a deceptively low IC loss by predicting ~0 everywhere -- which
-    # is exactly the "collapse to the trivial zero solution" failure mode.
-    # Fix: draw most IC points from a Gaussian centered on the packet
-    # (concentrated where it matters) and the rest uniformly (to still
-    # enforce u=v=0 in the background, away from the packet).
-    n_focus = int(cfg.n_ic * 0.7)
-    n_bg = cfg.n_ic - n_focus
-
-    x_focus = torch.randn(n_focus, 1, device=dev) * (2 * cfg.sigma) + cfg.x0
-    y_focus = torch.randn(n_focus, 1, device=dev) * (2 * cfg.sigma) + cfg.y0
-    x_focus = x_focus.clamp(0.0, cfg.L)
-    y_focus = y_focus.clamp(0.0, cfg.L)
-
-    x_bg = torch.rand(n_bg, 1, device=dev) * cfg.L
-    y_bg = torch.rand(n_bg, 1, device=dev) * cfg.L
-
-    x_ic = torch.cat([x_focus, x_bg], dim=0)
-    y_ic = torch.cat([y_focus, y_bg], dim=0)
-    t_ic = torch.zeros(cfg.n_ic, 1, device=dev)
-
-    n_edge = cfg.n_bc // 4
-    t_bc = torch.rand(cfg.n_bc, 1, device=dev) * cfg.T
-    edges_x = torch.cat(
-        [
-            torch.zeros(n_edge, 1, device=dev),
-            torch.full((n_edge, 1), cfg.L, device=dev),
-            torch.rand(n_edge, 1, device=dev) * cfg.L,
-            torch.rand(n_edge, 1, device=dev) * cfg.L,
-        ]
-    )
-    edges_y = torch.cat(
-        [
-            torch.rand(n_edge, 1, device=dev) * cfg.L,
-            torch.rand(n_edge, 1, device=dev) * cfg.L,
-            torch.zeros(n_edge, 1, device=dev),
-            torch.full((n_edge, 1), cfg.L, device=dev),
-        ]
-    )
-
-    # Normalization-loss points: a FIXED spatial grid (not random MC
-    # samples). A naive uniform Monte-Carlo estimate of integral(|Psi|^2)
-    # with only a few hundred random points badly under-estimates a
-    # narrow, localized function like our packet (sigma=0.06) purely from
-    # sampling noise -- most random draws land where the packet has near-
-    # zero amplitude. A fixed grid resolves the packet deterministically
-    # regardless of the RNG. (This was misdiagnosed as a training/collapse
-    # problem before the real bug -- an unnormalized IC amplitude, see
-    # initial_condition.py -- was found; a coarse MC estimate of the
-    # integral made it hard to tell the two apart. Both are fixed now.)
-    n_side = max(4, int(cfg.n_norm**0.5))
-    grid_1d = torch.linspace(0, cfg.L, n_side, device=dev)
-    gx, gy = torch.meshgrid(grid_1d, grid_1d, indexing="ij")
-    x_norm = gx.reshape(-1, 1)
-    y_norm = gy.reshape(-1, 1)
-    t_norm = torch.rand(cfg.n_norm_times, device=dev) * cfg.T
-
-    return (
-        (x_int, y_int, t_int),
-        (x_ic, y_ic, t_ic),
-        (edges_x, edges_y, t_bc),
-        (x_norm, y_norm, t_norm),
-    )
+    if cfg.sampling == "uniform":
+        x, y, t = _uniform(cfg, cfg.n_interior, gen, dev)
+    elif cfg.sampling == "rad":
+        pool = cfg.n_interior * cfg.rad_pool_factor
+        xp, yp, tp = _uniform(cfg, pool, gen, dev)
+        res2 = []
+        for s in range(0, pool, 8192):
+            fu, fv = pde_residual(model, potential, xp[s:s + 8192], yp[s:s + 8192], tp[s:s + 8192])
+            res2.append((fu**2 + fv**2).detach())
+        r = torch.cat(res2).squeeze(1)
+        p = r / r.mean() + 1.0
+        idx = torch.multinomial(p / p.sum(), cfg.n_interior, replacement=False, generator=gen)
+        x, y, t = xp[idx], yp[idx], tp[idx]
+    else:
+        raise ValueError(cfg.sampling)
+    V = potential.torch(x, y).detach()
+    return x, y, t, V
 
 
-def normalization_loss(model, norm_points):
-    """Monte-Carlo estimate of integral(|Psi|^2) dx dy at several times, penalized against 1."""
-    x_n, y_n, t_slices = norm_points
+def norm_quadrature_points(cfg, device):
+    n = cfg.n_norm_side
+    xs = (torch.arange(n, device=device, dtype=torch.float32) + 0.5) * cfg.Lx / n
+    ys = (torch.arange(n, device=device, dtype=torch.float32) + 0.5) * cfg.Ly / n
+    gx, gy = torch.meshgrid(xs, ys, indexing="ij")
+    w = cfg.Lx * cfg.Ly / n**2
+    return gx.reshape(-1, 1), gy.reshape(-1, 1), w
+
+
+def normalization_loss(model, xq, yq, w, times):
     losses = []
-    for t_val in t_slices:
-        t_n = torch.full_like(x_n, float(t_val))
-        u, v = model(x_n, y_n, t_n)
-        prob_integral = torch.mean(u**2 + v**2) * (cfg.L**2)
-        losses.append((prob_integral - 1.0) ** 2)
+    for t_val in times:
+        u, v = model(xq, yq, torch.full_like(xq, float(t_val)))
+        losses.append((torch.sum(u**2 + v**2) * w - 1.0) ** 2)
     return torch.stack(losses).mean()
 
 
-def total_loss(model, interior, ic, bc, norm_points, weights=None):
-    if weights is None:
-        weights = cfg.loss_weights
-
-    x_i, y_i, t_i = interior
-    x_ic, y_ic, t_ic = ic
-    x_bc, y_bc, t_bc = bc
-
-    f_u, f_v = pde_residual(model, x_i, y_i, t_i)
+def total_loss(model, potential, interior, norm_pts, weights):
+    x, y, t, V = interior
+    f_u, f_v = pde_residual(model, potential, x, y, t, V=V)
     loss_pde = torch.mean(f_u**2) + torch.mean(f_v**2)
-
-    u_pred_ic, v_pred_ic = model(x_ic, y_ic, t_ic)
-    u0, v0 = initial_condition(x_ic, y_ic)
-    loss_ic = torch.mean((u_pred_ic - u0) ** 2) + torch.mean((v_pred_ic - v0) ** 2)
-
-    u_pred_bc, v_pred_bc = model(x_bc, y_bc, t_bc)
-    loss_bc = torch.mean(u_pred_bc**2) + torch.mean(v_pred_bc**2)
-
-    loss_norm = normalization_loss(model, norm_points)
-
-    loss = (
-        weights["pde"] * loss_pde
-        + weights["ic"] * loss_ic
-        + weights["bc"] * loss_bc
-        + weights["norm"] * loss_norm
-    )
-    parts = dict(
-        pde=loss_pde.item(), ic=loss_ic.item(), bc=loss_bc.item(), norm=loss_norm.item()
-    )
-    return loss, parts
+    xq, yq, w, times = norm_pts
+    loss_norm = normalization_loss(model, xq, yq, w, times)
+    loss = weights["pde"] * loss_pde + weights["norm"] * loss_norm
+    return loss, dict(pde=loss_pde.item(), norm=loss_norm.item())

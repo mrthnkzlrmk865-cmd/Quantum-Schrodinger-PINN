@@ -1,76 +1,83 @@
 """
-Potential energy V(x, y) for the 2D infinite well / tunneling scenario.
+Real potential V(x, y) = V_barrier(x) + V_dis(x, y), defined ONCE and
+evaluated by both solvers:
 
-Implemented twice with an identical mathematical definition:
-  - `potential_torch`: differentiable, used inside the PINN's autograd loss.
-  - `potential_numpy`: used by the classical split-step reference solver.
+  * ``Potential.torch(x, y)``  differentiable, used in the PINN residual.
+  * ``Potential.numpy(X, Y)``  float64, used by the split-step solver.
 
-Keeping two implementations (instead of forcing one to serve both) avoids
-autograd-vs-numpy shape headaches while guaranteeing they encode the same V.
-A unit test (tests/test_potential.py) checks that they agree pointwise.
+Both evaluate the same formulas with the same parameters (including the
+same disorder realization), and tests/test_potential.py checks pointwise
+agreement. The complex absorbing potential is NOT part of V; it belongs
+to the open-boundary reference solver only (reference_solver.py).
+
+Barrier
+-------
+    V_b(x) = V0 * 1/2 [tanh((x - x1)/e) - tanh((x - x2)/e)],
+    x1,2 = barrier_center -/+ barrier_width/2, e = barrier_edge.
+With barrier_edge = 0 the barrier is the sharp strip x1 < x < x2 (the
+original definition). The smooth version is preferred for convergence
+studies because the potential then does not depend on where grid points
+fall relative to the edge.
 """
+
+from __future__ import annotations
 
 import numpy as np
 import torch
 
-from config import cfg
+from disorder import DisorderRealization, disorder_from_config
 
 
-def _disorder_field_numpy(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """
-    Smooth random potential roughness, used only in SCENARIO == "disordered".
+class Potential:
+    def __init__(self, cfg, disorder: DisorderRealization | None = None):
+        self.V0 = float(cfg.barrier_height)
+        self.xc = float(cfg.barrier_center)
+        self.w = float(cfg.barrier_width)
+        self.edge = float(cfg.barrier_edge)
+        if disorder is None and cfg.disorder_strength != 0.0:
+            disorder = disorder_from_config(cfg)
+        self.disorder = disorder
 
-    Built by band-limiting white noise in Fourier space so the disorder has
-    a controllable spatial correlation length (`cfg.disorder_correlation_length`)
-    instead of being pixel-to-pixel uncorrelated. This mimics the kind of
-    static energetic disorder used in Environment-Assisted Quantum Transport
-    (ENAQT) models of chromophore networks, where site energies fluctuate
-    smoothly rather than randomly at every point.
-    """
-    rng = np.random.default_rng(cfg.disorder_seed)
-    n = x.shape[0]
-    noise = rng.normal(size=(n, n))
-    # Gaussian smoothing via FFT convolution
-    kx = np.fft.fftfreq(n, d=1.0 / n)
-    ky = np.fft.fftfreq(n, d=1.0 / n)
-    KX, KY = np.meshgrid(kx, ky, indexing="ij")
-    sigma_k = 1.0 / (2 * np.pi * cfg.disorder_correlation_length * n)
-    kernel = np.exp(-(KX**2 + KY**2) * (sigma_k**2) / 2.0)
-    field = np.fft.ifft2(np.fft.fft2(noise) * kernel).real
-    field -= field.mean()
-    std = field.std()
-    if std > 1e-12:
-        field /= std
-    return field * cfg.disorder_strength
+    # ------------------------------------------------------------------
+    def barrier_numpy(self, X):
+        X = np.asarray(X, dtype=np.float64)
+        if self.V0 == 0.0:
+            return np.zeros_like(X)
+        x1, x2 = self.xc - self.w / 2, self.xc + self.w / 2
+        if self.edge > 0:
+            return self.V0 * 0.5 * (np.tanh((X - x1) / self.edge) - np.tanh((X - x2) / self.edge))
+        return np.where((X > x1) & (X < x2), self.V0, 0.0)
 
+    def barrier_torch(self, x):
+        if self.V0 == 0.0:
+            return torch.zeros_like(x)
+        x1, x2 = self.xc - self.w / 2, self.xc + self.w / 2
+        if self.edge > 0:
+            return self.V0 * 0.5 * (torch.tanh((x - x1) / self.edge) - torch.tanh((x - x2) / self.edge))
+        return torch.where((x > x1) & (x < x2), torch.full_like(x, self.V0), torch.zeros_like(x))
 
-def potential_torch(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    V = torch.zeros_like(x)
-    if cfg.SCENARIO in ("tunneling", "disordered"):
-        mask = (x > cfg.barrier_center - cfg.barrier_width / 2) & (
-            x < cfg.barrier_center + cfg.barrier_width / 2
-        )
-        V = torch.where(mask, torch.full_like(x, cfg.barrier_height), V)
-    if cfg.SCENARIO == "disordered":
-        # NOTE: the disorder field is not differentiable w.r.t. (x, y) in a
-        # physically meaningful way when built from a fixed random grid, so
-        # the disordered scenario is intended for the *reference solver*
-        # comparison (see experiment_disorder.py), not for PINN training
-        # directly. Raise loudly rather than silently returning a wrong V.
-        raise NotImplementedError(
-            "Disordered potential is only implemented for the numpy "
-            "reference solver (potential_numpy). See experiment_disorder.py."
-        )
-    return V
+    # ------------------------------------------------------------------
+    def numpy(self, X, Y):
+        V = self.barrier_numpy(X)
+        if self.disorder is not None:
+            V = V + self.disorder.numpy(X, Y)
+        return V
+
+    def torch(self, x, y):
+        V = self.barrier_torch(x)
+        if self.disorder is not None:
+            V = V + self.disorder.torch(x, y)
+        return V
+
+    __call__ = torch
 
 
-def potential_numpy(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-    V = np.zeros_like(X)
-    if cfg.SCENARIO in ("tunneling", "disordered"):
-        mask = (X > cfg.barrier_center - cfg.barrier_width / 2) & (
-            X < cfg.barrier_center + cfg.barrier_width / 2
-        )
-        V = np.where(mask, cfg.barrier_height, V)
-    if cfg.SCENARIO == "disordered":
-        V = V + _disorder_field_numpy(X, Y)
-    return V
+# Backwards-compatible functional API (default config) -----------------
+def potential_numpy(X, Y, cfg=None):
+    from config import cfg as default_cfg
+    return Potential(cfg or default_cfg).numpy(X, Y)
+
+
+def potential_torch(x, y, cfg=None):
+    from config import cfg as default_cfg
+    return Potential(cfg or default_cfg).torch(x, y)

@@ -1,52 +1,35 @@
 """
-Renders the trained Schrödinger PINN's |Psi(x,y,t)|^2 (probability density)
-output as a 3Blue1Brown-inspired, dark/neon-themed, interactive 3D surface
-animation.
+Interactive 3D Plotly animation of |psi(x, y, t)|^2 from a trained PINN run,
+optionally overlaid with the DST reference solution of the same
+configuration.
 
 Usage:
-    python visualize_wavefunction.py
-    -> open the generated "wavefunction_animation.html" file in your browser.
+    python visualize.py results/pinn/W56_fourier_uniform_s0
+    -> writes <run>/wavefunction_animation.html and
+       <run>/wavefunction_comparison.html
+(plotly is only needed for this script.)
 """
 
-import torch
+import os
+import sys
+
 import numpy as np
 import plotly.graph_objects as go
+import torch
 
-from model import SchrodingerPINN
-from config import cfg
-
-
-# ----------------------------------------------------------------------------------
-# 1. LOAD THE MODEL
-# ----------------------------------------------------------------------------------
-def load_model(path="schrodinger_pinn.pt"):
-    model = SchrodingerPINN().to(cfg.device)
-    model.load_state_dict(torch.load(path, map_location=cfg.device))
-    model.eval()
-    return model
+from evaluate import pinn_on_grid
+from potential import Potential
+from reference_solver import SplitStepDST
+from train import load_run
 
 
-# ----------------------------------------------------------------------------------
-# 2. COMPUTE |Psi|^2 ON A GRID (for every time step)
-# ----------------------------------------------------------------------------------
-def compute_probability_density(model, n_grid=90, n_frames=60):
-    xs = np.linspace(0, cfg.L, n_grid)
-    ys = np.linspace(0, cfg.L, n_grid)
+def compute_probability_density(model, cfg, n_grid=90, n_frames=41):
+    xs = np.linspace(0, cfg.Lx, n_grid)
+    ys = np.linspace(0, cfg.Ly, n_grid)
     ts = np.linspace(0, cfg.T, n_frames)
-
-    X, Y = np.meshgrid(xs, ys)
-    x_flat = torch.tensor(X.reshape(-1, 1), dtype=torch.float32, device=cfg.device)
-    y_flat = torch.tensor(Y.reshape(-1, 1), dtype=torch.float32, device=cfg.device)
-
-    prob_frames = []
-    with torch.no_grad():
-        for t_val in ts:
-            t_flat = torch.full_like(x_flat, float(t_val))
-            u, v = model(x_flat, y_flat, t_flat)
-            prob = (u ** 2 + v ** 2).cpu().numpy().reshape(n_grid, n_grid)
-            prob_frames.append(prob)
-
-    return X, Y, ts, prob_frames
+    X, Y = np.meshgrid(xs, ys, indexing="ij")
+    psi = pinn_on_grid(model, X, Y, ts)
+    return X, Y, ts, [np.abs(p) ** 2 for p in psi]
 
 
 # ----------------------------------------------------------------------------------
@@ -148,32 +131,9 @@ def build_animation(X, Y, ts, prob_frames, z_max=None, out_html="wavefunction_an
         )],
     )
 
-    fig.write_html(out_html, auto_play=False)
+    fig.write_html(out_html, auto_play=False, include_plotlyjs="cdn")
     print(f"Animation saved -> {out_html}")
     return fig
-
-
-def load_reference(path="reference_solution.npz", n_frames_pinn=None, ts_pinn=None):
-    """Load the classical DST split-step reference solution (if present) and
-    resample its frames onto the same time grid as the PINN, so the two can
-    be shown side by side. Returns None if the file doesn't exist."""
-    import os
-
-    if not os.path.exists(path):
-        return None
-    data = np.load(path)
-    X, Y = data["X"], data["Y"]
-    ref_times = data["frame_times"]
-    psi_ref = data["psi_real"] + 1j * data["psi_imag"]
-    prob_ref_all = np.abs(psi_ref) ** 2
-
-    if ts_pinn is None:
-        return X, Y, ref_times, [prob_ref_all[i] for i in range(len(ref_times))]
-
-    # nearest-frame lookup for each PINN time
-    idx = [int(np.argmin(np.abs(ref_times - t))) for t in ts_pinn]
-    prob_ref = [prob_ref_all[i] for i in idx]
-    return X, Y, ts_pinn, prob_ref
 
 
 def build_comparison_animation(
@@ -255,27 +215,14 @@ def build_comparison_animation(
 
 
 if __name__ == "__main__":
-    model = load_model("schrodinger_pinn.pt")
-    X, Y, ts, prob_frames = compute_probability_density(model, n_grid=90, n_frames=60)
-    build_animation(X, Y, ts, prob_frames)
-
-    ref = load_reference()
-    if ref is not None:
-        # Evaluate the PINN on the reference's own (X, Y) grid so the two
-        # surfaces are directly comparable point-for-point, instead of on
-        # two different grids.
-        X_ref, Y_ref, ts_ref, prob_ref = ref
-        n_ref = X_ref.shape[0]
-        x_flat = torch.tensor(X_ref.reshape(-1, 1), dtype=torch.float32, device=cfg.device)
-        y_flat = torch.tensor(Y_ref.reshape(-1, 1), dtype=torch.float32, device=cfg.device)
-        prob_pinn_on_ref_grid = []
-        with torch.no_grad():
-            for t_val in ts_ref:
-                t_flat = torch.full_like(x_flat, float(t_val))
-                u, v = model(x_flat, y_flat, t_flat)
-                prob = (u**2 + v**2).cpu().numpy().reshape(n_ref, n_ref)
-                prob_pinn_on_ref_grid.append(prob)
-        build_comparison_animation(X_ref, Y_ref, ts_ref, prob_pinn_on_ref_grid, prob_ref)
-    else:
-        print("No reference_solution.npz found -- run reference_solver.py first "
-              "to also get the side-by-side comparison animation.")
+    run = sys.argv[1] if len(sys.argv) > 1 else "results/pinn/clean_fourier_uniform_s0"
+    cfg, model = load_run(run)
+    X, Y, ts, prob = compute_probability_density(model, cfg)
+    build_animation(X, Y, ts, prob, out_html=os.path.join(run, "wavefunction_animation.html"))
+    solver = SplitStepDST(cfg.replace(nx=89, ny=89), Potential(cfg))
+    ref = solver.run(n_frames=41)
+    prob_ref = [np.abs(f[0]) ** 2 for f in ref["frames"]]
+    prob_pinn = [np.abs(p) ** 2 for p in pinn_on_grid(model, solver.X, solver.Y, ref["times"])]
+    build_comparison_animation(solver.X, solver.Y, ref["times"], prob_pinn, prob_ref,
+                               out_html=os.path.join(run, "wavefunction_comparison.html"))
+    print("done")
