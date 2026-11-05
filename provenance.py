@@ -61,6 +61,7 @@ CODE_FILES = {
     "pinn": _CORE + ["embeddings.py", "model.py", "pinn_core.py", "train.py", "evaluate.py",
                      "experiment_pinn.py"],
     "validation": _CORE + ["analytic.py", "transport.py", "validate_solver.py"],
+    "ode1d": ["config.py", "potential.py", "disorder.py", "analytic.py", "ode1d.py", "validate_ode1d.py"],
 }
 
 # Config fields that never influence a reference-solver result.
@@ -146,6 +147,7 @@ ENV_PACKAGES = {
     "transport": ("python", "numpy", "scipy", "machine"),
     "localization": ("python", "numpy", "scipy", "machine"),
     "validation": ("python", "numpy", "scipy", "machine"),
+    "ode1d": ("python", "numpy", "scipy", "machine"),
     "pinn": ("python", "numpy", "scipy", "torch", "machine"),
 }
 

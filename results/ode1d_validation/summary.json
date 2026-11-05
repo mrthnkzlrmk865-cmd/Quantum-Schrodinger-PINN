@@ -1,0 +1,47 @@
+{
+  "defaults": {
+    "method": "DOP853",
+    "rtol": 1e-12,
+    "atol": 1e-12
+  },
+  "sharp": {
+    "n": 195,
+    "max_err_T_formula": 1.4810375148499588e-13,
+    "max_err_t_matching": 6.649408573808407e-13,
+    "max_err_r_matching": 2.2896541727623447e-13,
+    "max_flux_error": 8.526512829121202e-14,
+    "max_range_change_T": 3.8768988019910466e-13,
+    "max_range_change_t": 2.9373777366537705e-12
+  },
+  "smooth": {
+    "n": 130,
+    "max_rtol_change_T": 1.3746363769495673e-10,
+    "max_range_change_T": 6.886990977506002e-13,
+    "max_flux_error": 2.3381296898605797e-13,
+    "intervals": {
+      "150.0": [
+        2.1800000000000037,
+        2.619999999999996
+      ],
+      "250.0": [
+        2.1800000000000037,
+        2.619999999999996
+      ]
+    }
+  },
+  "criteria": {
+    "sharp_T_vs_formula": 1e-08,
+    "amplitudes_vs_matching": 1e-08,
+    "flux": 1e-09,
+    "smooth_rtol_change": 1e-09,
+    "smooth_range_change": 1e-10
+  },
+  "wall_time_s": 10.255203485488892,
+  "pass": {
+    "sharp_T_vs_formula": true,
+    "amplitudes_vs_matching": true,
+    "flux": true,
+    "smooth_rtol_change": true,
+    "smooth_range_change": true
+  }
+}

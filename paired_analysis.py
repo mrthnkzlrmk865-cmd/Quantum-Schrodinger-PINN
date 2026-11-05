@@ -26,9 +26,10 @@ percentile CI (95 % and Bonferroni 98.33 % for 3 primary contrasts), paired
 Student-t CI, the unpaired (Welch) CI for comparison, the per-seed
 correlation r, effect sizes d_z = mean(d)/sd(d) and
 d_av = mean(d)/[(sd_a + sd_b)/2], a two-sided bootstrap p-value, and the
-paired t and Wilcoxon signed-rank p-values, and a paired-bootstrap p-value
-with the (b+1)/(B+1) finite-resampling correction (bootstrap_p_value), all
-three Holm-adjusted over the primary contrasts C1-C3.
+paired t and Wilcoxon signed-rank p-values, and a finite-resampling-corrected,
+null-centered bootstrap tail estimate (b+1)/(B+1) (bootstrap_p_value; not an
+exact finite-sample p-value), all three Holm-adjusted over the primary
+contrasts C1-C3.
 
 Input: the fingerprinted reproduction of the sweep (bit-identical to the
 committed baseline). Before analysing, the script checks that all points
@@ -100,9 +101,14 @@ def paired_contrast(values: dict, weights: dict, idx, levels=(0.95, 1 - 0.05 / 3
 
 
 def bootstrap_p_value(boot_means, observed):
-    """Two-sided paired-bootstrap p-value with the finite-resampling (+1)
-    correction (Monte Carlo p-values: Davison & Hinkley 1997;
-    North, Curtis & Sham 2002; Phipson & Smyth 2010).
+    """Finite-resampling-corrected, null-centered bootstrap tail estimate
+    (two-sided), reported under the key p_boot. The (+1) correction follows
+    the Monte Carlo / permutation literature (North, Curtis & Sham 2002;
+    Phipson & Smyth 2010; see also Davison & Hinkley 1997). It prevents a
+    zero estimate from finitely many resamples. It does NOT make this an
+    exact finite-sample p-value: the null distribution is itself
+    approximated by the centered bootstrap, so the bootstrap approximation
+    error remains. It is also not an unbiased estimate of the true p.
 
     Null-centering procedure: the B bootstrap means boot_b are centered at
     the observed mean, boot_b - observed. This approximates the sampling
@@ -112,7 +118,7 @@ def bootstrap_p_value(boot_means, observed):
     replicates,
         p = (b + 1) / (B + 1).
     The smallest value this can report is 1/(B + 1) (about 5.0e-5 for
-    B = 20000), so the bootstrap never reports p = 0. Smaller p-values cannot
+    B = 20000), so it never reports 0. Smaller tail probabilities cannot
     be resolved with B replicates."""
     boot_means = np.asarray(boot_means, float)
     B = boot_means.size

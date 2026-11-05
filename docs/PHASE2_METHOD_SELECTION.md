@@ -588,10 +588,19 @@ likewise), **never as T₁(E₀) at the central energy alone**.
   So E_c ≈ 5–6. Plan: uniform in kₓ over k₀ ± 4.5/(√2σₓ) with
   δkₓ = 0.025 (≈ 1270 energies; δE = kₓδkₓ ≤ 0.9 ≈ E_c/6 over the whole
   window).
-  * The number of open channels changes across the window (from 1 to about
-    8). T₁(E) is continuous at a channel threshold, but its derivative is
-    singular (√ cusp). Grid points within 10⁻³E of a threshold are moved off
-    it, and the quadrature error there is covered by the halving check.
+  * The number of open channels changes across the window. For k₀ = 20 and
+    σₓ = 0.2 (σ_k = 1/(√2σₓ) = 3.5355), the window is kₓ ∈ [4.090, 35.910],
+    i.e. E = (kₓ² + π²)/2 ∈ [13.30, 649.70]. Channel n is open when
+    E > Eₙ^⊥ = (nπ)²/2, i.e. n < √(2E)/π. That gives **1 open channel at
+    the bottom of the window, 6 at k₀, and 11 at the top**
+    (√(2E_max)/π = 11.47). **Ten thresholds (n = 2…11, at E = 19.74, 44.41,
+    78.96, 123.37, 177.65, 241.81, 315.83, 399.72, 493.48, 597.11) lie
+    inside the window.** (An earlier draft said "about 8"; that was wrong.)
+    So N_y must exceed 11 by a margin of closed channels (§2.4: N_y = 63
+    and 127). T₁(E) is continuous at a channel threshold, but its
+    derivative is singular (√ cusp). Grid points within 10⁻³E of a threshold
+    are moved off it, and the quadrature error there is covered by the
+    halving check.
   * Convergence check: halving δkₓ changes ⟨T⟩_E by ≤ 2×10⁻⁴ (*kept*).
   * Estimated cost ≈ 20 min per realization. (An earlier draft estimate of
     E_c ~ 10, from the mean dwell time alone, was too optimistic.)
@@ -642,14 +651,26 @@ else). Analysis unit: the per-seed difference dᵢ = Σⱼ wⱼ Tᵢ(ζⱼ).
 
     p_boot = (b + 1)/(B + 1).
 
-  This finite-resampling (+1) rule (North, Curtis & Sham 2002; Phipson &
-  Smyth 2010; Davison & Hinkley 1997) never reports zero. Its smallest value
-  is 1/(B + 1) = 5.0×10⁻⁵. It is a valid, slightly conservative test p-value,
-  **not an unbiased estimate of the true p** (North et al.'s 2003 reply;
-  Ewens 2003; Broman & Caffo 2003). The cited papers treat Monte Carlo and
-  permutation tests; here the rule is applied to the centered-bootstrap test
-  as a conservative finite-resolution floor. The previous version reported
-  p_boot = 0 when b = 0; that was not a valid p-value.
+  **What this number is:** a *finite-resampling-corrected, null-centered
+  bootstrap tail estimate*. It estimates, from B resamples, the two-sided
+  tail probability of the null-centered bootstrap distribution. The (+1)
+  rule (North, Curtis & Sham 2002; Phipson & Smyth 2010; see also Davison &
+  Hinkley 1997) prevents an estimate of exactly zero from a finite number of
+  resamples. The smallest value it can return is 1/(B + 1) = 5.0×10⁻⁵.
+
+  **What it is not:**
+  * It is **not an exact finite-sample p-value.** The (+1) arguments in the
+    cited papers concern Monte Carlo and permutation procedures that sample
+    the null distribution exactly. Here the null distribution is itself
+    approximated by the centered bootstrap, so its accuracy also depends on
+    the bootstrap approximation (n = 48 seeds, a mean statistic), which the
+    +1 rule does not address.
+  * It is **not an unbiased estimate of the true p** (North et al.'s 2003
+    reply; Ewens 2003; Broman & Caffo 2003).
+
+  It is reported alongside the confidence intervals and effect sizes, which
+  carry the main information. The previous version reported p_boot = 0 when
+  b = 0; a zero cannot be resolved from 20 000 resamples.
 * **Other p-values:** paired t and Wilcoxon signed-rank. All three kinds are
   Holm-adjusted over the primary family {C1, C2, C3}. The smallest
   Holm-adjusted bootstrap p-value is therefore 3/(B + 1) = 1.5×10⁻⁴.
@@ -727,12 +748,14 @@ own distributional assumptions.
 
 ## 5. Implementation plan (Phase 2, in order)
 
-1. **Reference formulas.** Done for the rectangular barrier
-   (`analytic.rectangular_barrier_transmission`, verified against exact
-   plane-wave matching). Remaining: `ode1d.py` (independent 1D integrator,
-   piecewise for sharp barriers), tests vs the formula to 10⁻⁸, and
-   self-convergence for the smooth barrier. The smooth-step formula is used
-   only if verified against the book.
+1. **Reference formulas and the independent 1D reference: done (stage 1).**
+   `analytic.rectangular_barrier_transmission` (continuous at ε = V₀),
+   `analytic.rectangular_barrier_matching`, and `ode1d.py`
+   (solve_ivp/DOP853, piecewise for sharp barriers, the Potential callable
+   for smooth ones). All B2 ODE criteria pass with margin; measured errors
+   are in [ODE1D_VALIDATION.md](ODE1D_VALIDATION.md). This validates the
+   1D *reference*, not the RGF solver. The smooth-step formula remains
+   unused.
 2. **`stationary.py`: mode-space RGF.** It builds H_D (§2.7.1, with
    symmetric V_j), runs the recursion for G_{11}, G_{N1}, G_{1N}, G_{NN},
    and obtains lead modes, Σ, Γ, Fisher–Lee amplitudes, S and the checks
@@ -808,9 +831,11 @@ Required for the stationary solver (to be written with it):
    order window / Richardson criterion are provisional (§3). The RGF
    round-off behaviour over ≈ 10³ slices is not derived, and the asymptotic
    convergence regime for the tanh-edged barrier is not established.
-9. **Statistical resolution.** Bootstrap p-values are limited to
-   ≥ 1/(B + 1) = 5×10⁻⁵ (Holm ≥ 1.5×10⁻⁴). The (+1) rule is a valid,
-   slightly conservative test p-value, not an unbiased p estimate.
+9. **Statistical resolution.** Bootstrap p-values are
+   finite-resampling-corrected, null-centered bootstrap tail estimates,
+   limited to ≥ 1/(B + 1) = 5×10⁻⁵ (Holm ≥ 1.5×10⁻⁴). They are neither exact
+   finite-sample p-values nor unbiased p estimates. Their accuracy also
+   depends on the bootstrap approximation of the null distribution.
 10. **Reproducibility residuals.** BLAS vendor and CPU micro-architecture are
    recorded but not fingerprinted. Bit-identity has been shown on one
    machine only. The code fingerprint is per file, so non-numerical driver
@@ -897,8 +922,10 @@ were run. `stationary.py` was not started.
    10⁻¹⁰, the B2 ODE checks 10⁻⁸, 10⁻⁹ and 10⁻¹⁰, and the B2 reciprocity
    check 10⁻⁸.
 6. **Bootstrap p-values (§4).** When no replicate was as extreme as the
-   observation, the old code reported p = 0. Now p = (b + 1)/(B + 1) with an
-   explicit centered-null procedure. Holm adjustment is applied to the
+   observation, the old code reported p = 0. Now it reports
+   (b + 1)/(B + 1), a finite-resampling-corrected, null-centered bootstrap
+   tail estimate (wording refined in the Phase 2 stage-1 update: no exact
+   finite-sample validity is claimed). Holm adjustment is applied to the
    bootstrap p-values as well. Re-running changed only the p_boot fields:
    for C1, C2 and C3a, 0 → 5.0×10⁻⁵ (b = 0, the resolution limit); for C3,
    5.0×10⁻⁵ → 1.0×10⁻⁴ (b = 1); for C3b, 0.0191 → 0.01915. CIs, effect
@@ -958,8 +985,9 @@ were run. `stationary.py` was not started.
 * The energy-correlation estimate E_c ≈ 5–6 comes from ensemble-averaged
   dwell times. Single realizations may have narrower resonances, which only
   the δkₓ-halving check can detect.
-* The (+1) bootstrap p-value is conservative and resolution-limited. The
-  analysis remains post-hoc.
+* The (+1) bootstrap tail estimate is resolution-limited and relies on the
+  bootstrap approximation of the null distribution; no exact finite-sample
+  validity is claimed. The analysis remains post-hoc.
 
 ### 9.5 Is the specification ready for the RGF implementation?
 **Yes, with two conditions.**
