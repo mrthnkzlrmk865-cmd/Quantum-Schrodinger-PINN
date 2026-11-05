@@ -22,7 +22,10 @@ evaluate.py.
 
 Sampling strategies for interior collocation points:
   "uniform": i.i.d. uniform in [0,Lx]x[0,Ly]x[0,T], redrawn every
-             resample_every epochs.
+             resample_every epochs (default: every Adam step, i.e.
+             stochastic sampling of the continuum; a fixed small point set
+             was found to be overfitted: training residual 9e-4, residual on
+             fresh points 0.22, see README "PINN results").
   "rad":     residual-based adaptive distribution (Wu et al., CMAME 403,
              115671 (2023)): draw a pool of rad_pool_factor * n uniform
              candidates and pick n of them with probability
@@ -68,12 +71,13 @@ def _uniform(cfg, n, gen, device):
     return x, y, t
 
 
-def sample_interior(cfg, model, potential, gen):
+def sample_interior(cfg, model, potential, gen, n=None):
     dev = cfg.device
+    n = n or cfg.n_interior
     if cfg.sampling == "uniform":
-        x, y, t = _uniform(cfg, cfg.n_interior, gen, dev)
+        x, y, t = _uniform(cfg, n, gen, dev)
     elif cfg.sampling == "rad":
-        pool = cfg.n_interior * cfg.rad_pool_factor
+        pool = n * cfg.rad_pool_factor
         xp, yp, tp = _uniform(cfg, pool, gen, dev)
         res2 = []
         for s in range(0, pool, 8192):
@@ -81,7 +85,7 @@ def sample_interior(cfg, model, potential, gen):
             res2.append((fu**2 + fv**2).detach())
         r = torch.cat(res2).squeeze(1)
         p = r / r.mean() + 1.0
-        idx = torch.multinomial(p / p.sum(), cfg.n_interior, replacement=False, generator=gen)
+        idx = torch.multinomial(p / p.sum(), n, replacement=False, generator=gen)
         x, y, t = xp[idx], yp[idx], tp[idx]
     else:
         raise ValueError(cfg.sampling)
@@ -106,11 +110,29 @@ def normalization_loss(model, xq, yq, w, times):
     return torch.stack(losses).mean()
 
 
-def total_loss(model, potential, interior, norm_pts, weights):
+def causal_pde_loss(r2, t, T, n_bins, eps):
+    """Causal weighting (Wang, Sankaran & Perdikaris, CMAME 421, 116813
+    (2024)): split [0, T] into n_bins time slabs with mean residuals L_i
+    and weight slab i by w_i = exp(-eps * sum_{j<i} L_j) (no gradient
+    through w). Later times only count once earlier ones are resolved.
+    Returns (loss, min weight)."""
+    idx = torch.clamp((t.detach().squeeze(1) / T * n_bins).long(), 0, n_bins - 1)
+    sums = torch.zeros(n_bins, device=r2.device, dtype=r2.dtype).index_add(0, idx, r2.squeeze(1))
+    counts = torch.zeros(n_bins, device=r2.device, dtype=r2.dtype).index_add(0, idx, torch.ones_like(r2.squeeze(1)))
+    L = sums / counts.clamp(min=1)
+    cum = torch.cat([torch.zeros(1, device=L.device, dtype=L.dtype), torch.cumsum(L, 0)[:-1]])
+    w = torch.exp(-eps * cum).detach()
+    return torch.mean(w * L), w.min().item()
+
+
+def total_loss(model, potential, interior, norm_pts, weights, causal_eps=0.0, causal_bins=16):
     x, y, t, V = interior
     f_u, f_v = pde_residual(model, potential, x, y, t, V=V)
-    loss_pde = torch.mean(f_u**2) + torch.mean(f_v**2)
+    if causal_eps > 0:
+        loss_pde, wmin = causal_pde_loss(f_u**2 + f_v**2, t, model.cfg.T, causal_bins, causal_eps)
+    else:
+        loss_pde, wmin = torch.mean(f_u**2) + torch.mean(f_v**2), 1.0
     xq, yq, w, times = norm_pts
     loss_norm = normalization_loss(model, xq, yq, w, times)
     loss = weights["pde"] * loss_pde + weights["norm"] * loss_norm
-    return loss, dict(pde=loss_pde.item(), norm=loss_norm.item())
+    return loss, dict(pde=loss_pde.item(), norm=loss_norm.item(), causal_wmin=wmin)

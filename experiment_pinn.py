@@ -13,7 +13,11 @@ Runs (name -> overrides). "s<k>" = network initialization / sampling seed,
   W56_d1, W56_d2           other disorder realizations
   *_nofourier              plain MLP on normalized inputs
   *_rad                    residual-adaptive sampling
-  clean_T0.04, W56_T0.04   twice the time window (harder problem)
+  clean_T0.01 / T0.04      half / twice the time window
+  clean_long               3x training budget
+All runs: 2000 Adam steps (fresh 4000-point batch per step) + 200 L-BFGS
+steps on 16000 fixed points unless stated. Diagnostic runs that led to this
+protocol are in results/pinn/diag_* (see README).
 
 Usage:  python experiment_pinn.py [--only NAME ...] [--quick]
 Output: results/pinn/<run>/ and results/pinn/summary.csv
@@ -39,24 +43,30 @@ OUT = "results/pinn"
 E0 = 112.5
 
 RUNS = {
+    # network-seed variability, clean potential
     "clean_fourier_uniform_s0": dict(),
     "clean_fourier_uniform_s1": dict(seed=1),
     "clean_fourier_uniform_s2": dict(seed=2),
+    # disorder strength (zeta = 0.08)
     "W28_fourier_uniform_s0": dict(disorder_strength=E0 / 4),
     "W56_fourier_uniform_s0": dict(disorder_strength=E0 / 2),
+    "W112_fourier_uniform_s0": dict(disorder_strength=E0),
     "W56_fourier_uniform_s1": dict(disorder_strength=E0 / 2, seed=1),
     "W56_fourier_uniform_s2": dict(disorder_strength=E0 / 2, seed=2),
-    "W112_fourier_uniform_s0": dict(disorder_strength=E0),
+    # correlation length and realization
     "W56_zeta0.04_fourier_uniform_s0": dict(disorder_strength=E0 / 2, disorder_corr_length=0.04),
     "W56_zeta0.16_fourier_uniform_s0": dict(disorder_strength=E0 / 2, disorder_corr_length=0.16),
     "W56_d1_fourier_uniform_s0": dict(disorder_strength=E0 / 2, disorder_seed=1),
-    "W56_d2_fourier_uniform_s0": dict(disorder_strength=E0 / 2, disorder_seed=2),
+    # architecture / sampling
     "clean_nofourier_uniform_s0": dict(use_fourier=False),
     "W56_nofourier_uniform_s0": dict(disorder_strength=E0 / 2, use_fourier=False),
     "clean_fourier_rad_s0": dict(sampling="rad"),
     "W56_fourier_rad_s0": dict(disorder_strength=E0 / 2, sampling="rad"),
+    # problem difficulty: time window
+    "clean_T0.01_fourier_uniform_s0": dict(T=0.01),
     "clean_T0.04_fourier_uniform_s0": dict(T=0.04),
-    "W56_T0.04_fourier_uniform_s0": dict(disorder_strength=E0 / 2, T=0.04),
+    # training budget (3x Adam, 2.5x L-BFGS)
+    "clean_long_fourier_uniform_s0": dict(epochs_adam=6000, epochs_lbfgs=500, lr_decay_every=2000),
 }
 
 

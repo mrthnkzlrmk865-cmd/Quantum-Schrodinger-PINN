@@ -314,6 +314,7 @@ def fig_potentials():
         im = ax[i].imshow(d.numpy(X, Y).T, origin="lower", extent=[0, cfg.Lx, 0, cfg.Ly], cmap="RdBu_r",
                           vmin=-300, vmax=300, aspect="equal")
         ax[i].set(ylabel="y", title=f"ζ = {z} (same seed, W = 100)")
+        ax[i].grid(False)
         for xc in (cfg.cap_width, cfg.Lx - cfg.cap_width):
             ax[i].axvline(xc, color="#52514e", ls=":", lw=1)
     ax[-1].set_xlabel("x")
@@ -341,11 +342,13 @@ def fig_snapshots():
         for xc in (a, b):
             ax[i].axvline(xc, color="#8fd1ff", lw=1)
         ax[i].set(ylabel="y", title=f"|ψ(x,y,t)|², t = {t:.2f}")
+        ax[i].grid(False)
     ax[-1].set_xlabel("x")
     save(fig, "waveguide_snapshots.png",
          "Probability density of one realization (W = 150, ζ = 0.05, seed 0) at four times. Light lines: slab "
          "edges. The packet is partly reflected and partly transmitted, and scattered into higher transverse "
-         "modes inside the slab; outgoing waves are absorbed at both ends. Reference solver, dx = 1/64.")
+         "modes inside the slab; outgoing waves are absorbed at both ends. Each panel has its own colour "
+         "scale (zero = black). Reference solver, dx = 1/64.")
 
 
 def fig_localization():
@@ -423,12 +426,15 @@ def fig_pinn():
         im = ax[0].imshow(z["V"].T, origin="lower", extent=ext, cmap="RdBu_r")
         fig.colorbar(im, ax=ax[0], shrink=0.8)
         ax[0].set(title="potential V(x,y), W=56", xlabel="x", ylabel="y")
+        ax[0].grid(False)
+        ax[3].grid(False)
         rp, rr_ = np.abs(z["psi_pinn"][-1]) ** 2, np.abs(z["psi_ref"][-1]) ** 2
         vmax = rr_.max()
         for a, dat, ttl in ((ax[1], rr_, "reference |ψ|², t=T"), (ax[2], rp, "PINN |ψ|², t=T")):
             im = a.imshow(dat.T, origin="lower", extent=ext, cmap="magma", vmin=0, vmax=vmax)
             fig.colorbar(im, ax=a, shrink=0.8)
             a.set(title=ttl, xlabel="x")
+            a.grid(False)
         im = ax[3].imshow((rp - rr_).T, origin="lower", extent=ext, cmap="RdBu_r",
                           vmin=-np.abs(rp - rr_).max(), vmax=np.abs(rp - rr_).max())
         fig.colorbar(im, ax=ax[3], shrink=0.8)

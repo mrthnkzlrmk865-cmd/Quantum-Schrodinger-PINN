@@ -123,16 +123,20 @@ class Config:
     sampling: str = "uniform"   # "uniform" or "rad" (residual-adaptive)
     rad_pool_factor: int = 8    # candidate pool size for "rad"
 
-    epochs_adam: int = 3000
+    epochs_adam: int = 2000
     lr_adam: float = 1e-3
     lr_decay_every: int = 1000
     lr_decay_gamma: float = 0.5
     use_lbfgs: bool = True
-    epochs_lbfgs: int = 300
+    epochs_lbfgs: int = 200
     loss_weights: dict = field(default_factory=lambda: dict(pde=1.0, norm=1.0))
     pde_warmup_epochs: int = 300
     grad_clip_norm: float = 5.0
-    resample_every: int = 500
+    resample_every: int = 1         # Adam: fresh collocation batch every step
+    rad_resample_every: int = 100   # "rad" pool re-scoring interval
+    lbfgs_points_factor: int = 4    # L-BFGS uses a fixed set of factor * n_interior
+    causal_eps: float = 0.0         # >0 enables causal weighting
+    causal_bins: int = 16
     log_every: int = 250
 
     seed: int = 42

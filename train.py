@@ -54,7 +54,7 @@ def train(cfg: Config, potential: Potential | None = None, verbose=True):
         weights = dict(cfg.loss_weights)
         weights["pde"] *= min(1.0, epoch / max(1, cfg.pde_warmup_epochs))
         opt.zero_grad()
-        loss, parts = total_loss(model, potential, interior, npts, weights)
+        loss, parts = total_loss(model, potential, interior, npts, weights, cfg.causal_eps, cfg.causal_bins)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip_norm)
         opt.step()
@@ -64,14 +64,16 @@ def train(cfg: Config, potential: Potential | None = None, verbose=True):
                                 wall_time=time.time() - t_start))
             if verbose:
                 print(f"[Adam {epoch:5d}] loss={loss.item():.3e} pde={parts['pde']:.3e} "
-                      f"norm={parts['norm']:.3e} ({time.time()-t_start:.0f}s)", flush=True)
-        if epoch % cfg.resample_every == 0 and epoch < cfg.epochs_adam:
+                      f"norm={parts['norm']:.3e} wmin={parts['causal_wmin']:.2f} "
+                      f"({time.time()-t_start:.0f}s)", flush=True)
+        every = cfg.rad_resample_every if cfg.sampling == "rad" else cfg.resample_every
+        if epoch % every == 0 and epoch < cfg.epochs_adam:
             interior = sample_interior(cfg, model, potential, gen)
             npts = norm_pts()
     t_adam = time.time() - t_start
 
     if cfg.use_lbfgs and cfg.epochs_lbfgs > 0:
-        interior = sample_interior(cfg, model, potential, gen)
+        interior = sample_interior(cfg, model, potential, gen, n=cfg.lbfgs_points_factor * cfg.n_interior)
         npts = norm_pts()
         opt = torch.optim.LBFGS(model.parameters(), lr=1.0, max_iter=cfg.epochs_lbfgs,
                                 history_size=50, line_search_fn="strong_wolfe",
@@ -80,7 +82,8 @@ def train(cfg: Config, potential: Potential | None = None, verbose=True):
 
         def closure():
             opt.zero_grad()
-            loss, parts = total_loss(model, potential, interior, npts, cfg.loss_weights)
+            loss, parts = total_loss(model, potential, interior, npts, cfg.loss_weights,
+                                     cfg.causal_eps, cfg.causal_bins)
             loss.backward()
             it["n"] += 1
             if it["n"] % 50 == 0:
@@ -93,7 +96,15 @@ def train(cfg: Config, potential: Potential | None = None, verbose=True):
 
         opt.step(closure)
     total_time = time.time() - t_start
-    info = dict(train_time_s=total_time, adam_time_s=t_adam, final_loss=history[-1]["loss"] if history else None)
+    # generalization check: residual on fresh uniform points never used in training
+    hold = torch.Generator(device=cfg.device).manual_seed(10_000 + cfg.seed)
+    from pinn_core import _uniform, pde_residual
+    xh, yh, th = _uniform(cfg, 20000, hold, cfg.device)
+    fu, fv = pde_residual(model, potential, xh, yh, th)
+    info = dict(train_time_s=total_time, adam_time_s=t_adam,
+                final_loss=history[-1]["loss"] if history else None,
+                final_train_pde=history[-1]["pde"] if history else None,
+                holdout_pde=float(((fu**2).mean() + (fv**2).mean()).detach()))
     return model, history, info
 
 
@@ -129,6 +140,9 @@ if __name__ == "__main__":
     ap.add_argument("--no-fourier", action="store_true")
     ap.add_argument("--sampling", default="uniform")
     ap.add_argument("--T", type=float, default=None)
+    ap.add_argument("--causal-eps", type=float, default=0.0)
+    ap.add_argument("--no-lbfgs", action="store_true")
+    ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--out", default="results/pinn/default")
     a = ap.parse_args()
     over = dict(disorder_strength=a.strength, disorder_corr_length=a.zeta,
@@ -140,8 +154,11 @@ if __name__ == "__main__":
         over["epochs_lbfgs"] = a.epochs_lbfgs
     if a.T is not None:
         over["T"] = a.T
+    over["causal_eps"] = a.causal_eps
+    if a.no_lbfgs:
+        over["use_lbfgs"] = False
     cfg = pinn_config(**over)
-    torch.set_num_threads(max(1, os.cpu_count() or 1))
+    torch.set_num_threads(a.threads or max(1, os.cpu_count() or 1))
     model, hist, info = train(cfg)
     save_run(a.out, cfg, model, hist, info)
     print(f"saved -> {a.out}  ({info['train_time_s']:.0f}s)")
