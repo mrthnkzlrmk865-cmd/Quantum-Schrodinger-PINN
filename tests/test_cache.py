@@ -57,12 +57,18 @@ def test_transport_spec_sensitive_to_run_parameters_not_to_pinn_fields():
 ])
 def test_pinn_spec_sensitive(field, value):
     cfg = pinn_config(disorder_strength=56.25)
-    assert fingerprint(ep.pinn_spec(cfg.replace(**{field: value}))) != fingerprint(ep.pinn_spec(cfg))
+    assert fingerprint(ep.pinn_spec(cfg.replace(**{field: value}), 2)) != fingerprint(ep.pinn_spec(cfg, 2))
 
 
 def test_pinn_spec_ignores_device_and_logging():
     cfg = pinn_config()
-    assert fingerprint(ep.pinn_spec(cfg.replace(device="cuda", log_every=7))) == fingerprint(ep.pinn_spec(cfg))
+    assert fingerprint(ep.pinn_spec(cfg.replace(device="cuda", log_every=7), 2)) == fingerprint(ep.pinn_spec(cfg, 2))
+
+
+def test_pinn_spec_includes_thread_count():
+    cfg = pinn_config()
+    assert fingerprint(ep.pinn_spec(cfg, 2)) != fingerprint(ep.pinn_spec(cfg, 4))
+    assert ep.pinn_spec(cfg, 2)["execution"]["torch_threads"] == 2
 
 
 # ----------------------------------------------------------------------
@@ -191,11 +197,13 @@ def test_localization_cache(tmp_path, monkeypatch):
 # ----------------------------------------------------------------------
 @pytest.fixture
 def stub_pinn(monkeypatch):
+    import torch
+    saved_threads = torch.get_num_threads()
     calls = []
     from model import SchrodingerPINN
 
     def fake_train(cfg, verbose=False):
-        calls.append(cfg)
+        calls.append(dict(cfg=cfg, threads=torch.get_num_threads()))
         return SchrodingerPINN(cfg), [dict(loss=1.0)], dict(train_time_s=0.0, final_loss=1.0)
 
     class FakeSolver:
@@ -209,7 +217,8 @@ def stub_pinn(monkeypatch):
     monkeypatch.setattr(ep, "SplitStepDST", FakeSolver)
     monkeypatch.setattr(ep, "evaluate_run", lambda d: dict(rel_l2_final=0.5, rel_l2_mean=0.4,
                                                           rel_l2_rho_final=0.6, norm_max_dev=0.01))
-    return calls
+    yield calls
+    torch.set_num_threads(saved_threads)
 
 
 def test_pinn_cache(tmp_path, stub_pinn):
@@ -237,3 +246,149 @@ def test_pinn_legacy_run_rejected(tmp_path, stub_pinn):
     with pytest.raises(CacheMismatchError, match="no provenance metadata"):
         ep.run_one("r", dict(), out=str(tmp_path))
     assert len(stub_pinn) == 0
+
+
+# ----------------------------------------------------------------------
+# PINN thread count (Phase 2, task A)
+# ----------------------------------------------------------------------
+def test_pinn_cache_trained_with_2_threads_not_reused_with_4(tmp_path, stub_pinn):
+    out = str(tmp_path)
+    ep.run_one("r", dict(), out=out, threads=2)
+    assert stub_pinn[-1]["threads"] == 2                 # set before training
+    meta = provenance.read_dir_metadata(tmp_path / "r")
+    assert meta["spec"]["execution"]["torch_threads"] == 2.0 and meta["torch_threads"] == 2
+    before = (tmp_path / "r" / "run_metadata.json").read_bytes()
+    with pytest.raises(CacheMismatchError, match="torch_threads"):
+        ep.run_one("r", dict(), out=out, threads=4)
+    assert (tmp_path / "r" / "run_metadata.json").read_bytes() == before
+    assert len(stub_pinn) == 1
+    ep.run_one("r", dict(), out=out, threads=2)          # same thread count: reused
+    assert len(stub_pinn) == 1
+
+
+def test_pinn_thread_count_applied_before_cache_validation(tmp_path, stub_pinn, monkeypatch):
+    import torch
+    seen = []
+    real = ep.check_cache
+
+    def spy(meta, exists, spec, *a, **k):
+        seen.append((torch.get_num_threads(), spec["execution"]["torch_threads"]))
+        return real(meta, exists, spec, *a, **k)
+
+    monkeypatch.setattr(ep, "check_cache", spy)
+    torch.set_num_threads(1)
+    ep.run_one("r", dict(), out=str(tmp_path), threads=3)
+    assert seen == [(3, 3)]
+
+
+def test_pinn_default_threads_use_effective_count(tmp_path, stub_pinn):
+    import torch
+    torch.set_num_threads(2)
+    ep.run_one("r", dict(), out=str(tmp_path))            # no explicit --threads
+    assert provenance.read_dir_metadata(tmp_path / "r")["spec"]["execution"]["torch_threads"] == 2.0
+    torch.set_num_threads(4)
+    with pytest.raises(CacheMismatchError):
+        ep.run_one("r", dict(), out=str(tmp_path))
+
+
+def test_phase1_pinn_reproduction_runs_not_silently_reused():
+    """The Phase 1 reproduction runs have no thread count in their spec, so
+    they can no longer match a request (which always has one)."""
+    for d in ("results/reproduction/pinn/clean_fourier_uniform_s0",
+              "results/reproduction/pinn_threads2/clean_fourier_uniform_s0"):
+        meta = provenance.read_dir_metadata(d)
+        assert "execution" not in meta["spec"]
+        with pytest.raises(CacheMismatchError):
+            provenance.check_cache(meta, True, ep.pinn_spec(pinn_config(), 2), "pinn", d)
+
+
+# ----------------------------------------------------------------------
+# Environment compatibility
+# ----------------------------------------------------------------------
+def _fake_env(monkeypatch, **changes):
+    real = provenance.environment_info
+
+    def env():
+        e = real()
+        e.update(changes)
+        return e
+
+    monkeypatch.setattr(provenance, "environment_info", env)
+
+
+def test_environment_change_warns_or_fails_in_strict_mode(tmp_path, counted_transport, monkeypatch):
+    _point(tmp_path)
+    _fake_env(monkeypatch, scipy="9.9.9")
+    with pytest.warns(UserWarning, match="numerical environment"):
+        _point(tmp_path)
+    with pytest.raises(CacheMismatchError, match="strict_env"):
+        _point(tmp_path, strict_env=True)
+    assert len(counted_transport) == 1
+
+
+def test_torch_version_irrelevant_for_transport_but_not_pinn(tmp_path, counted_transport, monkeypatch):
+    _point(tmp_path)
+    _fake_env(monkeypatch, torch="0.0.1")
+    with warnings_as_errors():
+        _point(tmp_path, strict_env=True)                # reference solver does not use torch
+    assert provenance.environment_fingerprint("pinn")["env_fields"]["torch"] == "0.0.1"
+
+
+def test_schema1_metadata_environment_derived(monkeypatch):
+    """Phase 1 records (schema 1) store versions but no env fingerprint and no
+    'machine'; the environment check derives both from what was recorded."""
+    meta = provenance.read_npz_metadata("results/reproduction/transport/strength/W100.npz")
+    assert "env_fields" not in meta
+    fields = provenance.environment_fingerprint("transport", meta["environment"])["env_fields"]
+    assert fields["machine"] == "x86_64" and fields["numpy"] == meta["environment"]["numpy"]
+
+
+def test_strict_env_accepts_phase1_reproduction_in_same_environment():
+    """In the environment that produced them, the fingerprinted Phase 1
+    transport results pass the configuration and strict environment checks.
+    (The code check warns: the driver file has been edited since, which is
+    exactly what --strict-code would refuse.)"""
+    import warnings
+    meta = provenance.read_npz_metadata("results/reproduction/transport/strength/W100.npz")
+    cfg = waveguide_config(disorder_strength=100.0)
+    spec = ed.transport_spec(cfg, 48, 1.0)
+    env_now = provenance.environment_fingerprint("transport")["env_fields"]
+    env_then = provenance.environment_fingerprint("transport", meta["environment"])["env_fields"]
+    if env_now != env_then:
+        pytest.skip("different numerical environment than the one that produced the results")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        assert provenance.check_cache(meta, True, spec, "transport", "W100", strict_env=True) == "hit"
+    assert not any("numerical environment" in str(x.message) for x in w)
+
+
+def warnings_as_errors():
+    import warnings
+    ctx = warnings.catch_warnings()
+
+    class _C:
+        def __enter__(self):
+            ctx.__enter__()
+            warnings.simplefilter("error")
+
+        def __exit__(self, *exc):
+            return ctx.__exit__(*exc)
+
+    return _C()
+
+
+def test_metadata_records_environment_fingerprint(tmp_path):
+    _point(tmp_path)
+    meta = provenance.read_npz_metadata(tmp_path / "s" / "p.npz")
+    assert meta["schema_version"] == 2
+    assert meta["env_fingerprint"].startswith("sha256:")
+    assert set(meta["env_fields"]) == {"python", "numpy", "scipy", "machine"}
+
+
+def test_reference_solver_bit_identical_across_fft_workers():
+    """Justifies excluding the FFT worker / CPU count from the transport and
+    localization fingerprints (provenance.py)."""
+    from reference_solver import SplitStepDST
+    cfg = waveguide_config(disorder_strength=100.0, **TINY)
+    out = [SplitStepDST(cfg, workers=w).run(t_end=T_END, n_frames=2)["frames"][-1] for w in (1, 2, 4)]
+    assert np.array_equal(out[0], out[1]) and np.array_equal(out[0], out[2])

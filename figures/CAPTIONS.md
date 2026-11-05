@@ -20,6 +20,12 @@ Disorder realizations (seed 0, RMS W = 100) for three correlation lengths in the
 
 Participation ratio PR = (∫ρ)²/∫ρ² (effective occupied area) of a packet launched in a closed box with disorder (ζ = 0.05, kx0 = 20) for box sizes L = 1 and 2. (a,b) ensemble-mean PR/area vs time. (c) late-time (second half) average with 95% bootstrap CIs. Localization with ξ ≪ L would make PR/area drop by ~4x when L doubles; equal values indicate states extended over the box. W = 0 is a single deterministic run (no ensemble average), hence its large recurrences. Data: results/localization/.
 
+## paired_corr_length.png
+
+![paired_corr_length.png](paired_corr_length.png)
+
+Seed-wise paired analysis of the correlation-length sweep (W = 100, L_d = 1, 48 shared seeds). (a) Mean paired differences of transmission with paired-bootstrap 95% CIs (blue) and, for two-point contrasts, unpaired Welch 95% CIs (orange). Curvature K = [T(0.03)+T(0.07)]/2 − T(0.05). Pairing narrows the intervals little because the per-seed correlation across ζ is weak (r ≈ 0–0.3). (b) Bootstrap distribution of the grid point with the lowest ⟨T⟩; this locates the minimum only to the resolution of the 7-point grid. Data: results/analysis/paired_corr_length.json (python paired_analysis.py).
+
 ## pinn_error_vs_time.png
 
 ![pinn_error_vs_time.png](pinn_error_vs_time.png)

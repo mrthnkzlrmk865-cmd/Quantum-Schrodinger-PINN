@@ -327,6 +327,17 @@ overpredicts T by ~5 %. The **sample-to-sample spread of T grows with ζ**
 (sd 0.05 → 0.16), because the slab contains fewer independent correlation
 areas (∝ L_d L_y / ζ²) and the transmission self-averages less.
 
+**Paired re-analysis (added in Phase 2 preparation).** The ζ points
+share disorder seeds, so the comparison above was repeated with seed-wise
+paired bootstrap differences (`python paired_analysis.py`, 48 seeds,
+Holm-corrected over three pre-specified contrasts). ⟨T⟩(0.05) − ⟨T⟩(0.02) = −0.176
+[−0.198, −0.154] and ⟨T⟩(0.05) − ⟨T⟩(0.20) = −0.240 [−0.284, −0.193] (paired 95 %
+CIs), and the curvature contrast at ζ = 0.05 is positive (+0.046
+[0.023, 0.068]). The minimum is resolved only coarsely: the difference to
+ζ = 0.07 is small, and its multiplicity-corrected interval includes zero
+(kζ ≈ 0.6–1.4). This was a re-analysis after seeing the unpaired results,
+not an independent replication. Details: docs/PHASE2_METHOD_SELECTION.md §4.
+
 ### 9.4 Incident momentum (`figures/transport_vs_momentum.png`)
 
 At W = 100, ⟨T⟩ rises from 0.251 [0.222, 0.280] at k_x0 = 12 to 0.835
@@ -539,7 +550,14 @@ matches the requested run exactly**. A mismatching or unverifiable cache
 * `--out DIR`: write to a fresh output directory;
 * `--recompute`: overwrite a mismatching cache;
 * `--strict-code`: also refuse caches produced by different source code
-  (by default this only prints a warning).
+  (by default this only prints a warning);
+* `--strict-env`: also refuse caches produced with different numerical
+  library versions (Python, NumPy, SciPy, PyTorch for the PINN) or CPU
+  architecture;
+* `--strict`: both. **Use `--strict` for any result that enters a report.**
+
+For PINN runs the PyTorch thread count changes the training result, so it
+is part of the cache specification (`experiment_pinn.py --threads N`).
 
 `python compare_reproduction.py` compares a rerun with the committed results
 array by array. The reproduction audit is in
@@ -568,6 +586,7 @@ train.py, evaluate.py    PINN training and evaluation against the reference
 validate_solver.py       solver validation study
 provenance.py            configuration/code fingerprints, run metadata, cache validation
 compare_reproduction.py  compare a rerun with the committed results
+paired_analysis.py       seed-wise paired bootstrap of the correlation-length sweep
 experiment_disorder.py   transport sweeps
 experiment_localization.py  closed-box spreading / finite-size test
 experiment_pinn.py       PINN performance study
@@ -579,6 +598,7 @@ figures/                 figures + CAPTIONS.md
 docs/AUDIT.md            audit of the original version
 docs/LITERATURE.md       literature review, research gap, verified references
 docs/REPRODUCIBILITY_AUDIT.md  Phase 1 reproducibility / cache-correctness audit
+docs/PHASE2_METHOD_SELECTION.md  Phase 2 plan: fixed-energy validation method, benchmark criteria, paired statistics
 ```
 
 ## 13. Debugging history (engineering record)

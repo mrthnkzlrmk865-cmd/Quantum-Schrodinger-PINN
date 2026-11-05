@@ -98,7 +98,8 @@ def transport_spec(cfg, n_real, t_end, n_frames=N_FRAMES):
                 run=dict(t_end=t_end, n_frames=n_frames, n_real=n_real, seeds=list(range(n_real))))
 
 
-def run_point(sweep, name, overrides, n_real, t_end, out=None, recompute=False, strict_code=False):
+def run_point(sweep, name, overrides, n_real, t_end, out=None, recompute=False, strict_code=False,
+              strict_env=False):
     d = os.path.join(out or OUT, sweep)
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, f"{name}.npz")
@@ -106,7 +107,7 @@ def run_point(sweep, name, overrides, n_real, t_end, out=None, recompute=False, 
     spec = transport_spec(cfg, n_real, t_end)
     exists = os.path.exists(path)
     status = check_cache(read_npz_metadata(path) if exists else None, exists, spec, "transport",
-                         path, recompute=recompute, strict_code=strict_code)
+                         path, recompute=recompute, strict_code=strict_code, strict_env=strict_env)
     if status == "hit":
         return cfg, dict(np.load(path, allow_pickle=False))
     r = run_transport(cfg, range(n_real), t_end=t_end, n_frames=N_FRAMES)
@@ -136,12 +137,12 @@ def summarize_point(sweep, name, cfg, data):
     return row
 
 
-def run_sweep(sweep, n_real, out=None, recompute=False, strict_code=False):
+def run_sweep(sweep, n_real, out=None, recompute=False, strict_code=False, strict_env=False):
     out = out or OUT
     rows, points = [], []
     t0 = time.time()
     for name, over, n, t_end in sweep_points(sweep, n_real):
-        cfg, data = run_point(sweep, name, over, n, t_end, out, recompute, strict_code)
+        cfg, data = run_point(sweep, name, over, n, t_end, out, recompute, strict_code, strict_env)
         rows.append(summarize_point(sweep, name, cfg, data))
         points.append(dict(point=name, fingerprint=rows[-1]["fingerprint"], n_real=n, t_end=t_end))
     with open(os.path.join(out, sweep, "summary.csv"), "w", newline="") as f:
@@ -165,8 +166,12 @@ if __name__ == "__main__":
                     help="overwrite cached results whose configuration does not match")
     ap.add_argument("--strict-code", action="store_true",
                     help="also refuse cached results produced by different source code")
+    ap.add_argument("--strict-env", action="store_true",
+                    help="also refuse cached results produced with different numerical library versions")
+    ap.add_argument("--strict", action="store_true", help="--strict-code and --strict-env")
     a = ap.parse_args()
     names = list(DEFAULT_N) if a.sweep == "all" else [a.sweep]
     for nm in names:
         print(f"== sweep {nm}", flush=True)
-        run_sweep(nm, a.n_real or DEFAULT_N[nm], a.out, a.recompute, a.strict_code)
+        run_sweep(nm, a.n_real or DEFAULT_N[nm], a.out, a.recompute, a.strict_code or a.strict,
+                  a.strict_env or a.strict)
