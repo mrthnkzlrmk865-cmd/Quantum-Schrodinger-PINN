@@ -1,129 +1,112 @@
 """
-Evaluate a trained PINN against:
-  (1) its own probability conservation over time (does integral(|Psi|^2)
-      stay near 1, or did training collapse toward the trivial zero
-      solution?), and
-  (2) the classical DST split-step reference solution (reference_solver.py),
-      via an L2 error curve over time.
+Evaluate a trained PINN against the DST split-step reference solution of
+the SAME configuration (same potential, same disorder realization, same
+initial condition), on the reference grid.
+
+Metrics at each of cfg.n_frames times:
+  rel_l2       ||psi_PINN - psi_ref||_2 / ||psi_ref||_2   (complex wavefunction;
+               sensitive to the global phase)
+  rel_l2_rho   same for the probability density rho = |psi|^2
+               (insensitive to phase errors)
+  norm_pinn    int |psi_PINN|^2      (ideal: 1)
+  com_x_err    |<x>_PINN - <x>_ref|  (centre-of-mass error)
+  p_right_err  |P(x > 0.5)_PINN - P(x > 0.5)_ref|
+
+Reference: the PINN error is meaningful only if the reference error is much
+smaller. validate_solver.py shows the reference for the PINN problem
+(127^2, dt = 1e-5) has relative L2 error ~1e-8 vs the analytic free packet
+and ~1e-6 dt-self-convergence error with disorder.
 
 Usage:
-    python train.py                 # produces schrodinger_pinn.pt
-    python reference_solver.py      # produces reference_solution.npz
-    python evaluate.py              # produces figures/ + printed report
+    python evaluate.py results/pinn/<run_dir>
 """
 
+from __future__ import annotations
+
+import argparse
+import csv
+import json
 import os
 
 import numpy as np
 import torch
 
-from config import cfg
-from model import SchrodingerPINN
-
-FIG_DIR = "figures"
-
-
-def load_model(path="schrodinger_pinn.pt"):
-    model = SchrodingerPINN().to(cfg.device)
-    model.load_state_dict(torch.load(path, map_location=cfg.device))
-    model.eval()
-    return model
+from observables import centre_of_mass, region_probability
+from potential import Potential
+from reference_solver import SplitStepDST
 
 
-def evaluate_on_reference(model, ref_path="reference_solution.npz"):
-    data = np.load(ref_path)
-    X, Y, frame_times = data["X"], data["Y"], data["frame_times"]
-    psi_ref = data["psi_real"] + 1j * data["psi_imag"]  # (n_frames, n_grid, n_grid)
-
-    n_grid = X.shape[0]
-    dx = X[1, 0] - X[0, 0]
-
-    x_flat = torch.tensor(X.reshape(-1, 1), dtype=torch.float32, device=cfg.device)
-    y_flat = torch.tensor(Y.reshape(-1, 1), dtype=torch.float32, device=cfg.device)
-
-    pinn_prob_total = []
-    l2_errors = []
-    rel_l2_errors = []
-
+def pinn_on_grid(model, X, Y, times, device="cpu"):
+    x = torch.tensor(X.reshape(-1, 1), dtype=torch.float32, device=device)
+    y = torch.tensor(Y.reshape(-1, 1), dtype=torch.float32, device=device)
+    out = []
     with torch.no_grad():
-        for i, t_val in enumerate(frame_times):
-            t_flat = torch.full_like(x_flat, float(t_val))
-            u, v = model(x_flat, y_flat, t_flat)
-            u = u.cpu().numpy().reshape(n_grid, n_grid)
-            v = v.cpu().numpy().reshape(n_grid, n_grid)
-
-            prob_density = u**2 + v**2
-            total_prob = float(np.sum(prob_density) * dx * dx)
-            pinn_prob_total.append(total_prob)
-
-            psi_pinn = u + 1j * v
-            diff = psi_pinn - psi_ref[i]
-            l2 = float(np.sqrt(np.sum(np.abs(diff) ** 2) * dx * dx))
-            ref_norm = float(np.sqrt(np.sum(np.abs(psi_ref[i]) ** 2) * dx * dx))
-            l2_errors.append(l2)
-            rel_l2_errors.append(l2 / max(ref_norm, 1e-12))
-
-    return {
-        "frame_times": frame_times,
-        "pinn_prob_total": np.array(pinn_prob_total),
-        "l2_errors": np.array(l2_errors),
-        "rel_l2_errors": np.array(rel_l2_errors),
-    }
+        for t in times:
+            u, v = model(x, y, torch.full_like(x, float(t)))
+            out.append((u + 1j * v).cpu().numpy().reshape(X.shape).astype(np.complex128))
+    return np.array(out)
 
 
-def make_plots(results):
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    os.makedirs(FIG_DIR, exist_ok=True)
-    t = results["frame_times"]
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(t, results["pinn_prob_total"], label="PINN: integral |Psi|^2")
-    ax.axhline(1.0, color="gray", linestyle="--", label="ideal (probability conserved)")
-    ax.set_xlabel("t")
-    ax.set_ylabel("Total probability")
-    ax.set_title("Conservation check: total probability vs time")
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(os.path.join(FIG_DIR, "conservation_check.png"), dpi=150)
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(t, results["rel_l2_errors"])
-    ax.set_xlabel("t")
-    ax.set_ylabel("Relative L2 error vs. reference")
-    ax.set_title("PINN vs. classical (DST split-step) reference solution")
-    fig.tight_layout()
-    fig.savefig(os.path.join(FIG_DIR, "l2_error_vs_reference.png"), dpi=150)
-    plt.close(fig)
+def compare(cfg, psi_pinn, psi_ref, X, Y, times):
+    dx, dy = X[1, 0] - X[0, 0], Y[0, 1] - Y[0, 0]
+    rows = []
+    mask = X > 0.5 * cfg.Lx
+    for i, t in enumerate(times):
+        p, r = psi_pinn[i], psi_ref[i]
+        rho_p, rho_r = np.abs(p) ** 2, np.abs(r) ** 2
+        cp = centre_of_mass(p, X, Y, dx, dy)[0]
+        cr = centre_of_mass(r, X, Y, dx, dy)[0]
+        rows.append(dict(
+            t=float(t),
+            rel_l2=float(np.linalg.norm(p - r) / np.linalg.norm(r)),
+            rel_l2_rho=float(np.linalg.norm(rho_p - rho_r) / np.linalg.norm(rho_r)),
+            norm_pinn=float(rho_p.sum() * dx * dy),
+            norm_ref=float(rho_r.sum() * dx * dy),
+            com_x_err=float(abs(cp - cr)),
+            p_right_err=float(abs(region_probability(p, mask, dx, dy) - region_probability(r, mask, dx, dy))),
+        ))
+    return rows
 
 
-def report(results):
-    prob = results["pinn_prob_total"]
-    rel_err = results["rel_l2_errors"]
+def evaluate_run(run_dir, nx=None, save=True):
+    from train import load_run
 
-    print("=== Conservation check ===")
-    print(f"  total probability: min={prob.min():.4f} max={prob.max():.4f} "
-          f"(ideal = 1.0 at every t)")
-    print(f"  max deviation from 1: {np.max(np.abs(prob - 1.0)):.4f}")
-    if np.max(np.abs(prob - 1.0)) > 0.2:
-        print("  WARNING: probability is not well conserved. The model may be "
-              "under-trained, or collapsing toward / diverging from the trivial "
-              "zero solution. Consider increasing loss_weights['norm'] or "
-              "epochs, and re-checking the loss curve.")
-
-    print("\n=== Accuracy vs. classical reference (DST split-step) ===")
-    print(f"  relative L2 error: mean={rel_err.mean():.4f} "
-          f"final(t=T)={rel_err[-1]:.4f} max={rel_err.max():.4f}")
-
-    print(f"\nFigures written to {FIG_DIR}/")
+    cfg, model = load_run(run_dir)
+    if nx is not None:
+        cfg = cfg.replace(nx=nx, ny=nx)
+    solver = SplitStepDST(cfg, Potential(cfg))
+    ref = solver.run()
+    times = ref["times"]
+    psi_ref = ref["frames"][:, 0]
+    psi_pinn = pinn_on_grid(model, solver.X, solver.Y, times)
+    rows = compare(cfg, psi_pinn, psi_ref, solver.X, solver.Y, times)
+    rel = np.array([r["rel_l2"] for r in rows])
+    rel_rho = np.array([r["rel_l2_rho"] for r in rows])
+    norms = np.array([r["norm_pinn"] for r in rows])
+    summary = dict(
+        rel_l2_mean=float(rel.mean()), rel_l2_final=float(rel[-1]), rel_l2_max=float(rel.max()),
+        rel_l2_rho_mean=float(rel_rho.mean()), rel_l2_rho_final=float(rel_rho[-1]),
+        norm_max_dev=float(np.max(np.abs(norms - 1.0))),
+        com_x_err_max=float(max(r["com_x_err"] for r in rows)),
+        p_right_err_max=float(max(r["p_right_err"] for r in rows)),
+    )
+    if save:
+        with open(os.path.join(run_dir, "eval_timeseries.csv"), "w", newline="") as f:
+            wr = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            wr.writeheader()
+            wr.writerows(rows)
+        with open(os.path.join(run_dir, "eval_summary.json"), "w") as f:
+            json.dump(summary, f, indent=2)
+        np.savez_compressed(os.path.join(run_dir, "eval_fields.npz"), X=solver.X, Y=solver.Y,
+                            times=times, psi_pinn=psi_pinn[::5], psi_ref=psi_ref[::5],
+                            V=solver.V[0])
+    return summary
 
 
 if __name__ == "__main__":
-    model = load_model()
-    results = evaluate_on_reference(model)
-    report(results)
-    make_plots(results)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("run_dir")
+    a = ap.parse_args()
+    s = evaluate_run(a.run_dir)
+    for k, v in s.items():
+        print(f"{k:>18s}: {v:.4e}")

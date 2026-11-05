@@ -1,9 +1,10 @@
-# Large, fully regenerable artifacts -- don't commit these to git.
-# Regenerate with: python train.py && python reference_solver.py && python evaluate.py && python visualize.py
+# Large, regenerable artifacts
 *.pt
-*.npz
-wavefunction_animation.html
-wavefunction_comparison.html
+!results/pinn/*/model.pt
+eval_fields.npz
+results/*/wavefunction_*.html
 __pycache__/
 *.pyc
+.pytest_cache/
 train_log.txt
+results/pinn/trial_*/
