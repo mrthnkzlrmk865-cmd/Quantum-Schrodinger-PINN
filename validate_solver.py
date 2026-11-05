@@ -160,6 +160,13 @@ def v7_n_modes(n_real=24):
 
 
 if __name__ == "__main__":
+    import argparse
+
+    from provenance import make_metadata, write_dir_metadata
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default=OUT)
+    OUT = ap.parse_args().out
+    os.makedirs(OUT, exist_ok=True)
     t0 = time.time()
     summary = {}
     summary["v1_eigenmode_max_abs_err"] = v1_eigenmode(); print("V1", summary["v1_eigenmode_max_abs_err"], flush=True)
@@ -172,4 +179,7 @@ if __name__ == "__main__":
     summary["wall_time_s"] = time.time() - t0
     with open(os.path.join(OUT, "validation_summary.json"), "w") as f:
         json.dump(summary, f, indent=2, default=float)
+    # all settings of the checks are fixed in this file (covered by the code fingerprint)
+    write_dir_metadata(OUT, make_metadata("validation", dict(experiment="validation", checks=[
+        "v1", "v2", "v3", "v4", "v5", "v6", "v7"]), wall_time_s=summary["wall_time_s"]))
     print(f"done in {summary['wall_time_s']:.0f}s")

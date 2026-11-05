@@ -27,7 +27,11 @@ same seeds are reused across points, which makes neighbouring points
 positively correlated and differences between them less noisy). Outputs:
   results/transport/<sweep>/<point>.npz   raw T(t), R(t), P_in(t) per seed + config json
   results/transport/<sweep>/summary.csv   statistics per point
-Existing .npz files are reused (delete them to recompute).
+Caching: an existing .npz is reused only if its configuration fingerprint
+(provenance.py) matches the requested configuration exactly (config,
+t_end, n_frames, seeds, number of realizations). Otherwise the script stops
+with CacheMismatchError instead of silently using or overwriting it; pass
+--recompute to overwrite, or --out DIR to write to a fresh directory.
 """
 
 from __future__ import annotations
@@ -36,11 +40,14 @@ import argparse
 import csv
 import json
 import os
+import time
 
 import numpy as np
 
 from config import waveguide_config
 from disorder import born_rates
+from provenance import (check_cache, make_metadata, read_npz_metadata, solver_config_dict,
+                        write_dir_metadata)
 from stats_utils import summarize
 from transport import run_transport
 
@@ -80,21 +87,36 @@ def sweep_points(name, n_real):
     return pts
 
 
-def run_point(sweep, name, overrides, n_real, t_end):
-    d = os.path.join(OUT, sweep)
+N_FRAMES = 41
+
+
+def transport_spec(cfg, n_real, t_end, n_frames=N_FRAMES):
+    """Everything that determines the numbers in one sweep point (see
+    provenance.py). Seeds are listed explicitly: realization i uses
+    disorder seed i."""
+    return dict(experiment="transport", config=solver_config_dict(cfg),
+                run=dict(t_end=t_end, n_frames=n_frames, n_real=n_real, seeds=list(range(n_real))))
+
+
+def run_point(sweep, name, overrides, n_real, t_end, out=None, recompute=False, strict_code=False):
+    d = os.path.join(out or OUT, sweep)
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, f"{name}.npz")
     cfg = waveguide_config(**dict(overrides))
-    if os.path.exists(path):
-        data = dict(np.load(path, allow_pickle=False))
-        if data["T"].shape[1] >= n_real:
-            return cfg, data
-    r = run_transport(cfg, range(n_real), t_end=t_end, n_frames=41)
+    spec = transport_spec(cfg, n_real, t_end)
+    exists = os.path.exists(path)
+    status = check_cache(read_npz_metadata(path) if exists else None, exists, spec, "transport",
+                         path, recompute=recompute, strict_code=strict_code)
+    if status == "hit":
+        return cfg, dict(np.load(path, allow_pickle=False))
+    r = run_transport(cfg, range(n_real), t_end=t_end, n_frames=N_FRAMES)
+    meta = make_metadata("transport", spec, sweep=sweep, point=name, wall_time_s=r["wall_time_s"])
     np.savez_compressed(path, times=r["times"], T=r["T"], R=r["R"], P_in=r["P_in"], seeds=r["seeds"],
-                        wall_time_s=r["wall_time_s"], config_json=json.dumps(cfg.to_dict()))
+                        wall_time_s=r["wall_time_s"], config_json=json.dumps(cfg.to_dict()),
+                        metadata_json=json.dumps(meta), fingerprint=meta["fingerprint"])
     print(f"  {sweep}/{name}: n={n_real} <T>={r['T'][-1].mean():.4f} <R>={r['R'][-1].mean():.4f} "
           f"<P_in>={r['P_in'][-1].mean():.2e}  ({r['wall_time_s']:.0f}s)", flush=True)
-    return cfg, dict(np.load(path))
+    return cfg, dict(np.load(path, allow_pickle=False))
 
 
 def summarize_point(sweep, name, cfg, data):
@@ -105,7 +127,8 @@ def summarize_point(sweep, name, cfg, data):
                kx0=cfg.kx0, k=k, E0=cfg.mean_energy, Ld=cfg.disorder_region[1] - cfg.disorder_region[0],
                barrier=cfg.barrier_height, t_end=float(data["times"][-1]),
                l_s_born=float(b["l_s"]) if b else np.inf, l_tr_born=float(b["l_tr"]) if b else np.inf,
-               k_zeta=k * cfg.disorder_corr_length)
+               k_zeta=k * cfg.disorder_corr_length,
+               fingerprint=str(data["fingerprint"]) if "fingerprint" in data else "")
     for key, v in (("T", T), ("R", R), ("P_in", P), ("lnT", np.log(np.maximum(T, 1e-300)))):
         s = summarize(v)
         for sk in ("n", "mean", "std", "se", "ci_t_lo", "ci_t_hi", "ci_boot_lo", "ci_boot_hi", "median"):
@@ -113,15 +136,21 @@ def summarize_point(sweep, name, cfg, data):
     return row
 
 
-def run_sweep(sweep, n_real):
-    rows = []
+def run_sweep(sweep, n_real, out=None, recompute=False, strict_code=False):
+    out = out or OUT
+    rows, points = [], []
+    t0 = time.time()
     for name, over, n, t_end in sweep_points(sweep, n_real):
-        cfg, data = run_point(sweep, name, over, n, t_end)
+        cfg, data = run_point(sweep, name, over, n, t_end, out, recompute, strict_code)
         rows.append(summarize_point(sweep, name, cfg, data))
-    with open(os.path.join(OUT, sweep, "summary.csv"), "w", newline="") as f:
+        points.append(dict(point=name, fingerprint=rows[-1]["fingerprint"], n_real=n, t_end=t_end))
+    with open(os.path.join(out, sweep, "summary.csv"), "w", newline="") as f:
         wr = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         wr.writeheader()
         wr.writerows(rows)
+    write_dir_metadata(os.path.join(out, sweep), make_metadata(
+        "transport", dict(experiment="transport_sweep", sweep=sweep, n_real_default=n_real, points=points),
+        wall_time_s=time.time() - t0))
     return rows
 
 
@@ -131,8 +160,13 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--sweep", default="all")
     ap.add_argument("--n-real", type=int, default=None)
+    ap.add_argument("--out", default=OUT, help="output root directory (default results/transport)")
+    ap.add_argument("--recompute", action="store_true",
+                    help="overwrite cached results whose configuration does not match")
+    ap.add_argument("--strict-code", action="store_true",
+                    help="also refuse cached results produced by different source code")
     a = ap.parse_args()
     names = list(DEFAULT_N) if a.sweep == "all" else [a.sweep]
     for nm in names:
         print(f"== sweep {nm}", flush=True)
-        run_sweep(nm, a.n_real or DEFAULT_N[nm])
+        run_sweep(nm, a.n_real or DEFAULT_N[nm], a.out, a.recompute, a.strict_code)

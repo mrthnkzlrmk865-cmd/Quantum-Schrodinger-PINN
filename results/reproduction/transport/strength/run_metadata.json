@@ -1,0 +1,83 @@
+{
+  "code_files": {
+    "config.py": "sha256:68639f852048dbd6b3a1d48a7cae921276fec5e022ea31cddfc815b63ad8420d",
+    "disorder.py": "sha256:f8435f93e3ee158d0e17b252ea932ede3326e4f6a4f25a2afc16ae3a50c34c32",
+    "experiment_disorder.py": "sha256:4ede59aa292c94c9941692ea5472c97a3acb4b773bf3bc7b767ab07eb8508c8d",
+    "initial_condition.py": "sha256:53c61c641ec505ee86cef0b653515a27c978d2a7479013efaf599814778bc660",
+    "observables.py": "sha256:1ae828b24a71a9f87a8e05e89ba8c66e2132933b29566b80da576e4a3fd80f69",
+    "potential.py": "sha256:a3b203335c1fb7363578141408fed404158ad6da38902ea042ef5991353df91c",
+    "reference_solver.py": "sha256:1fdc0a129a22436fe826c8e75b96e1d49d100f37f4835a58c328cf4218c4e0e8",
+    "transport.py": "sha256:986799abe8d91b69a800f51b4473fa3f219dd9be6b1a23fcea2c3f0204277071"
+  },
+  "code_fingerprint": "sha256:7e7d930054e237f3ea3298f752266438af7cfe29f7f8e2724a961f6969adc559",
+  "created_utc": "2026-11-05T18:23:07+00:00",
+  "environment": {
+    "cpu_count": 4,
+    "git_commit": "4e24e9efb10dafcb826f97350a9bc33912d19d42",
+    "git_dirty": true,
+    "numpy": "2.5.3",
+    "platform": "Linux-6.18.44-fc-v236-x86_64-with-glibc2.39",
+    "python": "3.13.18",
+    "scipy": "1.18.1",
+    "torch": "2.15.0+cu132"
+  },
+  "fingerprint": "sha256:22dc022f103544e7bc6c0c8ac7fd93bc319525512d85d0457c884b2be850c7d2",
+  "kind": "transport",
+  "schema_version": 1,
+  "spec": {
+    "experiment": "transport_sweep",
+    "n_real_default": 48.0,
+    "points": [
+      {
+        "fingerprint": "sha256:3e14fa4cc3f2f5ff693482554632c9bdf1bfe20024e927ecc5368686bc469c47",
+        "n_real": 1.0,
+        "point": "W0",
+        "t_end": 1.0
+      },
+      {
+        "fingerprint": "sha256:bc4b2cd2cd0aa589e512af4cfcd9c3abc172d688726aeb2f2ef03d666891a001",
+        "n_real": 48.0,
+        "point": "W25",
+        "t_end": 1.0
+      },
+      {
+        "fingerprint": "sha256:1004b14babfcce0e5d902cfc008fc0e39a15501f276d39c346ebdddffa456abe",
+        "n_real": 48.0,
+        "point": "W50",
+        "t_end": 1.0
+      },
+      {
+        "fingerprint": "sha256:69703844f61c3d81dfc966e345fc3d41f7d7911014f4de954303bdd8176309ac",
+        "n_real": 48.0,
+        "point": "W75",
+        "t_end": 1.0
+      },
+      {
+        "fingerprint": "sha256:1988bdce84d5abbf7b710f7ae26bac1ed932730d9cf29a69d2909db820a85e88",
+        "n_real": 48.0,
+        "point": "W100",
+        "t_end": 1.0
+      },
+      {
+        "fingerprint": "sha256:682b93b7d856485195cd516d4fdafaa5371acc89767e9d5f2118b7216c1711a5",
+        "n_real": 48.0,
+        "point": "W150",
+        "t_end": 1.0
+      },
+      {
+        "fingerprint": "sha256:60b332ed16b9ec3417c7b9a4b9d878280a8144608282ce3e7b24cd3dfb042e25",
+        "n_real": 48.0,
+        "point": "W200",
+        "t_end": 1.0
+      },
+      {
+        "fingerprint": "sha256:230805fb4a4785746c5a76213aefece191864c83d0966742e992b88c85daad39",
+        "n_real": 48.0,
+        "point": "W300",
+        "t_end": 1.0
+      }
+    ],
+    "sweep": "strength"
+  },
+  "wall_time_s": 0.06541609764099121
+}

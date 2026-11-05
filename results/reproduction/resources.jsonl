@@ -1,0 +1,6 @@
+{"step": "validation", "cmd": "python validate_solver.py --out results/reproduction/validation", "returncode": 0, "wall_s": 686.3, "cpu_user_s": 1366.3, "cpu_sys_s": 36.8, "peak_rss_mb": 672.4}
+{"step": "strength", "cmd": "python experiment_disorder.py --sweep strength --n-real 48 --out results/reproduction/transport", "returncode": 0, "wall_s": 911.8, "cpu_user_s": 1860.0, "cpu_sys_s": 65.6, "peak_rss_mb": 688.4}
+{"step": "corr_length", "cmd": "python experiment_disorder.py --sweep corr_length --n-real 48 --out results/reproduction/transport", "returncode": 0, "wall_s": 842.1, "cpu_user_s": 1732.9, "cpu_sys_s": 58.7, "peak_rss_mb": 688.3}
+{"step": "localization", "cmd": "python experiment_localization.py --n-real 16 --out results/reproduction/localization", "returncode": 0, "wall_s": 114.0, "cpu_user_s": 190.0, "cpu_sys_s": 10.4, "peak_rss_mb": 695.2}
+{"step": "pinn_clean", "cmd": "python experiment_pinn.py --only clean_fourier_uniform_s0 --out results/reproduction/pinn", "returncode": 0, "wall_s": 281.2, "cpu_user_s": 981.3, "cpu_sys_s": 97.9, "peak_rss_mb": 1949.8}
+{"step": "pinn_clean_threads2", "cmd": "python experiment_pinn.py --threads 2 --only clean_fourier_uniform_s0 --out results/reproduction/pinn_threads2", "returncode": 0, "wall_s": 466.1, "cpu_user_s": 791.0, "cpu_sys_s": 117.6, "peak_rss_mb": 1970.0}

@@ -1,0 +1,10 @@
+# Exact versions used to produce and reproduce the committed results
+# (Python 3.13.18, Linux x86_64, CPU only).
+# requirements.txt keeps the minimum versions; install from this file for bit-level reproduction:
+#   pip install -r requirements-lock.txt
+numpy==2.5.3
+scipy==1.18.1
+matplotlib==3.11.2
+torch==2.15.0
+plotly==7.1.0
+pytest==9.2.0

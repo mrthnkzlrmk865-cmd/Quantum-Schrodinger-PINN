@@ -19,8 +19,12 @@ All runs: 2000 Adam steps (fresh 4000-point batch per step) + 200 L-BFGS
 steps on 16000 fixed points unless stated. Diagnostic runs that led to this
 protocol are in results/pinn/diag_* (see README).
 
-Usage:  python experiment_pinn.py [--only NAME ...] [--quick]
-Output: results/pinn/<run>/ and results/pinn/summary.csv
+Usage:  python experiment_pinn.py [--only NAME ...] [--quick] [--out DIR] [--recompute]
+Output: <out>/<run>/ (model.pt, config.json, run_metadata.json, ...) and
+<out>/summary.csv. A trained model is reused only if run_metadata.json has
+the same configuration fingerprint (provenance.py); otherwise the script
+stops instead of silently reusing or overwriting it. --quick runs go to
+<run>_quick directories.
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ from config import pinn_config
 from evaluate import evaluate_run
 from potential import Potential
 from reference_solver import SplitStepDST
+from provenance import check_cache, make_metadata, pinn_config_dict, read_dir_metadata, write_dir_metadata
 from train import save_run, train
 
 OUT = "results/pinn"
@@ -70,13 +75,26 @@ RUNS = {
 }
 
 
-def run_one(name, overrides, quick=False):
-    d = os.path.join(OUT, name)
+def pinn_spec(cfg):
+    """Everything that determines a PINN run's numbers: the full PINN
+    configuration (problem, potential, disorder seed, architecture,
+    training schedule, network seed). The reference solution used for
+    evaluation is defined by the same config."""
+    return dict(experiment="pinn", config=pinn_config_dict(cfg))
+
+
+def run_one(name, overrides, quick=False, out=None, recompute=False, strict_code=False):
     over = dict(overrides)
     if quick:
         over.update(epochs_adam=300, epochs_lbfgs=20)
+        name = name + "_quick"          # never share a directory with a full run
+    d = os.path.join(out or OUT, name)
     cfg = pinn_config(**over)
-    if not os.path.exists(os.path.join(d, "model.pt")):
+    spec = pinn_spec(cfg)
+    exists = os.path.exists(os.path.join(d, "model.pt"))
+    status = check_cache(read_dir_metadata(d), exists, spec, "pinn", d,
+                         recompute=recompute, strict_code=strict_code)
+    if status != "hit":
         print(f"== training {name}", flush=True)
         model, hist, info = train(cfg, verbose=False)
         # cost of the reference solution for the same problem
@@ -84,10 +102,12 @@ def run_one(name, overrides, quick=False):
         SplitStepDST(cfg, Potential(cfg)).run(store_frames=False)
         info["reference_time_s"] = time.time() - t0
         save_run(d, cfg, model, hist, info)
+        write_dir_metadata(d, make_metadata("pinn", spec, run=name, torch_threads=torch.get_num_threads(),
+                                            device=cfg.device, train_time_s=info["train_time_s"]))
     summ = evaluate_run(d)
     with open(os.path.join(d, "train_info.json")) as f:
         info = json.load(f)
-    row = dict(run=name, W=cfg.disorder_strength, zeta=cfg.disorder_corr_length, disorder_seed=cfg.disorder_seed,
+    row = dict(run=name, fingerprint=read_dir_metadata(d)["fingerprint"], W=cfg.disorder_strength, zeta=cfg.disorder_corr_length, disorder_seed=cfg.disorder_seed,
                seed=cfg.seed, T=cfg.T, fourier=cfg.use_fourier, sampling=cfg.sampling, **summ,
                final_loss=info.get("final_loss"), train_time_s=info["train_time_s"],
                reference_time_s=info.get("reference_time_s"))
@@ -102,20 +122,23 @@ if __name__ == "__main__":
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--threads", type=int, default=0)
+    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--recompute", action="store_true")
+    ap.add_argument("--strict-code", action="store_true")
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
     names = a.only or list(RUNS)
-    rows = [run_one(n, RUNS[n], a.quick) for n in names]
-    # merge with existing summary
-    path = os.path.join(OUT, "summary.csv")
+    rows = [run_one(n, RUNS[n], a.quick, a.out, a.recompute, a.strict_code) for n in names]
+    # merge with existing summary (rows carry their configuration fingerprint)
+    path = os.path.join(a.out, "summary.csv")
     old = {}
     if os.path.exists(path):
         with open(path) as f:
             old = {r["run"]: r for r in csv.DictReader(f)}
     for r in rows:
         old[r["run"]] = r
-    allrows = [old[k] for k in RUNS if k in old]
+    allrows = [old[k] for k in list(RUNS) + [k + "_quick" for k in RUNS] if k in old]
     with open(path, "w", newline="") as f:
         wr = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         wr.writeheader()

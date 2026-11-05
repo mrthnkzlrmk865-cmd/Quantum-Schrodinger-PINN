@@ -524,11 +524,31 @@ python make_figures.py                   # all figures + figures/CAPTIONS.md fro
 python visualize.py results/pinn/W56_fourier_uniform_s0      # optional interactive 3D animation
 ```
 
-Every result directory contains the configuration (JSON) and the seeds
-used. Re-running a sweep reuses existing `.npz` files; delete them to
-recompute. Timings are for a 4-core CPU without a GPU. The numbers in this
-README were produced with Python 3.13, NumPy 2.x, SciPy 1.18, PyTorch 2.x
-(CPU).
+**Provenance and caching** (`provenance.py`). Every result (`.npz` file or
+PINN run directory) records its full configuration, the explicit seed
+list, the number of realizations, run parameters (end time, saved frames),
+a configuration fingerprint (SHA-256), a fingerprint of the source code
+that produced it, the git commit, the UTC time of execution and the library
+versions. A cached result is reused **only if its configuration fingerprint
+matches the requested run exactly**. A mismatching or unverifiable cache
+(e.g. produced before fingerprints existed) stops the script with
+`CacheMismatchError`. It is never used or overwritten silently. Options of
+`experiment_disorder.py`, `experiment_localization.py` and
+`experiment_pinn.py`:
+
+* `--out DIR`: write to a fresh output directory;
+* `--recompute`: overwrite a mismatching cache;
+* `--strict-code`: also refuse caches produced by different source code
+  (by default this only prints a warning).
+
+`python compare_reproduction.py` compares a rerun with the committed results
+array by array. The reproduction audit is in
+[docs/REPRODUCIBILITY_AUDIT.md](docs/REPRODUCIBILITY_AUDIT.md).
+
+Timings are for a 4-core CPU without a GPU. The results were produced with
+the exact versions in `requirements-lock.txt` (Python 3.13, NumPy 2.5.3,
+SciPy 1.18.1, PyTorch 2.15.0, CPU); `requirements.txt` lists minimum
+versions.
 
 ## 12. Repository structure
 
@@ -546,6 +566,8 @@ embeddings.py, model.py  PINN (Fourier features, hard IC/BC constraints)
 pinn_core.py             residual, sampling (uniform / RAD), causal weighting, losses
 train.py, evaluate.py    PINN training and evaluation against the reference
 validate_solver.py       solver validation study
+provenance.py            configuration/code fingerprints, run metadata, cache validation
+compare_reproduction.py  compare a rerun with the committed results
 experiment_disorder.py   transport sweeps
 experiment_localization.py  closed-box spreading / finite-size test
 experiment_pinn.py       PINN performance study
@@ -556,6 +578,7 @@ results/                 raw data (CSV/NPZ/JSON) of every experiment
 figures/                 figures + CAPTIONS.md
 docs/AUDIT.md            audit of the original version
 docs/LITERATURE.md       literature review, research gap, verified references
+docs/REPRODUCIBILITY_AUDIT.md  Phase 1 reproducibility / cache-correctness audit
 ```
 
 ## 13. Debugging history (engineering record)
