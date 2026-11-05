@@ -1,0 +1,73 @@
+{
+  "code_files": {
+    "config.py": "sha256:68639f852048dbd6b3a1d48a7cae921276fec5e022ea31cddfc815b63ad8420d",
+    "disorder.py": "sha256:f8435f93e3ee158d0e17b252ea932ede3326e4f6a4f25a2afc16ae3a50c34c32",
+    "experiment_localization.py": "sha256:067e056ac96aa3a94ddc5f9ac51fd9c028d4dc68583af026eaa176a99baf9582",
+    "initial_condition.py": "sha256:53c61c641ec505ee86cef0b653515a27c978d2a7479013efaf599814778bc660",
+    "observables.py": "sha256:1ae828b24a71a9f87a8e05e89ba8c66e2132933b29566b80da576e4a3fd80f69",
+    "potential.py": "sha256:a3b203335c1fb7363578141408fed404158ad6da38902ea042ef5991353df91c",
+    "reference_solver.py": "sha256:1fdc0a129a22436fe826c8e75b96e1d49d100f37f4835a58c328cf4218c4e0e8"
+  },
+  "code_fingerprint": "sha256:013394f2c32bf982e73875677fe58b790de83046049eb77cf18177277f3e0c82",
+  "created_utc": "2026-11-05T18:09:20+00:00",
+  "environment": {
+    "cpu_count": 4,
+    "git_commit": "4e24e9efb10dafcb826f97350a9bc33912d19d42",
+    "git_dirty": true,
+    "numpy": "2.5.3",
+    "platform": "Linux-6.18.44-fc-v236-x86_64-with-glibc2.39",
+    "python": "3.13.18",
+    "scipy": "1.18.1",
+    "torch": "2.15.0+cu132"
+  },
+  "fingerprint": "sha256:d709634a7a199c496c652c49b772e93f8a75e7832362036191f9fcda70295e28",
+  "kind": "localization",
+  "schema_version": 1,
+  "spec": {
+    "experiment": "localization_summary",
+    "n_real": 16.0,
+    "points": [
+      {
+        "L": 1.0,
+        "W": 0.0,
+        "fingerprint": "sha256:dd3b6c202acca7d5b3803b893302b5f8e2abbd9582429468fbd1ccc874d0f783"
+      },
+      {
+        "L": 1.0,
+        "W": 100.0,
+        "fingerprint": "sha256:eeff0e19c1938daed431be2e754f1a21fabc06650d1b30c25f71f817d8d6605e"
+      },
+      {
+        "L": 1.0,
+        "W": 200.0,
+        "fingerprint": "sha256:7a4c5df91656c935b06a90799f50db445493fb632ccc00f898823b9799585ea7"
+      },
+      {
+        "L": 1.0,
+        "W": 300.0,
+        "fingerprint": "sha256:1fcc412a7994dee3de1d0ee5840e705777b07882a89012dd3b5972e7fe882162"
+      },
+      {
+        "L": 2.0,
+        "W": 0.0,
+        "fingerprint": "sha256:3ce4844cc5cfe0546c416cb6cac08a65043975e19e06161b98ab841e5e971afa"
+      },
+      {
+        "L": 2.0,
+        "W": 100.0,
+        "fingerprint": "sha256:3f59bac20b214eb11f3c686e70987079f7c91ce4f1d3991730ec39b67bc1d678"
+      },
+      {
+        "L": 2.0,
+        "W": 200.0,
+        "fingerprint": "sha256:cf203f5e3842c29a6197e856055f2ad67c1443774c65fdd5abb169437b736048"
+      },
+      {
+        "L": 2.0,
+        "W": 300.0,
+        "fingerprint": "sha256:35785832ef13966f960a28c66c08b27bd02a1292e68649ae46757114f2921392"
+      }
+    ]
+  },
+  "wall_time_s": 111.36676573753357
+}
