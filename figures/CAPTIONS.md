@@ -20,6 +20,24 @@ Disorder realizations (seed 0, RMS W = 100) for three correlation lengths in the
 
 Participation ratio PR = (∫ρ)²/∫ρ² (effective occupied area) of a packet launched in a closed box with disorder (ζ = 0.05, kx0 = 20) for box sizes L = 1 and 2. (a,b) ensemble-mean PR/area vs time. (c) late-time (second half) average with 95% bootstrap CIs. Localization with ξ ≪ L would make PR/area drop by ~4x when L doubles; equal values indicate states extended over the box. W = 0 is a single deterministic run (no ensemble average), hence its large recurrences. Data: results/localization/.
 
+## pinn_error_vs_time.png
+
+![pinn_error_vs_time.png](pinn_error_vs_time.png)
+
+Relative L2 error of the PINN wavefunction vs time for clean and disordered potentials (ζ = 0.08) and for a doubled time window. Data: results/pinn/<run>/eval_timeseries.csv.
+
+## pinn_errors.png
+
+![pinn_errors.png](pinn_errors.png)
+
+Final-time (t = T) relative L2 errors of every PINN run against the DST reference solution of the same configuration and disorder realization. W in units of the potential (E₀ = 112.5); s = network seed, d = disorder seed; nofourier = plain MLP; rad = residual-adaptive sampling; T0.04 = doubled time window. Data: results/pinn/summary.csv.
+
+## pinn_vs_reference_W56.png
+
+![pinn_vs_reference_W56.png](pinn_vs_reference_W56.png)
+
+PINN vs DST reference for the disordered PINN problem (W = 56 = E₀/2, ζ = 0.08, disorder seed 0) at the final time T = 0.02. Both solvers use the identical potential realization.
+
 ## realization_convergence.png
 
 ![realization_convergence.png](realization_convergence.png)

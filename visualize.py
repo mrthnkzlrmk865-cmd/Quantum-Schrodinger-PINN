@@ -170,7 +170,7 @@ def build_comparison_animation(
     fig.frames = frames
     fig.update_layout(
         title=dict(
-            text="PINN (color) vs. classical DST split-step reference (gray, translucent)",
+            text="PINN (colour) vs validated DST reference (grey) - disordered potential W=56, zeta=0.08; PINN final rel. L2 error 0.59",
             font=dict(color="#e6e6fa", size=16, family="Arial"), x=0.5,
         ),
         paper_bgcolor="#03000a", plot_bgcolor="#03000a",

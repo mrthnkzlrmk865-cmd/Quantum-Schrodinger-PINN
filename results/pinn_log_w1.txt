@@ -1,0 +1,16 @@
+== training clean_long_fourier_uniform_s0
+   clean_long_fourier_uniform_s0: relL2 final=2.814e-01 mean=1.739e-01 rho=3.225e-01 norm_dev=7.11e-03 train=3099s
+== training clean_fourier_uniform_s1
+   clean_fourier_uniform_s1: relL2 final=4.867e-01 mean=3.213e-01 rho=5.991e-01 norm_dev=3.44e-02 train=1039s
+== training W28_fourier_uniform_s0
+   W28_fourier_uniform_s0: relL2 final=5.299e-01 mean=3.439e-01 rho=6.067e-01 norm_dev=3.75e-02 train=993s
+== training W112_fourier_uniform_s0
+   W112_fourier_uniform_s0: relL2 final=7.133e-01 mean=4.687e-01 rho=9.571e-01 norm_dev=5.25e-02 train=1104s
+== training W56_fourier_uniform_s2
+   W56_fourier_uniform_s2: relL2 final=6.100e-01 mean=4.078e-01 rho=7.548e-01 norm_dev=7.19e-02 train=980s
+== training W56_zeta0.16_fourier_uniform_s0
+   W56_zeta0.16_fourier_uniform_s0: relL2 final=4.970e-01 mean=3.136e-01 rho=5.835e-01 norm_dev=2.09e-02 train=958s
+== training clean_nofourier_uniform_s0
+   clean_nofourier_uniform_s0: relL2 final=1.152e+00 mean=9.135e-01 rho=1.422e+00 norm_dev=4.73e-02 train=534s
+== training clean_fourier_rad_s0
+   clean_fourier_rad_s0: relL2 final=4.685e-01 mean=2.594e-01 rho=4.498e-01 norm_dev=2.19e-02 train=472s

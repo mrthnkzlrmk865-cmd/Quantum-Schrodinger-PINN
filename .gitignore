@@ -2,7 +2,6 @@
 *.pt
 !results/pinn/*/model.pt
 eval_fields.npz
-wavefunction_comparison.html
 results/*/wavefunction_*.html
 __pycache__/
 *.pyc

@@ -1,0 +1,20 @@
+== training clean_fourier_uniform_s0
+   clean_fourier_uniform_s0: relL2 final=4.885e-01 mean=3.130e-01 rho=5.736e-01 norm_dev=2.26e-02 train=1024s
+== training clean_fourier_uniform_s2
+   clean_fourier_uniform_s2: relL2 final=5.665e-01 mean=3.727e-01 rho=7.567e-01 norm_dev=6.14e-02 train=1370s
+== training W56_fourier_uniform_s0
+   W56_fourier_uniform_s0: relL2 final=5.864e-01 mean=3.814e-01 rho=6.932e-01 norm_dev=3.91e-02 train=1004s
+== training W56_fourier_uniform_s1
+   W56_fourier_uniform_s1: relL2 final=5.744e-01 mean=3.727e-01 rho=6.698e-01 norm_dev=4.17e-02 train=1033s
+== training W56_zeta0.04_fourier_uniform_s0
+   W56_zeta0.04_fourier_uniform_s0: relL2 final=6.853e-01 mean=4.530e-01 rho=8.992e-01 norm_dev=3.84e-02 train=1032s
+== training W56_d1_fourier_uniform_s0
+   W56_d1_fourier_uniform_s0: relL2 final=5.823e-01 mean=3.701e-01 rho=7.601e-01 norm_dev=3.81e-02 train=1025s
+== training W56_nofourier_uniform_s0
+   W56_nofourier_uniform_s0: relL2 final=7.245e-01 mean=5.086e-01 rho=7.846e-01 norm_dev=3.34e-02 train=803s
+== training W56_fourier_rad_s0
+   W56_fourier_rad_s0: relL2 final=5.253e-01 mean=2.923e-01 rho=5.557e-01 norm_dev=2.52e-02 train=991s
+== training clean_T0.01_fourier_uniform_s0
+   clean_T0.01_fourier_uniform_s0: relL2 final=1.835e-01 mean=1.171e-01 rho=1.538e-01 norm_dev=9.18e-03 train=557s
+== training clean_T0.04_fourier_uniform_s0
+   clean_T0.04_fourier_uniform_s0: relL2 final=9.855e-01 mean=7.213e-01 rho=1.020e+00 norm_dev=1.23e-01 train=469s
