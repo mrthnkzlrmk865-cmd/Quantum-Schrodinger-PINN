@@ -149,7 +149,7 @@ def fig_strength():
                label="Born + diffusion estimate ℓ/(L+ℓ)")
     ax[0].set(xlabel="disorder strength W / E₀", ylabel="probability at t_end",
               title=f"(a) L_d={rows[0]['Ld']:g}, ζ={rows[0]['zeta']:g} (kζ={rows[0]['k_zeta']:.2f})")
-    ax[0].legend()
+    ax[0].legend(loc="center right")
 
     # distributions
     d = os.path.join(RES, "transport", "strength")
@@ -214,28 +214,38 @@ def fig_corr_length():
 
 def fig_length():
     p = os.path.join(RES, "transport", "length", "summary.csv")
-    if not os.path.exists(p):
+    pa = os.path.join(RES, "transport", "analysis.json")
+    if not (os.path.exists(p) and os.path.exists(pa)):
         print("skip length")
         return
     rows = read_csv(p)
-    fig, ax = plt.subplots(1, 2, figsize=(10, 3.6))
+    with open(pa) as f:
+        fits = json.load(f)["length"]
+    fig, ax = plt.subplots(1, 2, figsize=(10.5, 3.8))
     for i, W in enumerate(sorted({r["W"] for r in rows})):
         rr = sorted([r for r in rows if r["W"] == W], key=lambda r: r["Ld"])
         L = np.array([r["Ld"] for r in rr])
         errbar(ax[0], L, rr, "T", C[i], MK[i], f"⟨T⟩, W={W:g}")
-        errbar(ax[1], L, rr, "lnT", C[i], MK[i], f"⟨ln T⟩, W={W:g}")
-        Lt = np.linspace(0.05, L.max(), 100)
-        ax[0].plot(Lt, theory_T(Lt, rr[0]["l_tr_born"]), color=C[i], ls="--", lw=1,
-                   label=f"Born+diffusion, W={W:g}")
-    ax[0].set(xlabel="slab length L_d", ylabel="⟨T⟩ at t_end", title="(a) mean transmission vs length")
-    ax[0].legend()
-    ax[1].set(xlabel="slab length L_d", ylabel="⟨ln T⟩", title="(b) typical (log-averaged) transmission")
+        ft = fits[str(W)]
+        Lt = np.linspace(0.15, 3.2, 100)
+        ax[0].plot(Lt, ft["ohmic_l"] / (Lt + ft["ohmic_l"]), color=C[i], ls="--", lw=1,
+                   label=f"Ohmic fit ℓ={ft['ohmic_l']:.2f} (χ²ᵣ={ft['ohmic_chi2_red']:.1f})")
+        ax[0].plot(Lt, ft["exp_A"] * np.exp(-Lt / ft["exp_xi"]), color=C[i], ls=":", lw=1.4,
+                   label=f"exp. fit ξ={ft['exp_xi']:.2f} (χ²ᵣ={ft['exp_chi2_red']:.1f})")
+        ax[1].plot(L, ft["lnT_var"], color=C[i], marker=MK[i], label=f"var(ln T), W={W:g}")
+    ax[0].set(yscale="log", xlabel="slab length L_d", ylabel="⟨T⟩ at t_end (log scale)",
+              title="(a) mean transmission vs length")
+    ax[0].legend(fontsize=7)
+    ax[1].set(xlabel="slab length L_d", ylabel="variance of ln T over realizations",
+              title="(b) sample-to-sample fluctuations")
     ax[1].legend()
     save(fig, "transport_vs_length.png",
-         "Transmission vs disordered-slab length at two disorder strengths (ζ = 0.05, kx0 = 20). "
-         "(a) Arithmetic mean ⟨T⟩ with 95% bootstrap CIs; dashed: Born + diffusion estimate (not a fit). "
-         "(b) ⟨ln T⟩; exponential decay ⟨ln T⟩ ≈ -2L/ξ at large L would indicate localization; linear-in-1/L "
-         "(Ohmic) behaviour indicates diffusion. t_end = 1 + 0.5 L_d. Data: results/transport/length/.")
+         "Transmission vs disordered-slab length (ζ = 0.05, kx0 = 20, 24 realizations per point, t_end = 1 + 0.5 L_d). "
+         "(a) ⟨T⟩ with 95% bootstrap CIs (log scale) and weighted least-squares fits of the diffusive form ℓ/(L+ℓ) "
+         "(dashed) and of an exponential A e^(−L/ξ) (dotted); χ²ᵣ = reduced chi-square. At W = 100 the diffusive form "
+         "fits better; at W = 200 the exponential fits better, with ξ of the same order as the quasi-1D estimate Nℓ. "
+         "(b) var(ln T): it stays ≪ |⟨ln T⟩|, unlike the broad distributions expected deep in the localized regime "
+         "(the packet averages over a band of energies). Data: results/transport/length/, analysis.json.")
 
 
 def fig_momentum():
@@ -300,7 +310,8 @@ def fig_convergence():
     save(fig, "realization_convergence.png",
          "Convergence of ensemble averages with the number of independent disorder realizations "
          "(W = 100, ζ = 0.05, L_d = 1). (a) Running mean with ±1.96 SE band. (b) Standard error vs n "
-         "follows 1/√n. Data: results/transport/convergence/.")
+         "follows 1/√n; the curves for T and R coincide because T + R ≈ 1 (P_in < 10⁻³). "
+         "Data: results/transport/convergence/.")
 
 
 def fig_potentials():
@@ -377,7 +388,8 @@ def fig_localization():
          "Participation ratio PR = (∫ρ)²/∫ρ² (effective occupied area) of a packet launched in a closed box "
          "with disorder (ζ = 0.05, kx0 = 20) for box sizes L = 1 and 2. (a,b) ensemble-mean PR/area vs time. "
          "(c) late-time (second half) average with 95% bootstrap CIs. Localization with ξ ≪ L would make "
-         "PR/area drop when L doubles; equal values indicate states extended over the box. Data: results/localization/.")
+         "PR/area drop by ~4x when L doubles; equal values indicate states extended over the box. W = 0 is a single "
+         "deterministic run (no ensemble average), hence its large recurrences. Data: results/localization/.")
 
 
 def fig_pinn():
@@ -444,6 +456,38 @@ def fig_pinn():
              "at the final time T = 0.02. Both solvers use the identical potential realization.")
 
 
+def fig_born_ratio():
+    p = os.path.join(RES, "transport", "analysis.json")
+    if not os.path.exists(p):
+        print("skip born ratio")
+        return
+    with open(p) as f:
+        a = json.load(f)
+    fig, ax = plt.subplots(figsize=(6.2, 3.9))
+    labels = dict(strength="vary W (ζ=0.05, k=20)", corr_length="vary ζ (W=100, k=20)",
+                  momentum="vary k (W=100, ζ=0.05)")
+    for i, sw in enumerate(("strength", "corr_length", "momentum")):
+        if sw not in a:
+            continue
+        rr = a[sw]
+        x = np.array([r["k_l_tr"] for r in rr])
+        y = np.array([r["ratio_avg"] for r in rr])
+        e = np.array([r["T_se"] / r["T_est_avg"] * 1.96 for r in rr])
+        ax.errorbar(x, y, yerr=e, color=C[i], marker=MK[i], ls="none", capsize=3, label=labels[sw])
+    ax.axhline(1.0, color="#7a7974", lw=1, ls="--")
+    ax.set(xscale="log", xlabel="k ℓ_tr (Born approximation)",
+           ylabel="⟨T⟩ simulated / estimate", title="Departure from the perturbative estimate")
+    ax.legend()
+    save(fig, "born_ratio_vs_kl.png",
+         "Ratio of the simulated ensemble-mean transmission to the parameter-free Born + diffusion estimate "
+         "⟨ℓ(k)/(L_d+ℓ(k))⟩ (averaged over the packet's momentum distribution, ℓ = (π/2)ℓ_tr), for all three "
+         "sweeps, plotted against kℓ_tr. Error bars: 95% CI of the simulated mean (estimate has no error bar). "
+         "The ratio approaches ~1.05 for weak scattering and grows to ~1.3 as kℓ_tr → 1, where the Born "
+         "approximation is not expected to hold. Smooth disorder (kζ ≳ 2, points with ratio < 1) deviates in "
+         "the opposite direction. The overall O(1) prefactor of the estimate is convention-dependent; the trend "
+         "is the robust result. Data: results/transport/analysis.json.")
+
+
 def write_captions():
     with open(os.path.join(FIG, "CAPTIONS.md"), "w") as f:
         f.write("# Figure captions\n\nGenerated by `python make_figures.py`.\n\n")
@@ -454,7 +498,7 @@ def write_captions():
 if __name__ == "__main__":
     os.makedirs(FIG, exist_ok=True)
     for fn in (fig_validation, fig_potentials, fig_snapshots, fig_strength, fig_corr_length, fig_length,
-               fig_momentum, fig_barrier, fig_convergence, fig_localization, fig_pinn):
+               fig_momentum, fig_barrier, fig_convergence, fig_born_ratio, fig_localization, fig_pinn):
         try:
             fn()
         except Exception as e:  # keep going, report

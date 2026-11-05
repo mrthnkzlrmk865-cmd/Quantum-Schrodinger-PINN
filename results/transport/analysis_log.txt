@@ -1,0 +1,31 @@
+
+== strength: simulated <T> vs Born+diffusion estimate
+           W25  k*l_tr=  166.7  T_sim=0.938±0.002  T_est=0.928  ratio=1.01  T_est_avg=0.918  ratio_avg=1.02
+           W50  k*l_tr=   41.7  T_sim=0.792±0.005  T_est=0.764  ratio=1.04  T_est_avg=0.749  ratio_avg=1.06
+           W75  k*l_tr=   18.5  T_sim=0.629±0.008  T_est=0.590  ratio=1.07  T_est_avg=0.583  ratio_avg=1.08
+          W100  k*l_tr=   10.4  T_sim=0.494±0.010  T_est=0.447  ratio=1.11  T_est_avg=0.451  ratio_avg=1.10
+          W150  k*l_tr=    4.6  T_sim=0.316±0.011  T_est=0.264  ratio=1.19  T_est_avg=0.278  ratio_avg=1.13
+          W200  k*l_tr=    2.6  T_sim=0.222±0.010  T_est=0.168  ratio=1.32  T_est_avg=0.183  ratio_avg=1.21
+          W300  k*l_tr=    1.2  T_sim=0.122±0.010  T_est=0.082  ratio=1.48  T_est_avg=0.093  ratio_avg=1.31
+
+== corr_length: simulated <T> vs Born+diffusion estimate
+      zeta0.02  k*l_tr=   20.8  T_sim=0.670±0.007  T_est=0.617  ratio=1.09  T_est_avg=0.614  ratio_avg=1.09
+      zeta0.03  k*l_tr=   12.4  T_sim=0.545±0.010  T_est=0.490  ratio=1.11  T_est_avg=0.490  ratio_avg=1.11
+      zeta0.05  k*l_tr=   10.4  T_sim=0.494±0.010  T_est=0.447  ratio=1.11  T_est_avg=0.451  ratio_avg=1.10
+      zeta0.07  k*l_tr=   14.4  T_sim=0.535±0.014  T_est=0.527  ratio=1.01  T_est_avg=0.518  ratio_avg=1.03
+       zeta0.1  k*l_tr=   24.0  T_sim=0.590±0.015  T_est=0.651  ratio=0.91  T_est_avg=0.622  ratio_avg=0.95
+      zeta0.15  k*l_tr=   38.9  T_sim=0.694±0.022  T_est=0.751  ratio=0.92  T_est_avg=0.719  ratio_avg=0.96
+       zeta0.2  k*l_tr=   53.0  T_sim=0.734±0.023  T_est=0.804  ratio=0.91  T_est_avg=0.773  ratio_avg=0.95
+
+== momentum: simulated <T> vs Born+diffusion estimate
+           k12  k*l_tr=    1.7  T_sim=0.251±0.015  T_est=0.178  ratio=1.41  T_est_avg=0.193  ratio_avg=1.30
+           k16  k*l_tr=    4.3  T_sim=0.360±0.015  T_est=0.294  ratio=1.23  T_est_avg=0.307  ratio_avg=1.17
+           k20  k*l_tr=   10.4  T_sim=0.505±0.012  T_est=0.447  ratio=1.13  T_est_avg=0.451  ratio_avg=1.12
+           k25  k*l_tr=   29.7  T_sim=0.691±0.008  T_est=0.649  ratio=1.06  T_est_avg=0.637  ratio_avg=1.08
+           k30  k*l_tr=   77.4  T_sim=0.835±0.005  T_est=0.801  ratio=1.04  T_est_avg=0.786  ratio_avg=1.06
+
+== length sweep fits
+  W=100.0: Ohmic l=1.001±0.026 (Born l=0.809) chi2_red=3.60 | exp xi=2.015±0.056 chi2_red=6.83
+      var(lnT) = [0.007, 0.013, 0.02, 0.024, 0.042]  P_in = 3.53e-03 max
+  W=200.0: Ohmic l=0.242±0.008 (Born l=0.202) chi2_red=16.07 | exp xi=1.147±0.038 chi2_red=5.71
+      var(lnT) = [0.071, 0.092, 0.094, 0.112, 0.133]  P_in = 1.15e-02 max
