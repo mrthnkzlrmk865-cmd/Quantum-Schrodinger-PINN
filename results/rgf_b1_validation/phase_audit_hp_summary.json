@@ -1,0 +1,189 @@
+{
+  "phase_threshold": 1e-10,
+  "b1_criterion_definition": "max |t_nn - lambda_double^(N-1)| over energies, open channels, both directions",
+  "hp_reference": "exact lattice phase (N-1) arccos(1 - (E - E_perp) dx^2), mpmath",
+  "phase_difference_convention": "arg(t_RGF exp(-i phi_ref)) in (-pi, pi]",
+  "ref_dps": 100,
+  "check_dps": [
+    30,
+    50
+  ],
+  "configs": {
+    "A": {
+      "N_y": 63,
+      "dx": 0.001953125,
+      "L_d": 1.0,
+      "N": 718,
+      "n_energies": 50,
+      "n_rows": 424,
+      "hp_max_abs_phase_err": 2.3602064747053097e-11,
+      "hp_rms_phase_err": 3.2548763229458386e-12,
+      "hp_argmax": {
+        "E": 79.24711769109985,
+        "channel": 4,
+        "direction": "L->R",
+        "sin_kdx": 0.0014881795447867158
+      },
+      "hp_diagnostic_pass_at_threshold": true,
+      "b1_phase_quantity_max": 1.8780737875177914e-11,
+      "b1_argmax": {
+        "E": 46.73547966398196,
+        "channel": 3,
+        "direction": "L->R"
+      },
+      "b1_phase_criterion_pass": true,
+      "double_ref_vs_hp_max_abs_phase": 2.3454183040172438e-11,
+      "max_mag_err": 7.382983113757291e-14,
+      "max_ref_change_dps30_vs_dps100": 3.721788573820347e-30,
+      "max_ref_change_dps50_vs_dps100": 4.1237437947122013e-50,
+      "max_ref_acos_vs_asin": 4.5719495651291e-100
+    },
+    "B": {
+      "N_y": 127,
+      "dx": 0.001953125,
+      "L_d": 1.0,
+      "N": 718,
+      "n_energies": 50,
+      "n_rows": 424,
+      "hp_max_abs_phase_err": 2.3602064747053097e-11,
+      "hp_rms_phase_err": 3.2548763229458386e-12,
+      "hp_argmax": {
+        "E": 79.24711769109985,
+        "channel": 4,
+        "direction": "L->R",
+        "sin_kdx": 0.0014881795447867158
+      },
+      "hp_diagnostic_pass_at_threshold": true,
+      "b1_phase_quantity_max": 1.8780737875177914e-11,
+      "b1_argmax": {
+        "E": 46.73547966398196,
+        "channel": 3,
+        "direction": "L->R"
+      },
+      "b1_phase_criterion_pass": true,
+      "double_ref_vs_hp_max_abs_phase": 2.3454183040172438e-11,
+      "max_mag_err": 7.382983113757291e-14,
+      "max_ref_change_dps30_vs_dps100": 3.721788573820347e-30,
+      "max_ref_change_dps50_vs_dps100": 4.1237437947122013e-50,
+      "max_ref_acos_vs_asin": 4.5719495651291e-100
+    },
+    "C": {
+      "N_y": 63,
+      "dx": 0.0009765625,
+      "L_d": 1.0,
+      "N": 1435,
+      "n_energies": 50,
+      "n_rows": 424,
+      "hp_max_abs_phase_err": 6.357692150515996e-11,
+      "hp_rms_phase_err": 1.3461137792064114e-11,
+      "hp_argmax": {
+        "E": 125.69231487269683,
+        "channel": 5,
+        "direction": "L->R",
+        "sin_kdx": 0.0021046031128025824
+      },
+      "hp_diagnostic_pass_at_threshold": true,
+      "b1_phase_quantity_max": 7.28854761951304e-11,
+      "b1_argmax": {
+        "E": 125.69231487269683,
+        "channel": 5,
+        "direction": "L->R"
+      },
+      "b1_phase_criterion_pass": true,
+      "double_ref_vs_hp_max_abs_phase": 2.522360098566878e-11,
+      "max_mag_err": 2.1183055309847987e-13,
+      "max_ref_change_dps30_vs_dps100": 3.354764700611598e-30,
+      "max_ref_change_dps50_vs_dps100": 4.652077796533365e-50,
+      "max_ref_acos_vs_asin": 4.5719495651291e-100
+    },
+    "D": {
+      "N_y": 127,
+      "dx": 0.0009765625,
+      "L_d": 1.0,
+      "N": 1435,
+      "n_energies": 50,
+      "n_rows": 424,
+      "hp_max_abs_phase_err": 6.357692150515996e-11,
+      "hp_rms_phase_err": 1.3461137792064114e-11,
+      "hp_argmax": {
+        "E": 125.69231487269683,
+        "channel": 5,
+        "direction": "L->R",
+        "sin_kdx": 0.0021046031128025824
+      },
+      "hp_diagnostic_pass_at_threshold": true,
+      "b1_phase_quantity_max": 7.28854761951304e-11,
+      "b1_argmax": {
+        "E": 125.69231487269683,
+        "channel": 5,
+        "direction": "L->R"
+      },
+      "b1_phase_criterion_pass": true,
+      "double_ref_vs_hp_max_abs_phase": 2.522360098566878e-11,
+      "max_mag_err": 2.1183055309847987e-13,
+      "max_ref_change_dps30_vs_dps100": 3.354764700611598e-30,
+      "max_ref_change_dps50_vs_dps100": 4.652077796533365e-50,
+      "max_ref_acos_vs_asin": 4.5719495651291e-100
+    },
+    "E": {
+      "N_y": 63,
+      "dx": 0.001953125,
+      "L_d": 3.0,
+      "N": 1742,
+      "n_energies": 50,
+      "n_rows": 424,
+      "hp_max_abs_phase_err": 5.7645332951498145e-11,
+      "hp_rms_phase_err": 7.922573641399121e-12,
+      "hp_argmax": {
+        "E": 79.24711769109985,
+        "channel": 4,
+        "direction": "R->L",
+        "sin_kdx": 0.0014881795447867158
+      },
+      "hp_diagnostic_pass_at_threshold": true,
+      "b1_phase_quantity_max": 4.559883146808045e-11,
+      "b1_argmax": {
+        "E": 46.73547966398196,
+        "channel": 3,
+        "direction": "R->L"
+      },
+      "b1_phase_criterion_pass": true,
+      "double_ref_vs_hp_max_abs_phase": 5.69508329384405e-11,
+      "max_mag_err": 1.4055423491754482e-13,
+      "max_ref_change_dps30_vs_dps100": 9.55236795688126e-30,
+      "max_ref_change_dps50_vs_dps100": 1.088751236463129e-49,
+      "max_ref_acos_vs_asin": 9.1438991302582e-100
+    },
+    "F": {
+      "N_y": 63,
+      "dx": 0.0009765625,
+      "L_d": 3.0,
+      "N": 3483,
+      "n_energies": 50,
+      "n_rows": 424,
+      "hp_max_abs_phase_err": 1.5424928001550615e-10,
+      "hp_rms_phase_err": 3.288237762104508e-11,
+      "hp_argmax": {
+        "E": 125.69231487269683,
+        "channel": 5,
+        "direction": "L->R",
+        "sin_kdx": 0.0021046031128025824
+      },
+      "hp_diagnostic_pass_at_threshold": false,
+      "b1_phase_quantity_max": 1.76851694417934e-10,
+      "b1_argmax": {
+        "E": 125.69231487269683,
+        "channel": 5,
+        "direction": "L->R"
+      },
+      "b1_phase_criterion_pass": false,
+      "double_ref_vs_hp_max_abs_phase": 6.124720175471055e-11,
+      "max_mag_err": 3.2152058793144533e-13,
+      "max_ref_change_dps30_vs_dps100": 1.0518229416344361e-29,
+      "max_ref_change_dps50_vs_dps100": 1.059380733729515e-49,
+      "max_ref_acos_vs_asin": 9.1438991302582e-100
+    }
+  },
+  "wall_time_s": 593.0473010540009,
+  "all_configs_b1_phase_pass": false
+}

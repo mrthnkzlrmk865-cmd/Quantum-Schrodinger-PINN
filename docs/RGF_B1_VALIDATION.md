@@ -16,12 +16,17 @@ run, and no baseline result was changed.
 **Outcome in one line:** all B1 criteria pass on the 50-energy spec grid in
 5 of 6 tested configurations. The **provisional** phase criterion fails on
 the longest device (dx = 1/1024, L_d = 3, N = 3483): 1.77×10⁻¹⁰ against
-10⁻¹⁰ (§6). The threshold was not relaxed.
+10⁻¹⁰ (§6). A reproducible high-precision audit of all six configurations
+(§6a) confirms that this is a genuine RGF phase error (1.54×10⁻¹⁰ against
+the exact lattice phase), not a reference artifact. The threshold was not
+relaxed. **B1 therefore does not fully pass.**
 
 Reproduce:
 ```bash
 python -m pytest -q tests/test_stationary.py       # ~40 s
 python validate_rgf_b1.py                          # ~11 min on 4 CPU cores; --quick: ~1 min
+python audit_rgf_phase.py                          # high-precision phase audit, ~10 min (§6a)
+python -m pytest -q tests/test_phase_audit.py
 ```
 Both set `OPENBLAS_NUM_THREADS=1` if it is unset (§7).
 
@@ -164,29 +169,142 @@ Thresholds are from the spec, **unchanged**. The reciprocity threshold
   relative to the largest entry.
 * The open-channel S is identical (≤ 10⁻¹²) for N_y = 15, 63 and 127.
 
-**The failed criterion (investigated, threshold not relaxed).** The phase
-error on the 3483-slice device is a genuine RGF accuracy limit, not an
-artifact of the double-precision reference λ^{N−1}. Against the exact
-lattice phase evaluated in 50-digit arithmetic (mpmath), the RGF deviates by
-up to 1.54×10⁻¹⁰, while the double reference deviates by only 2–3×10⁻¹¹.
-|t| is still exact (||t| − 1| ≤ 2×10⁻¹³).
+**The failed criterion (investigated, threshold not relaxed).** The
+predeclared B1 phase quantity on the 3483-slice device is 1.7685×10⁻¹⁰
+(> 10⁻¹⁰). The reproducible high-precision audit in §6a shows that this is a
+**genuine RGF phase error**, not an artifact of the double-precision
+reference. Against the converged high-precision lattice phase the RGF itself
+deviates by up to 1.5425×10⁻¹⁰ (8 of 424 rows exceed 10⁻¹⁰). |t| is still
+exact to ≤ 3.2×10⁻¹³ there.
 
-Mechanism: the diagonal of D_j contains 2t_x ≈ 10⁶ (dx = 1/1024), while the
-physical combination E − Eₙ^⊥ is small near a threshold. Rounding of order
-ε_mach·2t_x gives a per-slice wavenumber error δ(kdx) ≈ ε/sin(kdx), which
-accumulates over N slices. The predicted scaling N/sin(kdx) ∝ L/(k dx²)
-matches the measurements: ×3.9 for dx/2 (predicted ×4), ×2.4 for L_d = 3
-(predicted ×2.4), ×9.4 for both (predicted ×9.7).
+> *Correction to the previous version of this section.* It stated the
+> high-precision result for configuration F without a committed script or
+> artifact that reproduced it (the committed `run_phase_exact()` evaluated
+> only configuration A). It also said the double reference deviates "by
+> only 2–3×10⁻¹¹" and that the dx scaling of the error matched a factor ×4.
+> The committed audit (§6a) reproduces the 1.54×10⁻¹⁰ value. However:
+> * the double reference deviates by up to 6.1×10⁻¹¹ over all F rows (the
+>   2–3×10⁻¹¹ values held only at the worst-error energies);
+> * the dx scaling is not a clean ×4 (details below).
 
-The error is concentrated in channels with sin(kdx) < 0.01. In the base
-configuration, comparing against the exact phase: ≤ 2.4×10⁻¹¹ for
-sin(kdx) < 0.01, ≤ 8×10⁻¹² for 0.01–0.03, ≤ 4×10⁻¹² for 0.03–0.1
-(`phase_exact.csv`). Rescaling H by 1/t_x does not remove the cancellation;
-a different discretization would be needed. The specification fixes this
-one. The strict xfail `test_long_device_provisional_phase_criterion`
-records the failure (the suite will flag it if it changes). Note: the B3
-plan (spec §3) uses L_d = 1 with dx = 1/512 and 1/1024, and those
-configurations pass.
+**Mechanism (supported as a bound, not as an exact scaling law).** The
+diagonal of D_j contains 2t_x ≈ 10⁶ (dx = 1/1024), while E − Eₙ^⊥ is small
+near a threshold. Rounding of order ε_mach·2t_x gives a per-slice
+wavenumber error of order ε/sin(kdx), which accumulates over N slices. The
+audit data (per row, RGF vs high-precision reference) show:
+* in every configuration, |Δφ| ≤ 0.89·N·ε_mach/sin(kdx) (median ratio
+  0.21–0.23);
+* at fixed dx the error grows exactly linearly with the number of slices:
+  per row, E/A has median ×2.43 (IQR 2.41–2.43) for N 718 → 1742;
+* halving dx does **not** multiply the per-row error by a fixed factor.
+  Per row, C/A has median ×2.6 (IQR 1.2–5.6) and F/A median ×7.0 (IQR
+  3.0–13.6), against the bound's ×4 and ×9.7. A different dx changes the
+  rounding of every Hamiltonian entry, so only the bound scales
+  predictably. The earlier "×3.9 vs ×4" agreement was based on maxima of
+  the B1 quantity and was partly coincidental.
+
+Rescaling H by 1/t_x does not remove the cancellation; a different
+discretization would be needed, and the specification fixes this one. The
+strict xfail `test_long_device_provisional_phase_criterion` records the
+failure (the suite flags it if it changes). Note: the B3 plan (spec §3)
+uses L_d = 1 with dx = 1/512 and 1/1024, and those configurations pass.
+
+## 6a. Reproducible high-precision phase audit (all six configurations)
+Script `audit_rgf_phase.py`. Committed artifacts in
+`results/rgf_b1_validation/`:
+* `phase_audit_hp.csv`: 2544 rows, i.e. 6 configurations × 50 energies ×
+  open channels × 2 directions;
+* `phase_audit_hp_summary.json`;
+* `phase_audit_hp_metadata.json`: source commit `d5a97a3`, clean working
+  tree, Python, NumPy, SciPy and mpmath versions, precision, the exact
+  command, timestamp, code fingerprint.
+
+The earlier `phase_exact.csv` (configuration A, L→R only) is left
+unchanged.
+
+**What is compared.** For the clean guide, convention P gives
+t_nn = λₙ^{N−1} exactly (§5). Three quantities are kept apart:
+
+| Quantity | Definition | Role |
+|---|---|---|
+| (i) B1 phase quantity | \|t_nn − λ_double^{N−1}\|: double-precision RGF vs double-precision reference (λ from `lead_modes`) | the **predeclared B1 criterion** (≤ 10⁻¹⁰), unchanged |
+| (ii) RGF vs high-precision reference | Δφ = arg(t_nn·e^{−iφ_ref}) | the RGF's actual numerical phase error |
+| (iii) double reference vs high-precision reference | arg(λ_double^{N−1}·e^{−iφ_ref}) | the error of the double-precision reference itself |
+
+Magnitude errors ||t| − 1| are reported separately.
+
+**High-precision reference.** φ_ref = (N − 1)·θ with θ = arccos(1 − δ),
+δ = (E − Eₙ^⊥)·dx², evaluated in mpmath at 100 significant digits.
+* Taken exactly as given (double values are exact binary rationals): E (the
+  B1 grid value), Eₙ^⊥ (the same double array the RGF uses), dx and N. The
+  reference is therefore the exact phase *of the lattice problem the RGF was
+  given*. It is not the continuum phase. Differences from the continuum are
+  discretization or parameter rounding, not RGF error.
+* No double-precision intermediate of the RGF or of `lead_modes` (λ, k,
+  angles) enters it.
+
+**Phase-difference convention.** Δφ = arg(t·e^{−iφ_ref}) ∈ (−π, π], the
+principal value of φ_RGF − φ_ref. It is independent of 2π branches. This
+matters: the unwrapped φ_ref reaches 73 rad (≈ 23π) in configuration F, so
+naive subtraction of principal values would fail across the ±π cut. A test
+covers that case. It is valid while the true difference is below π; here it
+is ~10⁻¹⁰. The mpmath reduction into (−π, π] is done at an explicit
+precision, not the ambient one; a test checks this.
+
+**Precision and conditioning of the reference.** Near a threshold forming
+1 − δ loses about 11 of the 100 digits, and arccos amplifies relative error
+by ~1/√(2δ) ≲ 10⁶; N − 1 ≤ 3482 adds about 3.5 more digits. Measured over
+all rows:
+
+| Check | Max over all rows |
+|---|---|
+| dps 30 vs dps 100 | ≤ 1.1×10⁻²⁹ |
+| dps 50 vs dps 100 | ≤ 1.1×10⁻⁴⁹ |
+| arccos form vs cancellation-free 2·arcsin(√(δ/2)) (dps 100) | ≤ 9.1×10⁻¹⁰⁰ |
+
+So the reference resolves the 10⁻¹⁰ effects with ≥ 19 orders of magnitude
+to spare. It distinguishes RGF error, double-reference error and branch
+effects unambiguously.
+
+**Results (all six configurations; each 50 energies, 424 rows):**
+
+| Config | N | (ii) RGF vs HP: max \|Δφ\| | RMS | at E, channel | (iii) double ref vs HP: max | max \|\|t\|−1\| | (i) B1 quantity max | B1 phase criterion |
+|---|---|---|---|---|---|---|---|---|
+| A (63, 1/512, 1) | 718 | 2.360e-11 | 3.25e-12 | 79.247, n=4 | 2.35e-11 | 7.4e-14 | 1.878e-11 | pass |
+| B (127, 1/512, 1) | 718 | 2.360e-11 | 3.25e-12 | 79.247, n=4 | 2.35e-11 | 7.4e-14 | 1.878e-11 | pass |
+| C (63, 1/1024, 1) | 1435 | 6.358e-11 | 1.35e-11 | 125.692, n=5 | 2.52e-11 | 2.1e-13 | 7.289e-11 | pass |
+| D (127, 1/1024, 1) | 1435 | 6.358e-11 | 1.35e-11 | 125.692, n=5 | 2.52e-11 | 2.1e-13 | 7.289e-11 | pass |
+| E (63, 1/512, 3) | 1742 | 5.765e-11 | 7.92e-12 | 79.247, n=4 | 5.70e-11 | 1.4e-13 | 4.560e-11 | pass |
+| **F (63, 1/1024, 3)** | 3483 | **1.5425e-10** | 3.29e-11 | 125.692, n=5 | 6.12e-11 | 3.2e-13 | **1.7685e-10** | **fail** |
+
+(Exact values are in `phase_audit_hp_summary.json`.)
+* N_y does not matter for the clean guide: A ≡ B and C ≡ D bitwise.
+* The recomputed B1 quantity agrees with `b1_grid.csv` to rounding (test).
+* Applying the same 10⁻¹⁰ value to (ii) as a *diagnostic* gives the same
+  verdicts: F fails (1.54×10⁻¹⁰), the others pass.
+
+**Interpretation.**
+1. **Configuration F fails B1 on its genuine RGF error, not on reference
+   error.** At F's worst row the RGF error is +1.542×10⁻¹⁰ and the double
+   reference error is −2.26×10⁻¹¹. They add up to the B1 quantity
+   1.769×10⁻¹⁰, but the RGF error alone already exceeds 10⁻¹⁰.
+2. **The predeclared B1 phase quantity (i) is a comparison of two
+   double-precision computations.** It can over- or under-state the RGF
+   error. It can even *mask* it when both share the same rounding error. At
+   E's worst row the RGF and the double reference deviate from the exact
+   phase by +5.77×10⁻¹¹ and +5.70×10⁻¹¹, so (i) reports only 7×10⁻¹³. In
+   these data this never changes a verdict. It is a methodological
+   limitation of criterion (i) as declared, which is kept unchanged.
+3. Phase wrapping plays no role in any verdict: all |Δφ| are ~10⁻¹⁰ ≪ π.
+
+**Reproducibility.** Rerunning configurations A and F reproduced their 848
+rows identically (text-exact). Regenerating all six from commit `d5a97a3`
+gave a CSV byte-identical to an earlier full run. Rows are deterministic on
+this machine and library set (`OPENBLAS_NUM_THREADS=1`).
+
+Reproduce: `python audit_rgf_phase.py` (≈ 10 min, all six) or
+`python audit_rgf_phase.py --configs F --out DIR`; then
+`python -m pytest -q tests/test_phase_audit.py`.
 
 ## 7. Numerical stability study (measured)
 * **Conditioning.** min rcond(D_j) over the spec grid is 1.8–3.8×10⁻³ in all
@@ -232,6 +350,10 @@ configurations pass.
   convention and reciprocity bookkeeping. It does **not** test the
   potential-matrix elements in transport, mode mixing by a potential, the
   agreement with the continuum (B2), or with the time-dependent solver (B4).
+* **The predeclared B1 phase quantity compares two double-precision
+  computations** (§6a). It can mask or exaggerate the RGF error by up to
+  ~6×10⁻¹¹ here. The high-precision audit is the measurement of the
+  RGF's own phase error.
 * **Provisional phase criterion fails for N = 3483** (§6). The phase error
   scales as L/(k·dx²) near thresholds. Phase-sensitive applications on long
   fine grids need this taken into account. The error in |t| is ≤ 6.4×10⁻¹³

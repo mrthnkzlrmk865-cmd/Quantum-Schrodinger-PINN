@@ -1,0 +1,63 @@
+{
+  "generated_utc": "2026-11-06T12:18:27+00:00",
+  "command": "python audit_rgf_phase.py",
+  "source_commit": "d5a97a3bb300d095c9a0197a75bf7d89a95d64fc",
+  "working_tree_dirty": false,
+  "python": "3.13.18",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "mpmath": "1.3.0",
+  "platform": "Linux-6.18.44-fc-v242-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "arbitrary_precision": {
+    "library": "mpmath",
+    "reference_dps": 100,
+    "check_dps": [
+      30,
+      50
+    ]
+  },
+  "openblas_num_threads": "1",
+  "configs": {
+    "A": {
+      "N_y": 63,
+      "dx": 0.001953125,
+      "L_d": 1.0
+    },
+    "B": {
+      "N_y": 127,
+      "dx": 0.001953125,
+      "L_d": 1.0
+    },
+    "C": {
+      "N_y": 63,
+      "dx": 0.0009765625,
+      "L_d": 1.0
+    },
+    "D": {
+      "N_y": 127,
+      "dx": 0.0009765625,
+      "L_d": 1.0
+    },
+    "E": {
+      "N_y": 63,
+      "dx": 0.001953125,
+      "L_d": 3.0
+    },
+    "F": {
+      "N_y": 63,
+      "dx": 0.0009765625,
+      "L_d": 3.0
+    }
+  },
+  "wall_time_s": 593.0473010540009,
+  "code_fingerprint": "sha256:9b3ab7781e708f5a7a3399c5833f17c416ddf050c80d387425c60a0f46befa22",
+  "code_files": {
+    "config.py": "sha256:68639f852048dbd6b3a1d48a7cae921276fec5e022ea31cddfc815b63ad8420d",
+    "potential.py": "sha256:a3b203335c1fb7363578141408fed404158ad6da38902ea042ef5991353df91c",
+    "disorder.py": "sha256:f8435f93e3ee158d0e17b252ea932ede3326e4f6a4f25a2afc16ae3a50c34c32",
+    "smatrix_spec.py": "sha256:e6029cbcd91eed8461f1ef351a757f6463aa0c8b008f7908db58253d010b0cf9",
+    "stationary.py": "sha256:7294be3c22fd88bd317d3df45858642f36cc53ea2912cc00be47b7d2dc17949e",
+    "validate_rgf_b1.py": "sha256:322aa578ede3a7a7c24d2ff865dae84e0aee275b136a28d1aa9cc2dbe9033b79"
+  }
+}
