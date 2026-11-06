@@ -756,11 +756,16 @@ own distributional assumptions.
    are in [ODE1D_VALIDATION.md](ODE1D_VALIDATION.md). This validates the
    1D *reference*, not the RGF solver. The smooth-step formula remains
    unused.
-2. **`stationary.py`: mode-space RGF. Implemented (stage 2); only B1 done.**
+2. **`stationary.py`: mode-space RGF. Implemented (stage 2); B1 and B2 done.**
+   **B2 passes** (all binding criteria, both V_b, and the TD vs
+   energy-averaged ODE comparison); see
+   [RGF_B2_VALIDATION.md](RGF_B2_VALIDATION.md). **B3 was run and does not pass:** the dx
+   1/512 → 1/1024 criterion fails (5.97×10⁻⁴ vs 2×10⁻⁴, case D, W = 200); all other B3 criteria
+   pass (RGF vs sparse 4.9×10⁻¹²); see [RGF_B3_VALIDATION.md](RGF_B3_VALIDATION.md). B4 not implemented.
    B1 passes in 5 of 6 configurations. The provisional phase criterion fails
    for the 3483-slice device (1.77×10⁻¹⁰ vs 10⁻¹⁰; FD conditioning near
    thresholds, investigated, threshold not relaxed). See
-   [RGF_B1_VALIDATION.md](RGF_B1_VALIDATION.md). B2–B4 are not implemented.
+   [RGF_B1_VALIDATION.md](RGF_B1_VALIDATION.md).
    Original plan: it builds H_D (§2.7.1, with
    symmetric V_j), runs the recursion for G_{11}, G_{N1}, G_{1N}, G_{NN},
    and obtains lead modes, Σ, Γ, Fisher–Lee amplitudes, S and the checks
@@ -799,11 +804,11 @@ Required for the stationary solver (to be written with it):
 - [ ] `test_V_blocks_symmetric`: V_j = V_jᵀ exactly (quadrature form of §2.7.1)
 - [ ] `test_clean_guide_unit_transmission` (B1 thresholds incl. the phase λ^{N−1}, both incidence directions)
 - [ ] `test_unitarity_and_reciprocity`: full S from both incidence directions, U ≤ 10⁻¹⁰, Q = max|S − Sᵀ| ≤ 10⁻⁸, reflection blocks symmetric, t_LR = t_RLᵀ, T^{L→R}_{m←n} = T^{R→L}_{n←m}
-- [ ] `test_rgf_equals_direct_sparse` (full S, 10⁻¹⁰)
-- [ ] `test_y_uniform_barrier_decouples_channels` (off-diagonal ≤ 10⁻¹²)
+- [x] `test_rgf_equals_direct_sparse` (full S, 10⁻¹⁰): `sparse_reference.py` + `tests/test_rgf_b3.py`
+- [x] `test_y_uniform_barrier_decouples_channels` (off-diagonal ≤ 10⁻¹²): done for B2 in `tests/test_rgf_b2.py`
 - [ ] `test_ode1d_vs_rectangular_formula` (10⁻⁸; `test_ode1d_vs_smooth_step` only if the source is verified)
-- [ ] `test_rgf_barrier_vs_ode1d` (2×10⁻⁴ binding; measured order reported)
-- [ ] `test_same_realization` (V on the RGF slices equals `Potential.numpy` at the same points, bitwise)
+- [x] `test_rgf_barrier_vs_ode1d` (2×10⁻⁴ binding; measured order reported): `validate_rgf_b2.py` + `tests/test_rgf_b2.py`
+- [x] `test_same_realization` (V on the RGF slices equals `Potential.numpy` at the same points, bitwise): `tests/test_rgf_b3.py`
 - [ ] `test_energy_average_weights` (P(kₓ) normalized; reproduces T_pkt = 1 for the clean guide; threshold energies moved off the grid)
 - [ ] `test_b4_interval_criterion` (dist(⟨T⟩_E, [T_TD, T_TD + P_in]) logic)
 - [ ] B3/B4 as slow, marked integration tests (run by `validate_stationary.py`, not by the default suite)

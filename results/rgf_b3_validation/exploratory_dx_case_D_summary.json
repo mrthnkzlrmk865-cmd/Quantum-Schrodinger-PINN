@@ -1,0 +1,39 @@
+{
+  "label": "exploratory (diagnosis of the failed B3 dx criterion); not part of the predeclared protocol",
+  "case": "D",
+  "params": {
+    "seed": 0,
+    "W": 200.0,
+    "Ld": 1.0,
+    "zeta": 0.05
+  },
+  "dxs": [
+    0.00390625,
+    0.001953125,
+    0.0009765625,
+    0.00048828125
+  ],
+  "N_y": 63,
+  "N_q": 127,
+  "buffer": 0.201171875,
+  "max_abs_delta_512_to_1024": 0.0005968576250486857,
+  "max_abs_delta_1024_to_2048": 0.0001489555134131515,
+  "orders": {
+    "min": 1.9811027296701245,
+    "max": 2.027703052884909,
+    "median": 2.0040102799234325
+  },
+  "n_richardson_applied": 5,
+  "max_abs_est_error_dx512": 0.0007954649762662025,
+  "max_abs_est_error_dx1024": 0.00019860735121751683,
+  "max_abs_sparse_minus_rgf_T1_dx1024": 8.834183384820449e-13,
+  "max_sparse_vs_rgf_S_dx1024": 4.927394679384765e-12,
+  "dT1_limit_of_the_failed_criterion": 0.0002,
+  "wall_time_s": 87.30829858779907,
+  "generated_utc": "2026-11-06T17:09:26+00:00",
+  "command": "python explore_b3_dx.py",
+  "source_commit": "a0616cf92963861580948b7a971a465aaa2c3e63",
+  "working_tree_dirty": false,
+  "python": "3.13.18",
+  "numpy": "2.5.3"
+}

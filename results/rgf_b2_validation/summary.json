@@ -1,0 +1,500 @@
+{
+  "per_barrier": {
+    "150.0": {
+      "per_dx": {
+        "1/256": {
+          "N": 513,
+          "n_energies": 60,
+          "max_abs_T_error": 0.00014366852708935784,
+          "rms_abs_T_error": 7.057191297710501e-05,
+          "argmax": {
+            "kx": 20.26966101694915,
+            "epsilon": 205.42957887101403,
+            "E_total": 210.3643810715587
+          },
+          "max_by_regime": {
+            "below": 6.807611966153093e-05,
+            "near": 0.00012373658648756614,
+            "above": 0.00014366852708935784
+          },
+          "max_unitarity": 9.381384558082573e-14,
+          "max_reciprocity": 3.6523637779941564e-15,
+          "max_mode_reciprocity": 6.5503158452884236e-15,
+          "max_channel_mixing": 4.786080616973539e-33,
+          "max_channel_mixing_all_channels": 1.2165281632728563e-31,
+          "max_flux_residual_ch1": 6.328271240363392e-14,
+          "min_rcond": 0.002266809510835364
+        },
+        "1/512": {
+          "N": 1025,
+          "n_energies": 60,
+          "max_abs_T_error": 3.5905628386512234e-05,
+          "rms_abs_T_error": 1.7636088590786235e-05,
+          "argmax": {
+            "kx": 20.26966101694915,
+            "epsilon": 205.42957887101403,
+            "E_total": 210.3643810715587
+          },
+          "max_by_regime": {
+            "below": 1.7034586006992036e-05,
+            "near": 3.093797987341329e-05,
+            "above": 3.5905628386512234e-05
+          },
+          "max_unitarity": 1.4055423491754482e-13,
+          "max_reciprocity": 7.050790343534463e-15,
+          "max_mode_reciprocity": 1.3100631690576847e-14,
+          "max_channel_mixing": 4.513460440241698e-33,
+          "max_channel_mixing_all_channels": 1.2652952191440403e-31,
+          "max_flux_residual_ch1": 1.1235457009206584e-13,
+          "min_rcond": 0.002385684630107513
+        },
+        "1/1024": {
+          "N": 2049,
+          "n_energies": 60,
+          "max_abs_T_error": 8.975686452639131e-06,
+          "rms_abs_T_error": 4.408591802182954e-06,
+          "argmax": {
+            "kx": 20.26966101694915,
+            "epsilon": 205.42957887101403,
+            "E_total": 210.3643810715587
+          },
+          "max_by_regime": {
+            "below": 4.259612706003502e-06,
+            "near": 7.734730214759011e-06,
+            "above": 8.975686452639131e-06
+          },
+          "max_unitarity": 4.7883919052083e-13,
+          "max_reciprocity": 7.622835268985955e-15,
+          "max_mode_reciprocity": 1.3988810110276972e-14,
+          "max_channel_mixing": 4.5071738138826854e-33,
+          "max_channel_mixing_all_channels": 1.2059907658665024e-31,
+          "max_flux_residual_ch1": 2.2326585025211898e-13,
+          "min_rcond": 0.002418444031537143
+        }
+      },
+      "binding_dx_max_abs_T_error": 3.5905628386512234e-05,
+      "binding_dx_argmax": {
+        "kx": 20.26966101694915,
+        "epsilon": 205.42957887101403,
+        "E_total": 210.3643810715587
+      },
+      "order_coarse_pair_256_512": {
+        "n": 59,
+        "min": 1.9366680813135748,
+        "q25": 2.0000807459257426,
+        "median": 2.0010055380802005,
+        "q75": 2.0015897296358434,
+        "max": 2.008713607938135
+      },
+      "order_fine_pair_512_1024": {
+        "n": 59,
+        "min": 1.9846639878046446,
+        "q25": 2.000020786613345,
+        "median": 2.000251251892445,
+        "q75": 2.000397603543291,
+        "max": 2.0021753004810927
+      },
+      "order_self_three_grid": {
+        "n": 60,
+        "min": -0.07614991994224088,
+        "q25": 1.999943088679007,
+        "median": 2.0012367635657,
+        "q75": 2.001972621817213,
+        "max": 2.010882115896637
+      },
+      "n_order_nan_coarse": 1,
+      "n_order_nan_fine": 1,
+      "n_sign_change_512_1024": 0,
+      "order_of_max_errors": [
+        2.0004621342257405,
+        2.0001158271047084
+      ],
+      "richardson": {
+        "n_applied": 59,
+        "n_energies": 60,
+        "max_abs_error": 1.8525883049846925e-09,
+        "provisional_pass_where_applied": true
+      },
+      "ode": {
+        "max_flux_error": 2.3381296898605797e-13,
+        "max_rtol_change_T": 1.0676227263362037e-10,
+        "max_range_change_T": 1.1986245329609346e-12,
+        "max_sharp_err_vs_formula": 4.8183679268731794e-14,
+        "max_sharp_flux_error": 3.2862601528904634e-14,
+        "nfev_range": [
+          1250,
+          1394
+        ],
+        "interval": [
+          2.1800000000000037,
+          2.619999999999996
+        ],
+        "method": "DOP853",
+        "rtol": 1e-12,
+        "atol": 1e-12
+      },
+      "rgf_buffer_check": {
+        "device_wide": [
+          1.0,
+          4.0
+        ],
+        "dx": 0.001953125,
+        "max_change_T": 1.9778623183697164e-13
+      }
+    },
+    "250.0": {
+      "per_dx": {
+        "1/256": {
+          "N": 513,
+          "n_energies": 60,
+          "max_abs_T_error": 0.00023816277859955992,
+          "rms_abs_T_error": 0.00010858057260905085,
+          "argmax": {
+            "kx": 25.123559322033895,
+            "epsilon": 315.5966165038781,
+            "E_total": 320.5314187044228
+          },
+          "max_by_regime": {
+            "below": 0.00011101857251899494,
+            "near": 0.00019850940310117693,
+            "above": 0.00023816277859955992
+          },
+          "max_unitarity": 9.447997939560082e-14,
+          "max_reciprocity": 3.1031676915590912e-15,
+          "max_mode_reciprocity": 4.9960036108132044e-15,
+          "max_channel_mixing": 6.660317568442497e-33,
+          "max_channel_mixing_all_channels": 6.251733986349074e-32,
+          "max_flux_residual_ch1": 5.928590951498336e-14,
+          "min_rcond": 0.0022955730736856587
+        },
+        "1/512": {
+          "N": 1025,
+          "n_energies": 60,
+          "max_abs_T_error": 5.951156960393167e-05,
+          "rms_abs_T_error": 2.7131334500861524e-05,
+          "argmax": {
+            "kx": 25.123559322033895,
+            "epsilon": 315.5966165038781,
+            "E_total": 320.5314187044228
+          },
+          "max_by_regime": {
+            "below": 2.777606666154453e-05,
+            "near": 4.962922604301312e-05,
+            "above": 5.951156960393167e-05
+          },
+          "max_unitarity": 1.5298873279334657e-13,
+          "max_reciprocity": 5.30240470919965e-15,
+          "max_mode_reciprocity": 9.547918011776346e-15,
+          "max_channel_mixing": 6.491681456505787e-33,
+          "max_channel_mixing_all_channels": 7.420141827171266e-32,
+          "max_flux_residual_ch1": 1.1324274851176597e-13,
+          "min_rcond": 0.0024159584853762094
+        },
+        "1/1024": {
+          "N": 2049,
+          "n_energies": 60,
+          "max_abs_T_error": 1.4876070157709975e-05,
+          "rms_abs_T_error": 6.781971120990051e-06,
+          "argmax": {
+            "kx": 25.123559322033895,
+            "epsilon": 315.5966165038781,
+            "E_total": 320.5314187044228
+          },
+          "max_by_regime": {
+            "below": 6.945344876996273e-06,
+            "near": 1.2407415998505478e-05,
+            "above": 1.4876070157709975e-05
+          },
+          "max_unitarity": 4.684030940893535e-13,
+          "max_reciprocity": 7.882778934215382e-15,
+          "max_mode_reciprocity": 1.5654144647214707e-14,
+          "max_channel_mixing": 6.416796116434624e-33,
+          "max_channel_mixing_all_channels": 7.298081253864644e-32,
+          "max_flux_residual_ch1": 2.545741395465484e-13,
+          "min_rcond": 0.0024491340737720947
+        }
+      },
+      "binding_dx_max_abs_T_error": 5.951156960393167e-05,
+      "binding_dx_argmax": {
+        "kx": 25.123559322033895,
+        "epsilon": 315.5966165038781,
+        "E_total": 320.5314187044228
+      },
+      "order_coarse_pair_256_512": {
+        "n": 60,
+        "min": 1.973067700387832,
+        "q25": 2.0006880102535725,
+        "median": 2.0010996617499357,
+        "q75": 2.001652764019605,
+        "max": 2.0142147584287247
+      },
+      "order_fine_pair_512_1024": {
+        "n": 60,
+        "min": 1.993381569080395,
+        "q25": 2.0001726675616425,
+        "median": 2.000273795419985,
+        "q75": 2.000412195925871,
+        "max": 2.003556209969962
+      },
+      "order_self_three_grid": {
+        "n": 60,
+        "min": 1.9661902770542286,
+        "q25": 2.0008597227096443,
+        "median": 2.0013747758767773,
+        "q75": 2.0020658918865855,
+        "max": 2.0177385989443075
+      },
+      "n_order_nan_coarse": 0,
+      "n_order_nan_fine": 0,
+      "n_sign_change_512_1024": 0,
+      "order_of_max_errors": [
+        2.000705884268079,
+        2.0001767120148295
+      ],
+      "richardson": {
+        "n_applied": 60,
+        "n_energies": 60,
+        "max_abs_error": 4.227961092340138e-09,
+        "provisional_pass_where_applied": true
+      },
+      "ode": {
+        "max_flux_error": 2.0161650127192843e-13,
+        "max_rtol_change_T": 4.889481874936763e-11,
+        "max_range_change_T": 3.7136960173711486e-13,
+        "max_sharp_err_vs_formula": 4.2743586448068527e-14,
+        "max_sharp_flux_error": 3.019806626980426e-14,
+        "nfev_range": [
+          1250,
+          1454
+        ],
+        "interval": [
+          2.1800000000000037,
+          2.619999999999996
+        ],
+        "method": "DOP853",
+        "rtol": 1e-12,
+        "atol": 1e-12
+      },
+      "rgf_buffer_check": {
+        "device_wide": [
+          1.0,
+          4.0
+        ],
+        "dx": 0.001953125,
+        "max_change_T": 9.026113190202523e-14
+      }
+    }
+  },
+  "criteria": {
+    "A_binding_dT_dx512": {
+      "limit": 0.0002,
+      "value": {
+        "150.0": 3.5905628386512234e-05,
+        "250.0": 5.951156960393167e-05
+      },
+      "pass": true
+    },
+    "C_channel_mixing": {
+      "limit": 1e-12,
+      "value": 6.660317568442497e-33,
+      "pass": true
+    },
+    "D_unitarity": {
+      "limit": 1e-10,
+      "value": 4.7883919052083e-13,
+      "pass": true
+    },
+    "E_reciprocity": {
+      "limit": 1e-08,
+      "value": 7.882778934215382e-15,
+      "pass": true
+    },
+    "F_ode_flux": {
+      "limit": 1e-09,
+      "value": 2.3381296898605797e-13,
+      "pass": true
+    },
+    "F_ode_rtol_change": {
+      "limit": 1e-09,
+      "value": 1.0676227263362037e-10,
+      "pass": true
+    },
+    "F_ode_range_change": {
+      "limit": 1e-10,
+      "value": 1.1986245329609346e-12,
+      "pass": true
+    },
+    "F_ode_sharp_vs_formula": {
+      "limit": 1e-08,
+      "value": 4.8183679268731794e-14,
+      "pass": true
+    },
+    "B_convergence_order": {
+      "status": "measured and reported (not a pass/fail criterion)",
+      "richardson": "applied only where both per-energy orders (vs ODE) are in [1.8, 2.2]; provisional |dT| <= 2e-5 reported for those energies only"
+    }
+  },
+  "limits": {
+    "dT": 0.0002,
+    "mixing": 1e-12,
+    "U": 1e-10,
+    "Q": 1e-08
+  },
+  "provisional": {
+    "richardson_dT": 2e-05,
+    "order_window": [
+      1.8,
+      2.2
+    ]
+  },
+  "ode_limits": {
+    "sharp_T_vs_formula": 1e-08,
+    "flux": 1e-09,
+    "smooth_rtol_change": 1e-09,
+    "smooth_range_change": 1e-10
+  },
+  "potential_checks": {
+    "all_samples_bitwise_equal": true,
+    "per_device": {
+      "Vb=150.0,dx=1/256": {
+        "n_slices": 513,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 4.276270179979771e-13,
+        "max_diag_V_block_minus_Vx": 2.2737367544323206e-13,
+        "max_V": 149.98571029635434,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      },
+      "Vb=150.0,dx=1/512": {
+        "n_slices": 1025,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 4.276270179979771e-13,
+        "max_diag_V_block_minus_Vx": 2.5579538487363607e-13,
+        "max_V": 149.98633906092965,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      },
+      "Vb=150.0,dx=1/1024": {
+        "n_slices": 2049,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 4.276270179979771e-13,
+        "max_diag_V_block_minus_Vx": 2.5579538487363607e-13,
+        "max_V": 149.98633906092965,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      },
+      "Vb=150.0,dx=1/512,wide": {
+        "n_slices": 1537,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 4.276270179979771e-13,
+        "max_diag_V_block_minus_Vx": 2.5579538487363607e-13,
+        "max_V": 149.98633906092965,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      },
+      "Vb=250.0,dx=1/256": {
+        "n_slices": 513,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 7.053164387990706e-13,
+        "max_diag_V_block_minus_Vx": 3.979039320256561e-13,
+        "max_V": 249.97618382725724,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      },
+      "Vb=250.0,dx=1/512": {
+        "n_slices": 1025,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 7.053164387990706e-13,
+        "max_diag_V_block_minus_Vx": 3.979039320256561e-13,
+        "max_V": 249.97723176821606,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      },
+      "Vb=250.0,dx=1/1024": {
+        "n_slices": 2049,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 7.084679387533074e-13,
+        "max_diag_V_block_minus_Vx": 4.547473508864641e-13,
+        "max_V": 249.97723176821606,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      },
+      "Vb=250.0,dx=1/512,wide": {
+        "n_slices": 1537,
+        "n_quad": 127,
+        "samples_bitwise_equal_barrier_numpy": true,
+        "max_offdiag_V_block": 7.053164387990706e-13,
+        "max_diag_V_block_minus_Vx": 3.979039320256561e-13,
+        "max_V": 249.97723176821606,
+        "V_lead_max": 0.0,
+        "V_at_device_ends": [
+          0.0,
+          0.0
+        ]
+      }
+    }
+  },
+  "energy_grid": {
+    "n": 60,
+    "n_adjusted": 0,
+    "min_rel_dist_to_threshold": 0.0019226980367597342,
+    "rule": "|E - E_n| < 0.001 E -> E_n (1 +/- 0.002), same side",
+    "n_open_range": [
+      1,
+      11
+    ]
+  },
+  "rgf_vs_ode_all_binding_pass": true,
+  "td_energy_averaged_comparison": {
+    "all_pass": true,
+    "file": "td_energy_average.json",
+    "per_barrier": {
+      "150.0": {
+        "dist_T": 0.0003215562278762185,
+        "dist_R": 0.0003283521733105643,
+        "pass_all": true
+      },
+      "250.0": {
+        "dist_T": 0.0006985658985859677,
+        "dist_R": 0.0007053618440284737,
+        "pass_all": true
+      }
+    }
+  },
+  "overall_B2_status": "PASS",
+  "conventions": {
+    "energy": "E_total = epsilon + E_perp_1, E_perp_1 = pi^2/(2 L_y^2) (stationary.transverse_basis value)",
+    "rgf_reference_planes": "convention P: first and last device slices x = 1.5 and 3.5 (spec \u00a72.7.5)",
+    "ode_reference_planes": "incident/reflected at x_left, transmitted at x_right of the clean_interval (ode1d)",
+    "compared": "probabilities T, R (independent of the reference planes)"
+  },
+  "wall_time_s": 772.1175265312195
+}
