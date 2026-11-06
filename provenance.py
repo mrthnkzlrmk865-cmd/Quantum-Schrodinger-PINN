@@ -63,6 +63,9 @@ CODE_FILES = {
     "validation": _CORE + ["analytic.py", "transport.py", "validate_solver.py"],
     "ode1d": ["config.py", "potential.py", "disorder.py", "analytic.py", "ode1d.py", "validate_ode1d.py"],
     "rgf": ["config.py", "potential.py", "disorder.py", "smatrix_spec.py", "stationary.py", "validate_rgf_b1.py"],
+    "rgf_b2": ["config.py", "potential.py", "disorder.py", "smatrix_spec.py", "stationary.py", "analytic.py",
+               "ode1d.py", "initial_condition.py", "reference_solver.py", "transport.py",
+               "experiment_disorder.py", "validate_rgf_b2.py"],
 }
 
 # Config fields that never influence a reference-solver result.
@@ -150,6 +153,7 @@ ENV_PACKAGES = {
     "validation": ("python", "numpy", "scipy", "machine"),
     "ode1d": ("python", "numpy", "scipy", "machine"),
     "rgf": ("python", "numpy", "scipy", "machine"),
+    "rgf_b2": ("python", "numpy", "scipy", "machine"),
     "pinn": ("python", "numpy", "scipy", "torch", "machine"),
 }
 
