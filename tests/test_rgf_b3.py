@@ -493,3 +493,34 @@ def test_one_comparison_row_reproduces_live():
     assert abs(float(np.max(b3.s_difference(r["S"], s["S"]))) - float(r0["max_abs_dS"])) < 1e-13
     assert abs(b3.T1(r["S"], r["n_open"]) - float(r0["T1_RGF"])) < 1e-13
     assert abs(b3.T1(s["S"], s["n_open"]) - float(r0["T1_sparse"])) < 1e-13
+
+
+# ----------------------------------------------------------------------
+# exploratory dx diagnosis (clearly separate from the predeclared protocol)
+# ----------------------------------------------------------------------
+EXPL = os.path.join(RES, "exploratory_dx_case_D.csv")
+
+
+@pytest.mark.skipif(not (HAVE and os.path.exists(EXPL)), reason="exploratory artifacts not generated")
+def test_exploratory_dx_is_consistent_and_does_not_replace_the_criterion():
+    rows = list(csv.DictReader(open(EXPL)))
+    with open(os.path.join(RES, "exploratory_dx_case_D_summary.json")) as f:
+        es = json.load(f)
+    with open(SUMMARY) as f:
+        s = json.load(f)
+    assert len(rows) == 5 and all(r["label"] == "exploratory" and r["case"] == "D" for r in rows)
+    assert "exploratory" in es["label"] and es["dT1_limit_of_the_failed_criterion"] == 2e-4
+    main = [r for r in _csv("dx_convergence") if r["case"] == "D"]
+    for r, m in zip(rows, main):
+        assert float(r["E"]) == float(m["E"])
+        # the same RGF computation as in the predeclared dx criterion (dx = 1/512 -> 1/1024)
+        assert abs(float(r["T1_dx_1_512"]) - float(m["T1_reference"])) < 1e-12
+        assert abs(float(r["T1_dx_1_1024"]) - float(m["T1_variant"])) < 1e-12
+        t = [float(r[f"T1_dx_1_{k}"]) for k in (256, 512, 1024, 2048)]
+        assert float(r["order_256_512_1024"]) == pytest.approx(math.log2(abs(t[0] - t[1]) / abs(t[1] - t[2])), rel=1e-12)
+        ok = 1.8 <= float(r["order_256_512_1024"]) <= 2.2 and 1.8 <= float(r["order_512_1024_2048"]) <= 2.2
+        assert (r["richardson_applied"] == "True") == ok
+        assert abs(float(r["sparse_minus_rgf_T1_dx_1_1024"])) < 1e-10        # both methods see the same dx dependence
+    # the exploratory result does not rewrite the predeclared outcome
+    assert s["criteria_passed"]["dx_1_512_vs_1_1024"] == (s["dx_1_512_vs_1_1024"]["value"] <= 2e-4)
+    assert s["dx_1_512_vs_1_1024"]["limit"] == 2e-4
