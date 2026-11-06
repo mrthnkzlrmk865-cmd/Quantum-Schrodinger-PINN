@@ -142,3 +142,30 @@ def test_smooth_barrier_approaches_sharp_barrier_as_edge_shrinks():
         a, b = clean_interval(V, x1, x2, tol=1e-12, step=0.002)
         diffs.append(abs(solve_scattering(eps, V, a, b)["T"] - Tsharp))
     assert diffs[0] > diffs[1] > diffs[2]
+
+
+# ----------------------------------------------------------------------
+# clean_interval robustness
+# ----------------------------------------------------------------------
+def test_clean_interval_unchanged_for_the_smooth_barrier():
+    cfg, V, x1, x2, a, b = _smooth_setup(250.0)
+    assert (round(a, 10), round(b, 10)) == (2.18, 2.62)
+
+
+def test_clean_interval_raises_when_potential_does_not_decay():
+    with pytest.raises(RuntimeError, match="does not decay"):
+        clean_interval(lambda x: 1.0, 0.0, 1.0, tol=1e-12, step=0.1, max_iter=50)
+    # decays on the left only: the right side must fail
+    with pytest.raises(RuntimeError, match="to the right"):
+        clean_interval(lambda x: 0.0 if x < 0.5 else 1.0, 0.0, 1.0, tol=1e-12, step=0.1, max_iter=50)
+
+
+@pytest.mark.parametrize("kwargs", [dict(step=0.0), dict(step=-0.1), dict(tol=-1.0), dict(tol=np.nan),
+                                    dict(max_iter=0), dict(max_iter=2.5)])
+def test_clean_interval_validates_inputs(kwargs):
+    args = dict(V=lambda x: 0.0, x_lo=0.0, x_hi=1.0, tol=1e-12)
+    args.update(kwargs)
+    with pytest.raises(ValueError):
+        clean_interval(**args)
+    with pytest.raises(ValueError):
+        clean_interval(lambda x: 0.0, 1.0, 0.0, tol=1e-12)            # x_hi < x_lo

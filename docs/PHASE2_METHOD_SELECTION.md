@@ -756,7 +756,12 @@ own distributional assumptions.
    are in [ODE1D_VALIDATION.md](ODE1D_VALIDATION.md). This validates the
    1D *reference*, not the RGF solver. The smooth-step formula remains
    unused.
-2. **`stationary.py`: mode-space RGF.** It builds H_D (§2.7.1, with
+2. **`stationary.py`: mode-space RGF. Implemented (stage 2); only B1 done.**
+   B1 passes in 5 of 6 configurations. The provisional phase criterion fails
+   for the 3483-slice device (1.77×10⁻¹⁰ vs 10⁻¹⁰; FD conditioning near
+   thresholds, investigated, threshold not relaxed). See
+   [RGF_B1_VALIDATION.md](RGF_B1_VALIDATION.md). B2–B4 are not implemented.
+   Original plan: it builds H_D (§2.7.1, with
    symmetric V_j), runs the recursion for G_{11}, G_{N1}, G_{1N}, G_{NN},
    and obtains lead modes, Σ, Γ, Fisher–Lee amplitudes, S and the checks
    **only through `smatrix_spec.py`** (§2.7), which is already specified

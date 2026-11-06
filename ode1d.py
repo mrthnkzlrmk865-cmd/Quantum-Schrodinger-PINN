@@ -105,16 +105,35 @@ def rectangular_barrier(V0, x1, x2):
 def clean_interval(V, x_lo, x_hi, tol, step=0.01, max_iter=100000):
     """Expand [x_lo, x_hi] outward in steps of `step` until |V| <= tol at
     both ends and at the next step beyond them. For a smooth barrier this
-    gives an interval outside which the neglected tails are below tol."""
-    a, b = float(x_lo), float(x_hi)
-    for _ in range(max_iter):
+    gives an interval outside which the neglected tails are below tol.
+
+    Raises ValueError for invalid inputs, and RuntimeError if no clean end
+    point is found within max_iter steps on either side (e.g. a potential
+    that does not decay to |V| <= tol)."""
+    x_lo, x_hi, tol, step = float(x_lo), float(x_hi), float(tol), float(step)
+    if not (np.isfinite(x_lo) and np.isfinite(x_hi)) or x_hi < x_lo:
+        raise ValueError(f"need finite x_lo <= x_hi, got [{x_lo}, {x_hi}]")
+    if not (np.isfinite(tol) and tol >= 0):
+        raise ValueError(f"tol must be finite and >= 0, got {tol}")
+    if not (np.isfinite(step) and step > 0):
+        raise ValueError(f"step must be finite and > 0, got {step}")
+    if int(max_iter) != max_iter or max_iter < 1:
+        raise ValueError(f"max_iter must be a positive integer, got {max_iter}")
+    a, b = x_lo, x_hi
+    for _ in range(int(max_iter)):
         if abs(V(a)) <= tol and abs(V(a - step)) <= tol:
             break
         a -= step
-    for _ in range(max_iter):
+    else:
+        raise RuntimeError(f"clean_interval: |V| > tol = {tol:g} still at x = {a:g} after {max_iter} steps "
+                           f"of {step:g} to the left; the potential does not decay to tol")
+    for _ in range(int(max_iter)):
         if abs(V(b)) <= tol and abs(V(b + step)) <= tol:
             break
         b += step
+    else:
+        raise RuntimeError(f"clean_interval: |V| > tol = {tol:g} still at x = {b:g} after {max_iter} steps "
+                           f"of {step:g} to the right; the potential does not decay to tol")
     return a, b
 
 

@@ -78,7 +78,12 @@ def rectangular_barrier_transmission(eps, V0, w):
         raise ValueError("eps must be > 0 (propagating incident wave)")
     d = eps - V0
     z = np.sqrt(2.0 * np.abs(d)) * w
-    s = np.where(d >= 0, _sinc_like(z, hyperbolic=False), _sinc_like(z, hyperbolic=True))
+    # explicit masks: each branch is evaluated only where it applies (an
+    # unused sinh branch would overflow for large above-barrier z > ~710)
+    s = np.ones_like(z)                      # eps == V0: s = 1 (continuous limit)
+    above, below = d > 0, d < 0
+    s[above] = _sinc_like(z[above], hyperbolic=False)
+    s[below] = _sinc_like(z[below], hyperbolic=True)
     return 1.0 / (1.0 + V0**2 * w**2 * s**2 / (2.0 * eps))
 
 

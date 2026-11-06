@@ -58,3 +58,30 @@ def test_limits_and_bounds():
 def test_rejects_non_propagating_energy():
     with pytest.raises(ValueError):
         T(0.0)
+
+
+# ----------------------------------------------------------------------
+# robustness: each branch evaluated only where it applies
+# ----------------------------------------------------------------------
+def _where_version(e, V0, w):
+    """The previous implementation (both branches evaluated everywhere)."""
+    from analytic import _sinc_like
+    e = np.asarray(e, float)
+    d = e - V0
+    z = np.sqrt(2.0 * np.abs(d)) * w
+    s = np.where(d >= 0, _sinc_like(z, hyperbolic=False), _sinc_like(z, hyperbolic=True))
+    return 1.0 / (1.0 + V0**2 * w**2 * s**2 / (2.0 * e))
+
+
+def test_masked_branches_bitwise_identical_to_previous_results():
+    es = np.concatenate([np.linspace(0.5, 2000.0, 4001), [V0], V0 + np.array([-1e-9, 1e-9])])
+    for w in (0.1, 0.3):
+        assert np.array_equal(rectangular_barrier_transmission(es, V0, w), _where_version(es, V0, w))
+
+
+def test_no_overflow_warning_far_above_barrier():
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")       # the unused sinh branch used to overflow (z > ~710)
+        t = rectangular_barrier_transmission(np.array([1e8, 3e6]), V0, 0.3)
+    assert np.all(np.isfinite(t)) and np.all(t > 0.99)
