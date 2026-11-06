@@ -337,9 +337,9 @@
     },
     "passed": true
   },
-  "closed_channel_Ny63_vs_Ny127": {
+  "Ny_convergence_fixed_Nq254": {
     "limit": 0.0002,
-    "value": 1.8087564626068087e-06,
+    "value": 9.456930838425137e-08,
     "argmax": {
       "case": "A",
       "kx": 27.071067811865476,
@@ -347,10 +347,10 @@
     },
     "n": 20,
     "per_case_max": {
-      "A": 1.8087564626068087e-06,
-      "B": 3.996289718033452e-07,
-      "C": 4.679819909370053e-08,
-      "D": 1.5784495399073784e-06
+      "A": 9.456930838425137e-08,
+      "B": 1.7895848136717518e-09,
+      "C": 5.8072546771370526e-11,
+      "D": 1.2604906896029888e-08
     },
     "per_case_pass": {
       "A": true,
@@ -360,28 +360,59 @@
     },
     "passed": true,
     "max_abs_delta_T1_per_case_energy": {
-      "A:12.9289": 3.553886537832618e-07,
-      "A:16.4645": 4.5089573885714884e-07,
-      "A:20.0000": 2.3924708458800126e-07,
-      "A:23.5355": 2.8104390947802926e-07,
-      "A:27.0711": 1.8087564626068087e-06,
-      "B:12.9289": 1.8177642224781465e-08,
-      "B:16.4645": 2.830144955057179e-07,
-      "B:20.0000": 3.996289718033452e-07,
-      "B:23.5355": 4.4438961621651174e-08,
-      "B:27.0711": 1.688099050545233e-07,
-      "C:12.9289": 4.679819909370053e-08,
-      "C:16.4645": 1.3181847169363436e-08,
-      "C:20.0000": 7.224350784262867e-09,
-      "C:23.5355": 7.047150862860008e-09,
-      "C:27.0711": 6.575763267235857e-10,
-      "D:12.9289": 1.165702419037018e-06,
-      "D:16.4645": 1.3030141743364254e-07,
-      "D:20.0000": 3.4768948099783703e-07,
-      "D:23.5355": 3.474433692696177e-07,
-      "D:27.0711": 1.5784495399073784e-06
+      "A:12.9289": 2.36364371408726e-08,
+      "A:16.4645": 1.0235510772282908e-08,
+      "A:20.0000": 2.8870108526035665e-08,
+      "A:23.5355": 1.2143422711829999e-08,
+      "A:27.0711": 9.456930838425137e-08,
+      "B:12.9289": 1.8093460063539624e-10,
+      "B:16.4645": 2.880488070289289e-10,
+      "B:20.0000": 7.805138757532859e-10,
+      "B:23.5355": 1.365812574150027e-09,
+      "B:27.0711": 1.7895848136717518e-09,
+      "C:12.9289": 5.8072546771370526e-11,
+      "C:16.4645": 9.150125102053153e-12,
+      "C:20.0000": 1.289113260583008e-11,
+      "C:23.5355": 1.3868906023617456e-12,
+      "C:27.0711": 1.0957901253050295e-12,
+      "D:12.9289": 2.071222471311529e-09,
+      "D:16.4645": 2.9544366952904966e-09,
+      "D:20.0000": 3.691454045218201e-09,
+      "D:23.5355": 2.045498770364418e-09,
+      "D:27.0711": 1.2604906896029888e-08
     },
     "rows_failed": [],
+    "classification": "FORMAL primary N_y criterion (single variable: N_y 63 -> 127 at fixed N_q = 254)",
+    "provenance": {
+      "name": "N_y 63 -> 127 at fixed N_q = 254 (single-variable)",
+      "summary_key": "Ny_convergence_fixed_Nq254",
+      "reference": {
+        "file": "quadrature_convergence.csv",
+        "rows": "all (variant == 'Nq')",
+        "column": "T1_variant",
+        "config": {
+          "dx": 0.001953125,
+          "N_y": 63,
+          "N_q": 254,
+          "buffer_requested": 0.2,
+          "buffer_actual": 0.201171875
+        }
+      },
+      "variant": {
+        "file": "closed_channel_convergence.csv",
+        "rows": "role == 'exploratory_fixed_Nq254'",
+        "column": "T1_variant",
+        "config": {
+          "dx": 0.001953125,
+          "N_y": 127,
+          "N_q": 254,
+          "buffer_requested": 0.2,
+          "buffer_actual": 0.201171875
+        }
+      },
+      "cross_check": "the T1_reference column of the variant rows equals the reference T1 bitwise",
+      "derived_file": "ny_convergence_formal.csv"
+    },
     "closed_channels_retained_range_Ny63": [
       55,
       59
@@ -548,17 +579,95 @@
     },
     "rows_failed": []
   },
+  "supplementary_combined_Ny_Nq": {
+    "limit": 0.0002,
+    "value": 1.8087564626068087e-06,
+    "argmax": {
+      "case": "A",
+      "kx": 27.071067811865476,
+      "E": 371.35615843785416
+    },
+    "n": 20,
+    "per_case_max": {
+      "A": 1.8087564626068087e-06,
+      "B": 3.996289718033452e-07,
+      "C": 4.679819909370053e-08,
+      "D": 1.5784495399073784e-06
+    },
+    "meets_tolerance": true,
+    "per_case_meets_tolerance": {
+      "A": true,
+      "B": true,
+      "C": true,
+      "D": true
+    },
+    "classification": "SUPPLEMENTARY combined N_y + N_q refinement (not a single-variable test; not a formal criterion)",
+    "provenance": {
+      "name": "N_y 63 -> 127 together with N_q 127 -> 255 (two parameters change)",
+      "summary_key": "supplementary_combined_Ny_Nq",
+      "reference": {
+        "file": "closed_channel_convergence.csv",
+        "rows": "role == 'criterion'",
+        "column": "T1_reference",
+        "config": {
+          "dx": 0.001953125,
+          "N_y": 63,
+          "N_q": 127,
+          "buffer_requested": 0.2,
+          "buffer_actual": 0.201171875
+        }
+      },
+      "variant": {
+        "file": "closed_channel_convergence.csv",
+        "rows": "role == 'criterion'",
+        "column": "T1_variant",
+        "config": {
+          "dx": 0.001953125,
+          "N_y": 127,
+          "N_q": 255,
+          "buffer_requested": 0.2,
+          "buffer_actual": 0.201171875
+        }
+      }
+    },
+    "max_abs_delta_T1_per_case_energy": {
+      "A:12.9289": 3.553886537832618e-07,
+      "A:16.4645": 4.5089573885714884e-07,
+      "A:20.0000": 2.3924708458800126e-07,
+      "A:23.5355": 2.8104390947802926e-07,
+      "A:27.0711": 1.8087564626068087e-06,
+      "B:12.9289": 1.8177642224781465e-08,
+      "B:16.4645": 2.830144955057179e-07,
+      "B:20.0000": 3.996289718033452e-07,
+      "B:23.5355": 4.4438961621651174e-08,
+      "B:27.0711": 1.688099050545233e-07,
+      "C:12.9289": 4.679819909370053e-08,
+      "C:16.4645": 1.3181847169363436e-08,
+      "C:20.0000": 7.224350784262867e-09,
+      "C:23.5355": 7.047150862860008e-09,
+      "C:27.0711": 6.575763267235857e-10,
+      "D:12.9289": 1.165702419037018e-06,
+      "D:16.4645": 1.3030141743364254e-07,
+      "D:20.0000": 3.4768948099783703e-07,
+      "D:23.5355": 3.474433692696177e-07,
+      "D:27.0711": 1.5784495399073784e-06
+    },
+    "closed_channels_retained_range_Ny63": [
+      55,
+      59
+    ],
+    "closed_channels_retained_range_Ny127": [
+      119,
+      123
+    ]
+  },
   "closed_channel_conditional_Ny255": {
     "triggered": false,
-    "rule": "N_y = 255 is run only if the zeta = 0.02 case fails at N_y = 127",
+    "rule": "N_y = 255 is run only if the zeta = 0.02 case fails the formal fixed-N_q N_y criterion at N_y = 127",
     "rows": [],
     "max_abs_delta_127_to_255": NaN,
     "max_abs_delta_63_to_255": NaN,
-    "status": "exploratory-labelled extension of the protocol; the criterion result above is not replaced"
-  },
-  "exploratory_fixed_Nq254_Ny63_vs_127": {
-    "max_abs_delta_T1": 9.456930838425137e-08,
-    "note": "exploratory, not a criterion: isolates the transverse truncation (N_q = 254 at both N_y)"
+    "status": "exploratory-labelled extension of the protocol; the formal result above is not replaced"
   },
   "potential_identity": {
     "passed": true,
@@ -573,14 +682,18 @@
     "reciprocity_RGF": true,
     "unitarity_sparse": true,
     "reciprocity_sparse": true,
-    "closed_channel_Ny63_vs_Ny127": true,
+    "Ny_convergence_fixed_Nq254": true,
     "dx_1_512_vs_1_1024": false,
     "Nq_127_vs_254": true,
     "buffer_0.2_vs_0.4": true,
     "potential_identity": true
   },
   "all_B3_criteria_passed": false,
-  "overall_B3_status": "FAIL (see criteria_passed)",
+  "failed_criteria": [
+    "dx_1_512_vs_1_1024"
+  ],
+  "b3_full_pass": false,
+  "overall_B3_status": "FAIL: dx_1_512_vs_1_1024",
   "wall_time_s": 348.9398992061615,
   "limits": {
     "S_agreement": 1e-10,
@@ -620,5 +733,53 @@
     "Ny": 63,
     "Nq": 127,
     "buffer": 0.2
-  }
+  },
+  "revision_history": [
+    {
+      "revision": 0,
+      "summary_commit": "9870d6bec83ad46c07325130ef13ee0bda39366e",
+      "description": "original classification: the combined N_y 63->127 (+ N_q 127->255) comparison was the formal N_y criterion; the fixed-N_q = 254 comparison was labelled exploratory",
+      "closed_channel_Ny63_vs_Ny127": {
+        "limit": 0.0002,
+        "value": 1.8087564626068087e-06,
+        "argmax": {
+          "case": "A",
+          "kx": 27.071067811865476,
+          "E": 371.35615843785416
+        },
+        "per_case_max": {
+          "A": 1.8087564626068087e-06,
+          "B": 3.996289718033452e-07,
+          "C": 4.679819909370053e-08,
+          "D": 1.5784495399073784e-06
+        },
+        "passed": true
+      },
+      "exploratory_fixed_Nq254_Ny63_vs_127": {
+        "max_abs_delta_T1": 9.456930838425137e-08,
+        "note": "exploratory, not a criterion: isolates the transverse truncation (N_q = 254 at both N_y)"
+      },
+      "criteria_passed": {
+        "S_agreement_RGF_vs_sparse": true,
+        "unitarity_RGF": true,
+        "reciprocity_RGF": true,
+        "unitarity_sparse": true,
+        "reciprocity_sparse": true,
+        "closed_channel_Ny63_vs_Ny127": true,
+        "dx_1_512_vs_1_1024": false,
+        "Nq_127_vs_254": true,
+        "buffer_0.2_vs_0.4": true,
+        "potential_identity": true
+      },
+      "overall_B3_status": "FAIL (see criteria_passed)"
+    },
+    {
+      "revision": 1,
+      "description": "N_y criterion reclassified: the single-variable fixed-N_q = 254 comparison is the formal criterion; the combined N_y + N_q comparison is supplementary. No raw number, threshold or other criterion changed.",
+      "overall_B3_status": "FAIL: dx_1_512_vs_1_1024",
+      "failed_criteria": [
+        "dx_1_512_vs_1_1024"
+      ]
+    }
+  ]
 }

@@ -692,5 +692,43 @@
       }
     ],
     "note": "executed after the artifacts were generated; written by validate_rgf_b3.py --record-tests"
+  },
+  "revisions": [
+    {
+      "revision": 1,
+      "generated_utc": "2026-11-06T17:33:10+00:00",
+      "command": "python validate_rgf_b3.py --resummarize",
+      "previous_summary_commit": "9870d6bec83ad46c07325130ef13ee0bda39366e",
+      "working_tree_dirty": true,
+      "reason": "reclassification of the N_y convergence criterion (see summary.json revision_history)",
+      "raw_csv_sha256": {
+        "rgf_sparse_comparison.csv": "sha256:34588518f9fb0818fa9f0e1ce480241b56239e6dc89f4834d116f2a2bc5af22d",
+        "unitarity.csv": "sha256:ef6b7cc73812c6213b3ad99f28a371b2c3705e20c7d28d44379c2efdb6f27c90",
+        "reciprocity.csv": "sha256:1e555dcc36a923c13cdca456d903efdc98f8803f50784c18a1823f2eaa5ce09a",
+        "closed_channel_convergence.csv": "sha256:4b4b8fed63401021098e9b6d7373455ab80f0d5723f52569601187bb4c32f160",
+        "dx_convergence.csv": "sha256:d57800d0852c0ce8a55ef01ed58833b8ec862f4d903bc62e64c8c200cb76f0fd",
+        "quadrature_convergence.csv": "sha256:43aba7f6a20206afc238a36bf6fc48698c5ef20c4b5ea2c110287602ae010922",
+        "buffer_convergence.csv": "sha256:1166aaafa97a617517f51f4423a51908471824ab785c3d71d2bd9ed300709a41",
+        "potential_identity.csv": "sha256:cd58143b2599aa698e5a883b8cbd16b234616bcaef08e192d9dcae29b232d434"
+      },
+      "validate_rgf_b3_sha256": "sha256:4584284008ee8ad6aaf7e6fabe2597fa2e6eaa7a36977b49ed08bdd8b11ed939",
+      "note": "'code_files' / 'code_fingerprint' above describe the code that PRODUCED the raw data (commit d3f92910703b6bb6310a5119817fc22b6bd471f1); only validate_rgf_b3.py (summary logic) differs from it now"
+    }
+  ],
+  "post_revision_1_tests": {
+    "recorded_utc": "2026-11-06T17:39:28+00:00",
+    "runs": [
+      {
+        "command": "python -m pytest -q tests/test_rgf_b3.py",
+        "exit_status": 0,
+        "summary": "40 passed in 16.33s"
+      },
+      {
+        "command": "python -m pytest -q tests",
+        "exit_status": 0,
+        "summary": "229 passed, 2 xfailed, 4 warnings in 77.36s (0:01:17)"
+      }
+    ],
+    "note": "executed after the artifacts were generated; written by validate_rgf_b3.py --record-tests"
   }
 }
