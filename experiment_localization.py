@@ -79,7 +79,7 @@ def run_point(L, W, n_real, t_end, batch=8):
     return cfg, res["times"], np.concatenate(msd, axis=1), np.concatenate(pr, axis=1), time.time() - t0
 
 
-def run_or_load(L, W, n_real, t_end, out=None, recompute=False, strict_code=False):
+def run_or_load(L, W, n_real, t_end, out=None, recompute=False, strict_code=False, strict_env=False):
     """Return (cfg, times, msd, pr, fingerprint), reusing a cached result
     only if its configuration fingerprint matches (provenance.py)."""
     out = out or OUT
@@ -89,7 +89,7 @@ def run_or_load(L, W, n_real, t_end, out=None, recompute=False, strict_code=Fals
     spec = localization_spec(cfg, point_seeds(W, n_real))
     exists = os.path.exists(path)
     status = check_cache(read_npz_metadata(path) if exists else None, exists, spec, "localization",
-                         path, recompute=recompute, strict_code=strict_code)
+                         path, recompute=recompute, strict_code=strict_code, strict_env=strict_env)
     if status != "hit":
         cfg, times, msd, pr, wt = run_point(L, W, n_real, t_end)
         meta = make_metadata("localization", spec, L=L, W=W, wall_time_s=wt)
@@ -100,7 +100,7 @@ def run_or_load(L, W, n_real, t_end, out=None, recompute=False, strict_code=Fals
         return cfg, d["times"], d["msd"], d["pr"], str(d["fingerprint"])
 
 
-def main(n_real, out=None, recompute=False, strict_code=False):
+def main(n_real, out=None, recompute=False, strict_code=False, strict_env=False):
     out = out or OUT
     os.makedirs(out, exist_ok=True)
     rows = []
@@ -108,7 +108,7 @@ def main(n_real, out=None, recompute=False, strict_code=False):
     for L in SIZES:
         t_end = 0.25 * L + 0.25   # several box traversals at v ~ 20
         for W in STRENGTHS:
-            cfg, times, msd, pr, fp = run_or_load(L, W, n_real, t_end, out, recompute, strict_code)
+            cfg, times, msd, pr, fp = run_or_load(L, W, n_real, t_end, out, recompute, strict_code, strict_env)
             late = times >= 0.5 * times[-1]          # time average over the second half
             pr_late = pr[late].mean(axis=0)
             msd_late = msd[late].mean(axis=0)
@@ -137,6 +137,8 @@ if __name__ == "__main__":
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--recompute", action="store_true")
     ap.add_argument("--strict-code", action="store_true")
+    ap.add_argument("--strict-env", action="store_true")
+    ap.add_argument("--strict", action="store_true", help="--strict-code and --strict-env")
     a = ap.parse_args()
-    for r in main(a.n_real, a.out, a.recompute, a.strict_code):
+    for r in main(a.n_real, a.out, a.recompute, a.strict_code or a.strict, a.strict_env or a.strict):
         print({k: (round(v, 4) if isinstance(v, float) else v) for k, v in r.items() if "std" not in k})

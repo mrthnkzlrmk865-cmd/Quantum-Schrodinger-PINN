@@ -26,8 +26,16 @@ accepted silently, and existing results are never overwritten unless the
 caller asks for it explicitly.
 
 Fields that do not change the numbers (device, log interval, batch size
-for propagating realizations together, number of CPU threads) are
-recorded but excluded from the fingerprint.
+for propagating realizations together, FFT worker count) are recorded but
+excluded from the fingerprint. The PyTorch intra-op thread count DOES change
+PINN training results (reduction order; docs/REPRODUCIBILITY_AUDIT.md) and is
+part of the PINN spec.
+
+Environment: an environment fingerprint (Python, NumPy, SciPy, [PyTorch],
+CPU architecture) is stored with every result. A cache produced in a
+different numerical environment is reused with a warning by default, and
+refused with strict_env. Scientific runs should use both strict_code and
+strict_env (command-line flag --strict).
 """
 
 from __future__ import annotations
@@ -42,7 +50,7 @@ import subprocess
 import warnings
 
 REPO = os.path.dirname(os.path.abspath(__file__))
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2   # 2: environment fingerprint, PINN thread count in spec
 
 # Source files whose content determines the numbers of each experiment kind.
 _CORE = ["config.py", "disorder.py", "potential.py", "initial_condition.py", "reference_solver.py",
@@ -53,6 +61,8 @@ CODE_FILES = {
     "pinn": _CORE + ["embeddings.py", "model.py", "pinn_core.py", "train.py", "evaluate.py",
                      "experiment_pinn.py"],
     "validation": _CORE + ["analytic.py", "transport.py", "validate_solver.py"],
+    "ode1d": ["config.py", "potential.py", "disorder.py", "analytic.py", "ode1d.py", "validate_ode1d.py"],
+    "rgf": ["config.py", "potential.py", "disorder.py", "smatrix_spec.py", "stationary.py", "validate_rgf_b1.py"],
 }
 
 # Config fields that never influence a reference-solver result.
@@ -132,9 +142,21 @@ def _git(*args):
         return None
 
 
+# Libraries whose versions can change the floating-point results of each
+# experiment kind (the reference solver does not use PyTorch).
+ENV_PACKAGES = {
+    "transport": ("python", "numpy", "scipy", "machine"),
+    "localization": ("python", "numpy", "scipy", "machine"),
+    "validation": ("python", "numpy", "scipy", "machine"),
+    "ode1d": ("python", "numpy", "scipy", "machine"),
+    "rgf": ("python", "numpy", "scipy", "machine"),
+    "pinn": ("python", "numpy", "scipy", "torch", "machine"),
+}
+
+
 def environment_info() -> dict:
     info = dict(python=platform.python_version(), platform=platform.platform(),
-                cpu_count=os.cpu_count())
+                machine=platform.machine(), cpu_count=os.cpu_count())
     for mod in ("numpy", "scipy", "torch"):
         try:
             info[mod] = __import__(mod).__version__
@@ -147,12 +169,37 @@ def environment_info() -> dict:
     return info
 
 
+def _machine_of(env: dict):
+    """CPU architecture of a recorded environment. Records written before
+    schema 2 have no 'machine' entry; it is then read from the platform
+    string (e.g. 'Linux-...-x86_64-with-glibc2.39')."""
+    if env.get("machine"):
+        return env["machine"]
+    plat = env.get("platform") or ""
+    for arch in ("x86_64", "aarch64", "arm64", "AMD64", "ppc64le", "s390x"):
+        if arch in plat:
+            return arch
+    return None
+
+
+def environment_fingerprint(kind: str, env: dict | None = None) -> dict:
+    """Fingerprint of the numerically relevant environment for `kind`:
+    the versions of the libraries that do the arithmetic, the Python
+    version and the CPU architecture. Not included (recorded only): OS
+    kernel, CPU model, BLAS/FFT build details, which cannot be read
+    portably."""
+    env = environment_info() if env is None else env
+    fields = {k: (_machine_of(env) if k == "machine" else env.get(k)) for k in ENV_PACKAGES[kind]}
+    return {"env_fingerprint": fingerprint(fields), "env_fields": fields}
+
+
 def make_metadata(kind: str, spec: dict, **extra) -> dict:
     meta = dict(schema_version=SCHEMA_VERSION, kind=kind, spec=_normalize(spec),
                 fingerprint=fingerprint(spec),
                 created_utc=_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"))
     meta.update(code_fingerprint(kind))
     meta["environment"] = environment_info()
+    meta.update(environment_fingerprint(kind, meta["environment"]))
     meta.update(_normalize(extra))
     return meta
 
@@ -181,9 +228,13 @@ def write_dir_metadata(run_dir, meta):
 
 
 def check_cache(stored_meta, exists: bool, spec: dict, kind: str, where: str,
-                recompute=False, strict_code=False) -> str:
+                recompute=False, strict_code=False, strict_env=False) -> str:
     """Return "miss", "hit" or "recompute"; raise CacheMismatchError for
-    an incompatible cache unless recompute=True."""
+    an incompatible cache unless recompute=True.
+
+    Configuration mismatch -> always an error. Source-code or numerical-
+    environment mismatch -> warning by default, error with strict_code /
+    strict_env (use both, i.e. --strict, for results that enter a report)."""
     if not exists:
         return "miss"
     want = fingerprint(spec)
@@ -212,6 +263,18 @@ def check_cache(stored_meta, exists: bool, spec: dict, kind: str, where: str,
                 return "recompute"
             raise CacheMismatchError(msg + " Refusing to reuse it (strict_code).")
         warnings.warn(msg + " Reusing it; pass --strict-code to forbid this.", stacklevel=2)
+    stored_env = stored_meta.get("env_fields")
+    if stored_env is None:                     # schema-1 record: derive from recorded versions
+        stored_env = environment_fingerprint(kind, stored_meta.get("environment", {}))["env_fields"]
+    env_now = environment_fingerprint(kind)["env_fields"]
+    if _normalize(stored_env) != _normalize(env_now):
+        diff = _spec_diff(_normalize(stored_env), _normalize(env_now))
+        msg = (f"{where}: configuration matches but the numerical environment differs: {diff}.")
+        if strict_env:
+            if recompute:
+                return "recompute"
+            raise CacheMismatchError(msg + " Refusing to reuse it (strict_env).")
+        warnings.warn(msg + " Reusing it; pass --strict-env to forbid this.", stacklevel=2)
     return "hit"
 
 

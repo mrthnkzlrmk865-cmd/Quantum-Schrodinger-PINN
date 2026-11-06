@@ -1,0 +1,70 @@
+{
+  "code_files": {
+    "config.py": "sha256:68639f852048dbd6b3a1d48a7cae921276fec5e022ea31cddfc815b63ad8420d",
+    "disorder.py": "sha256:f8435f93e3ee158d0e17b252ea932ede3326e4f6a4f25a2afc16ae3a50c34c32",
+    "potential.py": "sha256:a3b203335c1fb7363578141408fed404158ad6da38902ea042ef5991353df91c",
+    "smatrix_spec.py": "sha256:e6029cbcd91eed8461f1ef351a757f6463aa0c8b008f7908db58253d010b0cf9",
+    "stationary.py": "sha256:7294be3c22fd88bd317d3df45858642f36cc53ea2912cc00be47b7d2dc17949e",
+    "validate_rgf_b1.py": "sha256:322aa578ede3a7a7c24d2ff865dae84e0aee275b136a28d1aa9cc2dbe9033b79"
+  },
+  "code_fingerprint": "sha256:9b3ab7781e708f5a7a3399c5833f17c416ddf050c80d387425c60a0f46befa22",
+  "created_utc": "2026-11-06T05:02:22+00:00",
+  "env_fields": {
+    "machine": "x86_64",
+    "numpy": "2.5.3",
+    "python": "3.13.18",
+    "scipy": "1.18.1"
+  },
+  "env_fingerprint": "sha256:c3f48b37f184bad363139880db3e5709978581549bde7c249d3be5ea61eaca21",
+  "environment": {
+    "cpu_count": 4,
+    "git_commit": "bce65879199a12a4e2d49916429781cdba906799",
+    "git_dirty": true,
+    "machine": "x86_64",
+    "numpy": "2.5.3",
+    "platform": "Linux-6.18.44-fc-v242-x86_64-with-glibc2.39",
+    "python": "3.13.18",
+    "scipy": "1.18.1",
+    "torch": "2.15.0+cu132"
+  },
+  "fingerprint": "sha256:f3e329f1613c3792d21036e089100f0c1ba3fdb0e900fe291f94ae4da2943d89",
+  "kind": "rgf",
+  "openblas_num_threads": "1",
+  "schema_version": 2,
+  "spec": {
+    "configs": [
+      [
+        63.0,
+        0.001953125,
+        1.0
+      ],
+      [
+        127.0,
+        0.001953125,
+        1.0
+      ],
+      [
+        63.0,
+        0.0009765625,
+        1.0
+      ],
+      [
+        127.0,
+        0.0009765625,
+        1.0
+      ],
+      [
+        63.0,
+        0.001953125,
+        3.0
+      ],
+      [
+        63.0,
+        0.0009765625,
+        3.0
+      ]
+    ],
+    "experiment": "rgf_b1_validation"
+  },
+  "wall_time_s": 651.0390682220459
+}

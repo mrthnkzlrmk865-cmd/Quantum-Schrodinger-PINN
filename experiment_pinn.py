@@ -75,25 +75,37 @@ RUNS = {
 }
 
 
-def pinn_spec(cfg):
+def pinn_spec(cfg, torch_threads):
     """Everything that determines a PINN run's numbers: the full PINN
     configuration (problem, potential, disorder seed, architecture,
-    training schedule, network seed). The reference solution used for
-    evaluation is defined by the same config."""
-    return dict(experiment="pinn", config=pinn_config_dict(cfg))
+    training schedule, network seed) and the PyTorch intra-op thread
+    count. The thread count changes the floating-point reduction order and
+    hence the training trajectory (2 threads: final rel. L2 0.48850, 4
+    threads: 0.48987 for the same config; docs/REPRODUCIBILITY_AUDIT.md), so
+    a run trained with a different count is a different result. The
+    reference solution used for evaluation is defined by the same config."""
+    return dict(experiment="pinn", config=pinn_config_dict(cfg),
+                execution=dict(torch_threads=int(torch_threads)))
 
 
-def run_one(name, overrides, quick=False, out=None, recompute=False, strict_code=False):
+def run_one(name, overrides, quick=False, out=None, recompute=False, strict_code=False,
+            strict_env=False, threads=None):
+    """Train (or reuse) and evaluate one PINN run. `threads` (if given) is
+    applied BEFORE the cache is validated, and the effective thread count
+    torch.get_num_threads() is part of the cache spec."""
+    if threads:
+        torch.set_num_threads(int(threads))
+    n_threads = torch.get_num_threads()
     over = dict(overrides)
     if quick:
         over.update(epochs_adam=300, epochs_lbfgs=20)
         name = name + "_quick"          # never share a directory with a full run
     d = os.path.join(out or OUT, name)
     cfg = pinn_config(**over)
-    spec = pinn_spec(cfg)
+    spec = pinn_spec(cfg, n_threads)
     exists = os.path.exists(os.path.join(d, "model.pt"))
     status = check_cache(read_dir_metadata(d), exists, spec, "pinn", d,
-                         recompute=recompute, strict_code=strict_code)
+                         recompute=recompute, strict_code=strict_code, strict_env=strict_env)
     if status != "hit":
         print(f"== training {name}", flush=True)
         model, hist, info = train(cfg, verbose=False)
@@ -102,7 +114,9 @@ def run_one(name, overrides, quick=False, out=None, recompute=False, strict_code
         SplitStepDST(cfg, Potential(cfg)).run(store_frames=False)
         info["reference_time_s"] = time.time() - t0
         save_run(d, cfg, model, hist, info)
-        write_dir_metadata(d, make_metadata("pinn", spec, run=name, torch_threads=torch.get_num_threads(),
+        if torch.get_num_threads() != n_threads:  # training must not change it
+            raise RuntimeError("torch thread count changed during training")
+        write_dir_metadata(d, make_metadata("pinn", spec, run=name, torch_threads=n_threads,
                                             device=cfg.device, train_time_s=info["train_time_s"]))
     summ = evaluate_run(d)
     with open(os.path.join(d, "train_info.json")) as f:
@@ -125,11 +139,12 @@ if __name__ == "__main__":
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--recompute", action="store_true")
     ap.add_argument("--strict-code", action="store_true")
+    ap.add_argument("--strict-env", action="store_true")
+    ap.add_argument("--strict", action="store_true", help="--strict-code and --strict-env")
     a = ap.parse_args()
-    if a.threads:
-        torch.set_num_threads(a.threads)
     names = a.only or list(RUNS)
-    rows = [run_one(n, RUNS[n], a.quick, a.out, a.recompute, a.strict_code) for n in names]
+    rows = [run_one(n, RUNS[n], a.quick, a.out, a.recompute, a.strict_code or a.strict,
+                    a.strict_env or a.strict, threads=a.threads or None) for n in names]
     # merge with existing summary (rows carry their configuration fingerprint)
     path = os.path.join(a.out, "summary.csv")
     old = {}
