@@ -80,15 +80,24 @@ class ExtendedPrecisionUnavailable(RuntimeError):
 # ----------------------------------------------------------------------
 # X0: platform precision
 # ----------------------------------------------------------------------
+def _arithmetic_probe() -> bool:
+    """Functional check that longdouble ARITHMETIC is extended, not only that finfo reports it: (1 + 2^-60) - 1 == 2^-60 fails in float64."""
+    one, tiny = np.longdouble(1), np.longdouble(2.0) ** -60
+    return bool((one + tiny) - one == tiny)
+
+
 def platform_precision() -> dict:
+    """Reproducible description of the precision of this platform (deterministic: the same dict on every call)."""
     fi = np.finfo(np.longdouble)
     bits = int(fi.nmant) + 1
-    ok = bits >= MIN_MANTISSA_BITS
-    return dict(longdouble_mantissa_bits=bits, longdouble_eps=float(fi.eps), longdouble_itemsize_bytes=int(np.dtype(np.longdouble).itemsize),
+    probe = _arithmetic_probe()
+    ok = bits >= MIN_MANTISSA_BITS and probe
+    return dict(longdouble_mantissa_bits=bits, arithmetic_probe_passed=probe, longdouble_eps=float(fi.eps), longdouble_itemsize_bytes=int(np.dtype(np.longdouble).itemsize),
                 float64_eps=float(np.finfo(np.float64).eps), machine=platform.machine(), system=platform.system(), sys_platform=sys.platform,
                 numpy=np.__version__, python=platform.python_version(), required_bits=MIN_MANTISSA_BITS, evaluable=bool(ok),
                 reason="ok" if ok else (f"np.longdouble has only {bits} mantissa bits (< {MIN_MANTISSA_BITS}): on {platform.system()}/{platform.machine()} "
-                                        f"longdouble is not an extended-precision type"))
+                                        f"longdouble is not an extended-precision type" if bits < MIN_MANTISSA_BITS else
+                                        "the longdouble arithmetic probe failed: arithmetic is not extended even though finfo reports it"))
 
 
 def require_extended_precision() -> dict:
@@ -230,6 +239,7 @@ class UnmergedOperator:
 def apply_matrix_extended(M: sp.spmatrix, X: np.ndarray, chunk_rows: int = 20000) -> np.ndarray:
     """y = M x for a ROUNDED double-precision sparse matrix, evaluated exactly in extended precision (entries are exact doubles).
     X: (n, nrhs) clongdouble."""
+    require_extended_precision()
     M = M.tocsr()
     n, nr = X.shape
     Y = np.zeros((n, nr), dtype=CLD)
@@ -278,6 +288,7 @@ def condition_estimate_1norm(M: sp.csc_matrix, lu) -> float:
 # ----------------------------------------------------------------------
 def build_sources(lead: dict, N: int, ny: int) -> np.ndarray:
     """Unit incident flux a = Gamma^{-1/2}; source s = -t (1/lambda - lambda) a at slice 1 (left) or N (right)."""
+    require_extended_precision()
     o = np.where(lead["open"])[0]
     no = o.size
     a = lead["gamma"][o] ** LD(-0.5)
@@ -289,6 +300,7 @@ def build_sources(lead: dict, N: int, ny: int) -> np.ndarray:
 
 
 def S_from_state(X: np.ndarray, lead: dict) -> dict:
+    require_extended_precision()
     o = np.where(lead["open"])[0]
     no = o.size
     sg = np.sqrt(lead["gamma"][o]).astype(CLD)[:, None]
@@ -301,6 +313,7 @@ def S_from_state(X: np.ndarray, lead: dict) -> dict:
 
 def S_from_green_columns(X: np.ndarray, lead: dict) -> dict:
     """Fisher-Lee on Green columns X = G e (unit right-hand sides): t_RL = i G^{1/2}_R G_N1 G^{1/2}_L, r_L = i G^{1/2} G_11 G^{1/2} - I, ..."""
+    require_extended_precision()
     o = np.where(lead["open"])[0]
     no = o.size
     sg = np.sqrt(lead["gamma"][o]).astype(CLD)
@@ -312,6 +325,7 @@ def S_from_green_columns(X: np.ndarray, lead: dict) -> dict:
 
 
 def build_unit_sources(lead: dict, N: int, ny: int) -> np.ndarray:
+    require_extended_precision()
     o = np.where(lead["open"])[0]
     no = o.size
     B = np.zeros((N, ny, 2 * no), dtype=CLD)
@@ -326,6 +340,7 @@ def build_unit_sources(lead: dict, N: int, ny: int) -> np.ndarray:
 def iterative_refinement(apply_op, solve_prec, B: np.ndarray, norm_A1: float, extract=None, max_iter: int = MAX_ITERATIONS) -> dict:
     """x_0 = P^{-1} b; r_k = b - A x_k (A: unmerged operator, extended precision); d_k = P^{-1} r_k (double); x_{k+1} = x_k + d_k.
     P^{-1} is the double LU. Iterates are stored in extended precision. `extract(x)` -> S (for the per-iterate S difference)."""
+    require_extended_precision()
     e = eps_ld()
     X = solve_prec(B)
     hist, S_prev, d_prev = [], None, None
@@ -389,8 +404,7 @@ def exact_lattice_S_from_blocks(E, E_perp, V_blocks, dx, *, permc_spec: str = "M
     ref = iterative_refinement(op.apply, solve_prec, B, norm1, extract=lambda X: S_from_state(X, lead)["S"], max_iter=max_iter)
     st = S_from_state(ref["X"], lead)
     hist = ref["history"]
-    d_iter = hist[-1].get("dS_vs_previous", float("nan")) if len(hist) > 1 else float("nan")
-    e_ind = max(d_iter if np.isfinite(d_iter) else 0.0, kappa * ref["eta_final"] if np.isfinite(kappa) else 0.0)
+    e_ind = _error_indicator(hist, ref["eta_final"], kappa)
     out = dict(S=st["S"], r_L=st["r_L"], t_RL=st["t_RL"], t_LR=st["t_LR"], r_R=st["r_R"], n_open=st["n_open"], lead=lead,
                history=hist, converged=ref["converged"], eta_final=ref["eta_final"], residual_inf_final=ref["residual_inf_final"],
                refinement_gate=refinement_gate(ref), kappa1=kappa, error_indicator=e_ind,
@@ -414,7 +428,9 @@ def exact_lattice_S_from_blocks(E, E_perp, V_blocks, dx, *, permc_spec: str = "M
 
 
 def exact_lattice_S(E, E_perp, V_samples, dx, n_modes: int, n_quad: int, **kw) -> dict:
-    """V_samples: (N, N_q) double samples of V(x_j, y_l); the extended-precision blocks are formed here (cosine sums)."""
+    """V_samples: (N, N_q) double samples of V(x_j, y_l) taken at y_l = l L_y/(N_q+1) (the quadrature points of the solvers); the
+    extended-precision blocks are formed here (cosine sums; L_y cancels). The caller is responsible for the sample positions (checked by P1)."""
+    require_extended_precision()
     Vb = potential_blocks_extended(V_samples, n_modes, n_quad)
     out = exact_lattice_S_from_blocks(E, E_perp, Vb, dx, **kw)
     out["V_blocks"] = Vb
@@ -423,6 +439,7 @@ def exact_lattice_S(E, E_perp, V_samples, dx, n_modes: int, n_quad: int, **kw) -
 
 def ordering_stability(E, E_perp, V_blocks, dx, orderings=("COLAMD", "MMD_AT_PLUS_A")) -> dict:
     """Gate X6: the extended-precision S must not depend on the preconditioner ordering."""
+    require_extended_precision()
     res = [exact_lattice_S_from_blocks(E, E_perp, V_blocks, dx, permc_spec=o, with_fisher_lee=False, condition=False) for o in orderings]
     d = float(max(np.max(np.abs(res[0]["S"] - r["S"])) for r in res[1:]))
     return dict(orderings=list(orderings), max_abs_difference=d, passed=bool(d <= ORDERING_TOL))
@@ -432,7 +449,7 @@ def ordering_stability(E, E_perp, V_blocks, dx, orderings=("COLAMD", "MMD_AT_PLU
 # exact solution of a ROUNDED matrix (for the representation / solver decomposition)
 # ----------------------------------------------------------------------
 def solve_matrix_extended(M: sp.spmatrix, B: np.ndarray, *, permc_spec: str = "MMD_AT_PLUS_A", max_iter: int = MAX_ITERATIONS,
-                          corner_swap: dict | None = None) -> dict:
+                          corner_swap: dict | None = None, extract=None, condition: bool = True) -> dict:
     """Solve M x = b to extended precision, where M is a rounded double sparse matrix (its entries are exact doubles). B: (n, nrhs) clongdouble.
     The residual is evaluated EXACTLY (extended precision) from the stored entries; the double LU is the preconditioner. If corner_swap is given
     ({'t', 'ny', 'N', 'lam_double', 'lam_ext'}) the double lead terms t*Lambda_d in the two corner blocks are replaced by the exact extended
@@ -454,9 +471,28 @@ def solve_matrix_extended(M: sp.spmatrix, B: np.ndarray, *, permc_spec: str = "M
                 Y[sl] += (de - dd)[:, None] * X[sl]
         return Y
 
-    ref = iterative_refinement(apply, solve_prec, B.astype(CLD), norm1, max_iter=max_iter)
+    ref = iterative_refinement(apply, solve_prec, B.astype(CLD), norm1, extract=extract, max_iter=max_iter)
     ref["refinement_gate"] = refinement_gate(ref)
+    ref["kappa1"] = condition_estimate_1norm(Mc, lu) if condition else float("nan")
+    ref["error_indicator"] = _error_indicator(ref["history"], ref["eta_final"], ref["kappa1"])
+    ref["error_indicator_note"] = "convergence/error indicator, not a rigorous uncertainty bound"
     return ref
+
+
+def _error_indicator(history, eta_final, kappa1) -> float:
+    """e_ind = max(max|S^(k) - S^(k-1)| over the last two iterates, kappa1_hat * eta_final); NaN if neither part is available."""
+    parts = []
+    if len(history) > 1 and np.isfinite(history[-1].get("dS_vs_previous", float("nan"))):
+        parts.append(history[-1]["dS_vs_previous"])
+    if np.isfinite(kappa1):
+        parts.append(kappa1 * eta_final)
+    return float(max(parts)) if parts else float("nan")
+
+
+def combined_error_indicator(*indicators: float) -> float:
+    """The resolution test of a decomposition compares every term with the LARGEST convergence/error indicator among the extended solves it
+    uses (exact, hybrid, rounded-matrix). NaN (an indicator that is unavailable) makes every term unresolved."""
+    return float(max(indicators)) if all(np.isfinite(i) for i in indicators) else float("nan")
 
 
 def hopping_from_t(t) -> LD:
@@ -464,13 +500,30 @@ def hopping_from_t(t) -> LD:
 
 
 def error_decomposition(S_double, S_exact, S_fl, S_hybrid=None) -> dict:
-    """Telescoping identity  S_double - S_exact = (S_hybrid - S_exact) + (S_fl - S_hybrid) + (S_double - S_fl):
-    bulk-operator rounding + lead data + linear-solver/extraction rounding.  Without S_hybrid: representation (S_fl - S_exact) + solver."""
+    """Decomposition of the error of a double-precision method against the exact lattice S-matrix (max-abs norms).
+
+    Definitions (each S is a separate computation; see docs/RGF_B3Y_TIER3_AUDIT.md):
+      S_exact   exact lattice operator (unmerged, extended precision, exact lead data)
+      S_hybrid  ROUNDED bulk operator of the method with the lead terms replaced by the exact extended ones (solved to extended precision)
+      S_fl      the fully ROUNDED matrix of the method (double lead data in the matrix and in the extraction), solved to extended precision
+      S_double  the method's own double-precision result.
+    Three-term identity (requires S_hybrid):
+      S_double - S_exact = (S_hybrid - S_exact) + (S_fl - S_hybrid) + (S_double - S_fl)
+                           bulk-operator rounding + lead data + linear-solver/extraction rounding.
+    Without S_hybrid only the TWO-term identity  S_double - S_exact = (S_fl - S_exact) + (S_double - S_fl)  (representation + solver) exists; the
+    bulk and lead terms are then NOT computed (None). Both identities are algebraic telescoping sums: their residuals measure only the floating
+    point evaluation of the differences and do NOT validate the individual S-matrices. The norms satisfy the triangle inequality only; the terms
+    are measured sizes, not rigorous error bounds."""
     n = lambda A: float(np.max(np.abs(A)))
-    out = dict(total=n(S_double - S_exact), representation_total=n(S_fl - S_exact), solver=n(S_double - S_fl))
+    out = dict(total=n(S_double - S_exact), representation_total=n(S_fl - S_exact), solver=n(S_double - S_fl),
+               three_term_available=S_hybrid is not None, bulk_rounding=None, lead_data=None, identity_residual_three_term=None,
+               identity_residual_two_term=n((S_double - S_exact) - ((S_fl - S_exact) + (S_double - S_fl))),
+               note="algebraic telescoping identities: residuals test arithmetic only, not the correctness of the individual S-matrices")
     if S_hybrid is not None:
-        out.update(bulk_rounding=n(S_hybrid - S_exact), lead_data=n(S_fl - S_hybrid))
-    out["identity_residual"] = n((S_double - S_exact) - ((S_fl - S_exact) + (S_double - S_fl)))
+        out["bulk_rounding"] = n(S_hybrid - S_exact)
+        out["lead_data"] = n(S_fl - S_hybrid)
+        out["identity_residual_three_term"] = n((S_double - S_exact) - ((S_hybrid - S_exact) + (S_fl - S_hybrid) + (S_double - S_fl)))
+        out["sum_of_term_norms"] = out["bulk_rounding"] + out["lead_data"] + out["solver"]
     return out
 
 
@@ -487,13 +540,25 @@ def precision_consistency(eps_by_dx: dict) -> dict:
 
 
 def representation_dominance(terms: dict | None, e_ind: float) -> dict:
-    """Supported only if (M2/M3, decomposition available) bulk_rounding >= 2 x max(lead_data, solver) and every term > 10 x e_ind."""
-    if terms is None or any(k not in terms for k in ("bulk_rounding", "lead_data", "solver")):
-        return dict(available=False, supported=False, resolved=False, reason="no explicit matrix: only the total error is available")
-    resolved = all(terms[k] > TERM_RESOLUTION_FACTOR * e_ind for k in ("bulk_rounding", "lead_data", "solver"))
-    dominant = terms["bulk_rounding"] >= DOMINANCE_FACTOR * max(terms["lead_data"], terms["solver"])
-    return dict(available=True, resolved=bool(resolved), dominant=bool(dominant), supported=bool(resolved and dominant),
-                reason="supported" if (resolved and dominant) else ("terms unresolved" if not resolved else "bulk-rounding term does not dominate"))
+    """Representation (bulk-operator rounding) dominance, supported only if, with b = bulk_rounding, l = lead_data, s = solver:
+         (resolved)  every term > term_resolution_factor (10) x e_ind  (e_ind = combined indicator of the extended solves; NaN => unresolved), AND
+         (dominant)  b >= dominance_factor (2) x (l + s)     -- dominance over the SUM of the other two terms.
+    Meaning: with the exact telescoping identity and the triangle inequality, | ||total|| - b | <= l + s <= b/2, i.e. the bulk-rounding term alone
+    fixes the size of the total error to within 50 % (and b >= 2/3 of the sum of the three term norms), whatever the signs/cancellations of the
+    other two. The weaker test b >= 2 max(l, s) does not exclude l + s = b, where the other terms can cancel the bulk term completely; it is reported
+    as `dominates_each_term_individually` for transparency only. Not a rigorous error bound."""
+    if terms is None or any(terms.get(k) is None for k in ("bulk_rounding", "lead_data", "solver")):
+        return dict(available=False, supported=False, resolved=False, dominant=False, reason="no explicit matrix or no hybrid solve: bulk and lead terms are not available")
+    b, l, sv = terms["bulk_rounding"], terms["lead_data"], terms["solver"]
+    resolved = bool(all(v > TERM_RESOLUTION_FACTOR * e_ind for v in (b, l, sv)))             # False if e_ind is NaN
+    dominant = bool(b >= DOMINANCE_FACTOR * (l + sv))
+    budget = b + l + sv
+    return dict(available=True, resolved=resolved, dominant=dominant, supported=bool(resolved and dominant),
+                dominates_each_term_individually=bool(b >= DOMINANCE_FACTOR * max(l, sv)),
+                bulk_fraction_of_term_budget=(b / budget) if budget > 0 else float("nan"),
+                total_error_within_of_bulk=(l + sv) / b if b > 0 else float("inf"),
+                reason="supported" if (resolved and dominant) else ("terms unresolved" if not resolved else
+                       "bulk-rounding term does not dominate the sum of the lead-data and solver terms"))
 
 
 def classify_exceedance(eps_by_dx: dict, terms: dict | None, e_ind: float, claim_representation_dominance: bool) -> str:
@@ -504,6 +569,32 @@ def classify_exceedance(eps_by_dx: dict, terms: dict | None, e_ind: float, claim
     if not claim_representation_dominance:
         return "PRECISION-CONSISTENT"
     return "PRECISION-LIMITED (measured; representation-dominated)" if representation_dominance(terms, e_ind)["supported"] else "UNEXPLAINED"
+
+
+# ----------------------------------------------------------------------
+# platform-gate registry: every public callable defined here is either GATED (refuses on a platform without >= 64 mantissa bits and a passing
+# arithmetic probe) or EXEMPT with a stated reason. tests/test_rgf_b3y.py checks that the two sets cover the module and that every gated
+# entry point raises ExtendedPrecisionUnavailable("NOT EVALUABLE: ...") under a simulated 53-bit longdouble.
+# ----------------------------------------------------------------------
+GATED_ENTRY_POINTS = (
+    "lead_data_extended", "lead_data_vs_mpmath", "potential_blocks_extended", "UnmergedOperator", "apply_matrix_extended", "build_sources",
+    "build_unit_sources", "S_from_state", "S_from_green_columns", "iterative_refinement", "exact_lattice_S_from_blocks", "exact_lattice_S",
+    "ordering_stability", "solve_matrix_extended")
+EXEMPT_ENTRY_POINTS = {
+    "ExtendedPrecisionUnavailable": "the exception raised by the gate",
+    "platform_precision": "the gate's own report",
+    "require_extended_precision": "the gate itself",
+    "eps_ld": "reports the longdouble epsilon; used only inside gated functions",
+    "hopping": "t = 1/(2 dx^2) is exact for dx = 2^-p in any binary precision; no extended-precision claim",
+    "lead_data_mpmath": "mpmath only (arbitrary precision), independent of longdouble",
+    "assemble_preconditioner": "double-precision merged matrix, used as a preconditioner only by design",
+    "condition_estimate_1norm": "double-precision LU based estimate",
+    "refinement_gate": "evaluates a recorded history (pure)",
+    "hopping_from_t": "scalar conversion helper",
+    "error_decomposition": "pure post-processing of S arrays",
+    "combined_error_indicator": "pure",
+    "precision_consistency": "pure classification", "representation_dominance": "pure classification", "classify_exceedance": "pure classification",
+    "mp_single_channel_amplitudes": "mpmath only", "mp_dense_S": "mpmath only"}
 
 
 # ----------------------------------------------------------------------
