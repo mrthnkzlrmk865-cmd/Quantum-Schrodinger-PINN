@@ -761,7 +761,10 @@ own distributional assumptions.
    energy-averaged ODE comparison); see
    [RGF_B2_VALIDATION.md](RGF_B2_VALIDATION.md). **B3 was run and does not pass:** the dx
    1/512 → 1/1024 criterion fails (5.97×10⁻⁴ vs 2×10⁻⁴, case D, W = 200); all other B3 criteria
-   pass (RGF vs sparse 4.9×10⁻¹²); see [RGF_B3_VALIDATION.md](RGF_B3_VALIDATION.md). B4 not implemented.
+   pass (RGF vs sparse 4.9×10⁻¹²); see [RGF_B3_VALIDATION.md](RGF_B3_VALIDATION.md). **B3X** (six configurations, a second
+   independent wave-function reference, protocol fixed in advance) also does not pass: 13 of 14 criteria pass, the dx
+   criterion fails for the W = 200 configurations (up to 9.2×10⁻⁴); see [RGF_B3X_VALIDATION.md](RGF_B3X_VALIDATION.md).
+   B4 not implemented.
    B1 passes in 5 of 6 configurations. The provisional phase criterion fails
    for the 3483-slice device (1.77×10⁻¹⁰ vs 10⁻¹⁰; FD conditioning near
    thresholds, investigated, threshold not relaxed). See

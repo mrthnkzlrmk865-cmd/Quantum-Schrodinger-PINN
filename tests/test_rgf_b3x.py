@@ -260,7 +260,9 @@ def test_every_criterion_is_evaluated_and_the_summary_is_the_summarize_of_the_cs
     assert s2["criteria_passed"] == s["criteria_passed"] and s2["overall_B3X_status"] == s["overall_B3X_status"]
     for k in s["criteria_passed"]:
         if "value" in s[k]:
-            assert s[k]["value"] == s2[k]["value"] and s[k]["per_case_max"] == s2[k]["per_case_max"]
+            assert s[k]["value"] == s2[k]["value"]
+            if "per_case_max" in s[k]:
+                assert s[k]["per_case_max"] == s2[k]["per_case_max"] and set(s[k]["per_case_max"]) == set(v.CONFIGS)
             assert s[k]["passed"] == (s[k]["value"] <= s[k]["limit"])
     assert s["failed_criteria"] == [k for k, x in s["criteria_passed"].items() if not x] and s["b3x_full_pass"] == (not s["failed_criteria"])
     assert s["overall_B3X_status"] == ("PASS" if s["b3x_full_pass"] else "FAIL: " + ", ".join(s["failed_criteria"]))

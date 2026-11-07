@@ -115,3 +115,170 @@ for the four overlapping configurations. **B3X passes only if every criterion C1
 convergence CSVs, `summary.json`, `run_metadata.json` (commit, Python and library versions, parameters,
 seed, protocol hash and commit, source hashes, test commands and results). Reproduction commands are
 in Part II.
+
+---
+
+## Part II: Results
+
+Protocol commit `6cee803` (Part I and `rgf_b3x_protocol.json`, committed before any B3X number existed).
+Code commit used for the production run: `5d907cd` (clean working tree). Artifacts:
+`results/rgf_b3x_validation/`. Nothing in B1, B2 or B3 was modified.
+
+Status words: **PASS** / **FAIL** = a predeclared criterion evaluated as specified; **DIAGNOSTIC** =
+computed to understand a result, not a criterion; **NOT TESTED** = nothing was computed.
+
+### II.0 Outcome
+
+**B3X does not pass: 13 of 14 predeclared criteria pass, and C11 (longitudinal refinement) fails.**
+All 14 criteria were evaluated on all 30 energy points (6 configurations × 5 energies).
+
+| ID | Criterion | Max observed (where) | Limit | Status |
+|---|---|---|---|---|
+| C1 | same realization, bitwise (54 checks) | 0.0 difference | bitwise | PASS |
+| C2 | potential blocks, two independent routes | 2.3×10⁻¹⁵ relative | 10⁻¹² | PASS |
+| C3 | open-channel count (3 methods + analytic) | 0 mismatches (4–8 open) | exact | PASS |
+| C4 | closed channels (Γ = 0, real λ, \|λ\| < 1, ≥ 1 retained) | Γ_closed = 0.0, max \|λ\| = 0.985, 55–59 retained | exact | PASS |
+| C5 | max\|S_RGF − S_wave-function\| | 5.3×10⁻¹² (W200_z0.2, E = 88.5) | 10⁻¹⁰ | PASS |
+| C6 | max\|S_RGF − S_Green-block\| | 5.0×10⁻¹² (W200_z0.2, E = 88.5) | 10⁻¹⁰ | PASS |
+| C7 | transmission and reflection agreement | 2.6×10⁻¹² (W200_z0.2, E = 88.5) | 2×10⁻¹⁰ | PASS |
+| C8 | off-diagonal channel transmission agreement | 1.1×10⁻¹² (W200_z0.2, E = 88.5) | 2×10⁻¹⁰ | PASS |
+| C9 | unitarity, both products, 3 methods | 1.2×10⁻¹² (wave-function ref., W100_z0.2) | 10⁻¹⁰ | PASS |
+| C10 | reciprocity: full, blocks, probabilities, 3 methods | 8.8×10⁻¹³ (wave-function ref.) | 10⁻⁸ | PASS |
+| **C11** | **\|ΔT1\|, dx 1/512 → 1/1024** | **9.17×10⁻⁴** (W200_z0.2, E = 88.5) | **2×10⁻⁴** | **FAIL** |
+| C12 | \|ΔT1\|, N_q 127 → 254 | 6.7×10⁻⁶ (W200_z0.02, E = 140.5) | 2×10⁻⁴ | PASS |
+| C13 | \|ΔT1\|, buffer 0.2012 → 0.4004 | 1.3×10⁻¹⁰ (W200_z0.2, E = 140.5) | 2×10⁻⁴ | PASS |
+| C14 | \|ΔT1\|, N_y 63 → 127 at fixed N_q = 254 | 6.9×10⁻⁷ (W200_z0.02, E = 140.5) | 2×10⁻⁴ | PASS |
+
+`summary.json`: `overall_B3X_status = "FAIL: C11_dx_refinement"`, `b3x_full_pass = false`.
+The N_y = 255 rule (run only if a ζ = 0.02 configuration fails C14) was not triggered: NOT TESTED.
+
+What this does and does not show: the RGF reproduces the complex S-matrix of two differently implemented
+sparse references to 5×10⁻¹², is unitary and reciprocal to 10⁻¹³ or better, and is insensitive to N_y,
+N_q and the buffer at the 10⁻⁶ level. At the base resolution dx = 1/512 the transmission of the strong-disorder
+configurations is **not** converged to 2×10⁻⁴. That is a property of the specified finite-difference
+scheme, not of the RGF (§II.4). B3X validates numerical consistency of six fixed realizations. It
+says nothing about disorder-averaged transport, ζ dependence or localization.
+
+### II.1 Configurations, energies, discretization
+Six configurations (W ∈ {100, 200} × ζ ∈ {0.02, 0.05, 0.20}), seed 0, L_d = 1; energies
+E = 88.51, 140.47, 204.93, 281.90, 371.36 (kx = kx₀ + jσ_k, j = −2…2; 4, 5, 6, 7, 8 open channels; the nearest
+threshold is ≥ 7.6 % away, so the threshold rule moved nothing). Base: dx = 1/512, N_y = 63, N_q = 127, 719
+slices, sparse matrix order 45 297, S-matrices 8×8 … 16×16. Device buffers 0.2012 (103/512) and 0.4004
+(205/512). The first-lead-slice potential is ≤ 8.3×10⁻⁷ at the base; for W200_z0.02 it is 9.1×10⁻⁷ in the
+dx = 1/1024 criterion run and 9.6×10⁻⁷ in the dx = 1/2048 diagnostic run (the first lead slice moves closer to the
+slab as dx shrinks): **within 4 % of the 10⁻⁶ guard**, which was not loosened.
+The six cases are one random draw (W = 200 is exactly 2 × W = 100; ζ rescales the draw), so they are not independent samples.
+
+### II.2 RGF vs the two references (C5–C8)
+| Configuration | max\|ΔS\| RGF–wave-function | RGF–Green-block | wave-function–Green-block | max T/R discrepancy | max off-diagonal T discrepancy | max off-diagonal T itself |
+|---|---|---|---|---|---|---|
+| W100_z0.02 | 2.7×10⁻¹² | 2.8×10⁻¹² | 6.0×10⁻¹³ | 9.6×10⁻¹³ | 8.1×10⁻¹³ | 0.51 |
+| W100_z0.05 | 4.9×10⁻¹² | 4.9×10⁻¹² | 5.1×10⁻¹³ | 1.4×10⁻¹² | 6.4×10⁻¹³ | 0.37 |
+| W100_z0.2 | 2.8×10⁻¹² | 2.7×10⁻¹² | 8.0×10⁻¹³ | 1.4×10⁻¹² | 6.9×10⁻¹³ | 0.59 |
+| W200_z0.02 | 3.8×10⁻¹² | 4.5×10⁻¹² | 1.0×10⁻¹² | 1.6×10⁻¹² | 4.2×10⁻¹³ | 0.26 |
+| W200_z0.05 | 2.5×10⁻¹² | 2.5×10⁻¹² | 4.3×10⁻¹³ | 1.1×10⁻¹² | 5.1×10⁻¹³ | 0.23 |
+| W200_z0.2 | 5.3×10⁻¹² | 5.0×10⁻¹² | 1.1×10⁻¹² | 2.6×10⁻¹² | 1.1×10⁻¹² | 0.37 |
+
+All blocks (r_L, t_LR, t_RL, r_R) agree at this level. Channel mixing is strong (off-diagonal transmission up to
+0.59), so the agreement of the off-diagonal elements is a real test. The linear-solve backward errors are
+≤ 9×10⁻¹⁶ (sparse relative residual, after one refinement step for the wave-function reference); the smallest RGF reciprocal condition number is 5.7×10⁻³.
+
+### II.3 Unitarity, reciprocity, channels (C3, C4, C9, C10)
+| Method | max\|SᴴS − I\| | max\|SSᴴ − I\| | Q full | r_L | r_R | t_LR − t_RLᵀ | probabilities |
+|---|---|---|---|---|---|---|---|
+| RGF | 4.9×10⁻¹⁴ | 4.1×10⁻¹⁴ | 1.9×10⁻¹⁴ | 1.8×10⁻¹⁴ | 1.9×10⁻¹⁴ | 1.7×10⁻¹⁴ | 2.6×10⁻¹⁴ |
+| wave-function reference | 1.2×10⁻¹² | 9.8×10⁻¹³ | 8.8×10⁻¹³ | 7.8×10⁻¹³ | 4.5×10⁻¹³ | 8.8×10⁻¹³ | 6.6×10⁻¹³ |
+| Green-block reference | 3.6×10⁻¹³ | 5.0×10⁻¹³ | 2.1×10⁻¹³ | 2.1×10⁻¹³ | 2.1×10⁻¹³ | 1.8×10⁻¹³ | 1.8×10⁻¹³ |
+
+Same-direction transmission asymmetry (report-only, not a criterion): up to 0.49.
+* **Channels:** 4–8 open and 55–59 closed channels are retained. The open-channel count agrees in all
+  three methods and with the analytic threshold count. Γ of closed channels is exactly 0; closed λ are real
+  with \|λ\| ≤ 0.985; the closed-form retarded root agrees with the E + iη root to 4.5×10⁻¹³ and with
+  `smatrix_spec.lead_modes` to 2.2×10⁻¹⁵.
+* **Closed-channel content (report-only; added after the protocol was fixed):** evanescent components carry up to 16 %
+  of the open-channel amplitude norm at the first device slice, so closed channels are not negligible near the
+  device. The RGF's closed-channel amplitudes (from its Green blocks) equal the reference wave function's to
+  9×10⁻¹⁵ (amplitude scale 2.4×10⁻³).
+* The unitarity check is sensitive to a sign error in the reference: flipping the source sign gives U ≈ 6 on the random six-channel test device.
+
+### II.4 Convergence (C11–C14)
+Maximum |ΔT1| per configuration:
+
+| Configuration | dx 1/512→1/1024 (C11) | N_q 127→254 (C12) | buffer 0.2012→0.4004 (C13) | N_y 63→127, N_q = 254 (C14) |
+|---|---|---|---|---|
+| W100_z0.02 | 7.0×10⁻⁵ | 1.9×10⁻⁶ | 2.7×10⁻¹¹ | 9.5×10⁻⁸ |
+| W100_z0.05 | 1.81×10⁻⁴ | 4.0×10⁻⁷ | 7.6×10⁻¹¹ | 1.8×10⁻⁹ |
+| W100_z0.2 | 3.4×10⁻⁵ | 4.7×10⁻⁸ | 4.7×10⁻¹¹ | 5.8×10⁻¹¹ |
+| W200_z0.02 | **2.58×10⁻⁴ (FAIL)** | 6.7×10⁻⁶ | 4.5×10⁻¹¹ | 6.9×10⁻⁷ |
+| W200_z0.05 | **5.97×10⁻⁴ (FAIL)** | 1.6×10⁻⁶ | 7.0×10⁻¹¹ | 1.3×10⁻⁸ |
+| W200_z0.2 | **9.17×10⁻⁴ (FAIL)** | 5.4×10⁻⁶ | 1.3×10⁻¹⁰ | 1.2×10⁻⁸ |
+
+**C11 fails for 5 of 30 energy points** (all W = 200): W200_z0.02 at E = 281.9 (2.58×10⁻⁴); W200_z0.05 at
+E = 140.5, 204.9 and 371.4 (5.97×10⁻⁴, 2.80×10⁻⁴, 2.80×10⁻⁴); W200_z0.2 at E = 88.5 (9.17×10⁻⁴).
+The change grows with disorder strength and with the potential's steepness. N_y, N_q and the buffer are
+converged by 2–5 orders of magnitude.
+
+**DIAGNOSTIC: dx ladder (1/256, 1/512, 1/1024, 1/2048; not a criterion).**
+* The observed order is **1.96–2.14** at all 30 points, so the error is second order, and a Richardson
+  estimate is permitted by the predeclared window [1.8, 2.2] at all 30 points.
+* The extrapolated error of the T1 at dx = 1/512 is up to 9.4×10⁻⁵ (W100_z0.02), 2.4×10⁻⁴ (W100_z0.05),
+  4.6×10⁻⁵ (W100_z0.2), 3.4×10⁻⁴ (W200_z0.02), 8.0×10⁻⁴ (W200_z0.05) and **1.2×10⁻³ (W200_z0.2)**.
+  At dx = 1/1024 it is up to 2.3×10⁻⁵, 6.1×10⁻⁵, 1.1×10⁻⁵, 8.6×10⁻⁵, 2.0×10⁻⁴ and **3.0×10⁻⁴**.
+* **C11 compares consecutive grids; it does not bound the error.** For a second-order scheme the dx = 1/512
+  error is about 4/3 of the consecutive change. W100_z0.05 passes C11 (1.81×10⁻⁴) yet its extrapolated
+  dx = 1/512 error is 2.4×10⁻⁴. For W200_z0.2, even dx = 1/1024 is estimated to be 3.0×10⁻⁴ off, so a 1/1024 run
+  would meet the consecutive-change criterion only marginally and an error target of 2×10⁻⁴ not at all.
+  By second-order scaling dx = 1/2048 would be about 7.6×10⁻⁵ (extrapolated, not measured).
+* **Likely cause (consistent with the data, not proved):** the lattice-dispersion error ≈ (k dx)²/24 grows with
+  the local wave number, and the stronger disorder reaches deeper potentials.
+
+**Implication for B4 (recommendation; the protocol was not changed).** The B4 budget assumes an RGF dx error of
+≈ 10⁻⁴. That is not met at dx = 1/512 for W = 200 (and is marginal for W100_z0.05). B4 should establish dx
+convergence per realization and use dx ≤ 1/1024 or a verified Richardson extrapolation, with the error, not the
+consecutive change, as the target.
+
+### II.5 Cross-check with the existing B3 (report-only)
+For the four overlapping configurations (20 points) the RGF T1 equals the existing B3 values exactly (difference
+0.0) and differs from the existing sparse reference's T1 by ≤ 6.1×10⁻¹³. The B3 artifacts were not modified.
+
+### II.6 Limitations
+* Fixed realizations, seed 0, five energies each. Not statistics. The six cases are one draw rescaled.
+* **Shared by all three methods:** the problem definition (lattice Hamiltonian, DST-I quadrature, sine basis) and the
+  potential callable. An error in that definition would not be detected here (B1, B2 and the spec tests cover it).
+* The two references were run at the base configuration only; all refinements and the dx ladder use the RGF alone.
+  The agreement at the base resolution gives no sign of an RGF error, but the references were not run at the finer dx.
+* C11 is a consecutive-change criterion, not an error bound (§II.4).
+* N_y = 255 NOT TESTED (not triggered). dx finer than 1/2048 NOT TESTED.
+* The energy set is the project's convention, chosen before any result; other energies might give larger dx changes.
+* The clean-lead tail of W200_z0.02 is within 4 % of its guard at dx = 1/2048 (9.6×10⁻⁷ vs 10⁻⁶); a finer dx would need a larger buffer.
+* B1 is still not a complete pass (its longest configuration has a genuine phase discrepancy, confirmed
+  independently at 100-digit precision); the B3X devices have 719–2873 slices.
+* Items added after the protocol was fixed, all report-only: the closed-channel amplitude comparison and weights (§II.3).
+
+### II.7 Reproducibility and tests
+```bash
+python validate_rgf_b3x.py                 # ~10 min on 4 cores; writes results/rgf_b3x_validation/
+python validate_rgf_b3x.py --record-tests  # runs the B3X and the full suites, records them in run_metadata.json
+python -m pytest -q tests/test_rgf_b3x.py
+```
+A second full run into a separate directory reproduced every field of the six CSV files identically (the
+LU fill-count column was excluded from the comparison) and gave the same criterion outcomes. Same machine class.
+
+`run_metadata.json` records: code commit, clean-tree flag, protocol file hash and commit, Python 3.13.18,
+NumPy 2.5.3, SciPy 1.18.1, platform, all six configurations (seed 0, disorder parameter hashes), all 30 energies,
+every variant, per-device geometry and potential hashes, the three methods, source-file hashes, and the test results.
+
+| Command | Exit status | Result |
+|---|---|---|
+| `python -m pytest -q tests/test_rgf_b3x.py` | 0 | 23 passed |
+| `python -m pytest -q tests` (full suite) | 0 | 252 passed, 2 xfailed (the two known expected failures) |
+
+Both were recorded by `--record-tests` after the artifacts existed (no CI system was involved). Before the artifacts
+existed, the live tests gave 17 passed and 6 skipped. The 23 tests cover: independence of the wave-function reference
+(import and source inspection), retarded-root selection against the complex-energy root, cosine-sum vs matrix-product
+potential blocks, clean-guide phase, a Green-function-free 1D transfer-matrix check, agreement with both other methods
+on a random multichannel device, detection of a wrong source sign, preservation of every predeclared threshold (B1, B2,
+B3 and B3X), configuration/seed/energy selection, same-realization bitwise sampling, buffer geometry, sensitivity of the
+S comparison to phase/reflection/off-diagonal errors, artifact completeness, the summary equalling `summarize()` of the
+CSVs, classification at the exact thresholds on mutated data, metadata/protocol-hash integrity, and a live recomputation
+of one row. One test bug found during development (a missing key in a bookkeeping check) was fixed in the test.
