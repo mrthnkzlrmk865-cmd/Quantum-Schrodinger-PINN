@@ -1,0 +1,275 @@
+{
+  "generated_utc": "2026-11-07T17:34:10+00:00",
+  "command": "python validate_rgf_b3y.py --out results/rgf_b3y_validation --cache /tmp/claude-0/-home-user-Quantum-Schrodinger-PINN/eb283e49-05be-5396-b176-7cbb98b8641a/scratchpad/real/cache",
+  "problem": "B3Y",
+  "source_commit": "1a5688b829597f147e94d9472741673708cb9337",
+  "working_tree_dirty": false,
+  "python": "3.13.18",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "mpmath": "1.3.0",
+  "platform": "Linux-6.18.44-fc-v310-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "cpu_count": 4,
+  "openblas_num_threads": "1",
+  "precision": {
+    "extended_precision_report": {
+      "longdouble_mantissa_bits": 64,
+      "arithmetic_probe_passed": true,
+      "longdouble_eps": 1.0842021724855044e-19,
+      "longdouble_itemsize_bytes": 16,
+      "float64_eps": 2.220446049250313e-16,
+      "machine": "x86_64",
+      "system": "Linux",
+      "sys_platform": "linux",
+      "numpy": "2.5.3",
+      "python": "3.13.18",
+      "required_bits": 64,
+      "evaluable": true,
+      "reason": "ok"
+    },
+    "float64": {
+      "eps": 2.220446049250313e-16,
+      "nmant": 52,
+      "mantissa_bits": 53
+    },
+    "longdouble": {
+      "eps": 1.0842021724855044e-19,
+      "nmant": 63,
+      "mantissa_bits": 64,
+      "itemsize": 16,
+      "dtype": "float128"
+    },
+    "complex_longdouble_itemsize": 32,
+    "mpmath": {
+      "version": "1.3.0",
+      "dps": 50
+    },
+    "machine": "x86_64",
+    "platform": "Linux-6.18.44-fc-v310-x86_64-with-glibc2.39",
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cpu_count": 4,
+    "mem_total": "16472400 kB",
+    "note": "Tier 3 uses np.longdouble residual arithmetic only if >= 64 mantissa bits and the arithmetic probe passes; otherwise NOT EVALUABLE (never float64)"
+  },
+  "protocol": {
+    "file": "docs/rgf_b3y_protocol.json",
+    "sha256": "sha256:489aea43f7d24aa913b59233d0f45ae78e4d347437ba0e405001f08a2ee8180a",
+    "commit": "69c953991fb62c916d52f05cce167dcfbcbfe471",
+    "report_commit": "1a5688b829597f147e94d9472741673708cb9337",
+    "revision": {
+      "revision": 2,
+      "branch": "claude/b3y-tier3-audit",
+      "description": "Tier 3 audit (no numerical B3Y comparison): (1) representation dominance now requires bulk_rounding >= dominance_factor (2) x (lead_data + solver) -- dominance over the SUM, a strictly STRONGER criterion than the previous 2 x max(lead, solver); term_resolution_factor (10) unchanged and unresolved terms stay UNEXPLAINED; (2) error_decomposition computes all three terms explicitly with a separate three-term and two-term identity residual; neither identity validates the individual S-matrices; (3) the resolution test uses the LARGEST convergence/error indicator among the exact, hybrid and rounded-matrix solves; (4) the extended-precision platform gate now covers every extended-precision entry point (six had no gate) and adds a functional arithmetic probe; (5) the mathematical audit is documented in docs/RGF_B3Y_TIER3_AUDIT.md. No threshold weakened; no formula changed."
+    }
+  },
+  "base_commit_of_audit": "5360a9f4dbb2e0de77642f22dd73b3e92b0afb80",
+  "potential_hashes": {
+    "W100_z0.05|1/512|buffer0.2": "sha256:07717723b62164fb824ab32670a99730327c35544b1127018a3ab29c9e3e46c6",
+    "W200_z0.02|1/512|buffer0.2": "sha256:1dac85aa05a7433243851c160cbcd1feb91e2222a65dd11a4e5428d65bdd757b",
+    "W200_z0.05|1/512|buffer0.2": "sha256:be2d1b6953e6a206dbcafe079282b557b9793dc2506e7ac2488824ca0260b3cc",
+    "W200_z0.2|1/512|buffer0.2": "sha256:cd2830c096607c429be028406f2c98a7dd6a1482afcf4bc74742b773f9702eed",
+    "W100_z0.05|1/1024|buffer0.2": "sha256:4444239bdeae1e139e7d077067a10cac309e7d64a8efd0d532540c24118d9cac",
+    "W200_z0.02|1/1024|buffer0.2": "sha256:cbc8b27fb36d81d02f608ae927d3390b3f72c75e19a92cf9b02b8385dfe9a564",
+    "W200_z0.05|1/1024|buffer0.2": "sha256:80ed6b2b2e60751dcf106b27bdf7a3fc94f39c49ac189b7e04669a47f9c34f82",
+    "W200_z0.2|1/1024|buffer0.2": "sha256:91b5d5f2784667786899a927c4e13875aa4927f08d33b428dc0a950b8070a1e0",
+    "W200_z0.02|1/2048|buffer0.2": "sha256:3e988eed6fcf53b982b57b9c068401d06f0fb478461003371e9d9e080f670b6c",
+    "W200_z0.05|1/2048|buffer0.2": "sha256:a3806c95f5837b38082fa67acc8141fec8d3960a8ab60f35faa4561bc203734a",
+    "W200_z0.2|1/2048|buffer0.2": "sha256:9cce3a1b2438773bfad40dda1d7c4903ae7c034c02c2990f796f31faf9ffa4ab",
+    "W200_z0.02|1/1024|buffer0.4": "sha256:2cf3f4cd848558a66de5a2d49bead61222e263860159aac70f75dc2d1d629384",
+    "W200_z0.05|1/1024|buffer0.4": "sha256:1e2da41622bf1f4c398dd19cbfd4022184ff8dabccf278b183927a61881f548f",
+    "W200_z0.2|1/1024|buffer0.4": "sha256:ca151158483584471567214166746b7304f8c5a25dfdc01c3c474034a7e5971b"
+  },
+  "exact_energies": [
+    {
+      "point": "W100_z0.05@E371.36",
+      "config": "W100_z0.05",
+      "E": 371.35615843785416
+    },
+    {
+      "point": "W200_z0.02@E88.51",
+      "config": "W200_z0.02",
+      "E": 88.5134459632352
+    },
+    {
+      "point": "W200_z0.02@E140.47",
+      "config": "W200_z0.02",
+      "E": 140.47412408188993
+    },
+    {
+      "point": "W200_z0.02@E204.93",
+      "config": "W200_z0.02",
+      "E": 204.93480220054468
+    },
+    {
+      "point": "W200_z0.02@E281.90",
+      "config": "W200_z0.02",
+      "E": 281.8954803191994
+    },
+    {
+      "point": "W200_z0.02@E371.36",
+      "config": "W200_z0.02",
+      "E": 371.35615843785416
+    },
+    {
+      "point": "W200_z0.05@E88.51",
+      "config": "W200_z0.05",
+      "E": 88.5134459632352
+    },
+    {
+      "point": "W200_z0.05@E140.47",
+      "config": "W200_z0.05",
+      "E": 140.47412408188993
+    },
+    {
+      "point": "W200_z0.05@E204.93",
+      "config": "W200_z0.05",
+      "E": 204.93480220054468
+    },
+    {
+      "point": "W200_z0.05@E281.90",
+      "config": "W200_z0.05",
+      "E": 281.8954803191994
+    },
+    {
+      "point": "W200_z0.05@E371.36",
+      "config": "W200_z0.05",
+      "E": 371.35615843785416
+    },
+    {
+      "point": "W200_z0.2@E88.51",
+      "config": "W200_z0.2",
+      "E": 88.5134459632352
+    },
+    {
+      "point": "W200_z0.2@E140.47",
+      "config": "W200_z0.2",
+      "E": 140.47412408188993
+    },
+    {
+      "point": "W200_z0.2@E204.93",
+      "config": "W200_z0.2",
+      "E": 204.93480220054468
+    },
+    {
+      "point": "W200_z0.2@E281.90",
+      "config": "W200_z0.2",
+      "E": 281.8954803191994
+    },
+    {
+      "point": "W200_z0.2@E371.36",
+      "config": "W200_z0.2",
+      "E": 371.35615843785416
+    }
+  ],
+  "discretization": {
+    "N_y": 63,
+    "N_q": 127,
+    "inv_dx_levels": [
+      512,
+      1024,
+      2048
+    ],
+    "buffer_requested": 0.2,
+    "buffer_control_requested": 0.4
+  },
+  "solver_settings": {
+    "M1": "stationary.scattering_matrix (block recursion)",
+    "M2": "splu permc_spec=COLAMD (default), Green blocks, smatrix_spec Fisher-Lee",
+    "M3": "splu permc_spec=MMD_AT_PLUS_A + 1 refinement step, S from the scattering state",
+    "M4": {
+      "preconditioner_permc": "MMD_AT_PLUS_A",
+      "refinement_max_iterations": 10,
+      "eta_max": 1e-17,
+      "contraction_max": 0.1,
+      "fl_vs_state_tol": 1e-13,
+      "ordering_tol": 1e-13,
+      "error_indicator_max": 1e-11,
+      "mpmath_dps": 50,
+      "chunk_bytes": 268435456
+    },
+    "decomposition_M2": "matrix sr.assemble_M, permc COLAMD, unit sources on open channels, smatrix_spec Fisher-Lee form",
+    "decomposition_M3": "matrix sw.assemble, permc MMD_AT_PLUS_A, method source, wave-function extraction"
+  },
+  "limits": {
+    "S_abs": 1e-10,
+    "TR_offdiag_abs": 2e-10,
+    "unitarity": 1e-10,
+    "reciprocity": 1e-08,
+    "sparse_backward_error": 1e-14,
+    "dT1_buffer": 0.0002,
+    "lead_tail_guard": 1e-06,
+    "order_window": [
+      1.8,
+      2.2
+    ],
+    "T1_method_spread_for_solver_independence": 2e-06,
+    "precision_limited_growth_per_halving": 10.0,
+    "dominance_factor": 2.0,
+    "term_resolution_factor": 10.0,
+    "_new_numbers_note": "dominance_factor and term_resolution_factor are new in revision 1 (flagged for review)",
+    "precision_limited_growth_per_halving_note": "operational precision-consistency classification (factor 10 per halving of dx); NOT a mathematical proof of round-off dominance",
+    "dominance_rule": "bulk_rounding >= dominance_factor * (lead_data + solver)   [revision 2; replaces bulk_rounding >= dominance_factor * max(lead_data, solver)]",
+    "dominance_meaning": "with the exact telescoping identity and the triangle inequality: | ||total|| - bulk | <= lead + solver <= bulk/2, so the bulk-rounding term alone fixes the size of the total error to within 50% regardless of cancellations; not a rigorous error bound"
+  },
+  "xp_gates": {
+    "platform_min_mantissa_bits": 64,
+    "lead_data_vs_mpmath_rel": 1e-17,
+    "scalar_problem_vs_mpmath_abs": 1e-13,
+    "refinement_contraction_max": 0.1,
+    "refinement_max_iterations": 10,
+    "final_relative_operator_residual_max": 1e-17,
+    "fisher_lee_vs_wavefunction_forms_abs": 1e-13,
+    "preconditioner_ordering_stability_abs": 1e-13,
+    "validation_vs_B3X_refs_at_dx_1_512_abs": 1e-10,
+    "mpmath_dps": 50,
+    "error_indicator_max": 1e-11,
+    "error_indicator_note": "e_ind = max(max|S^(k)-S^(k-1)| over the last two refinement iterates, kappa1_hat * eta_final): a convergence/error INDICATOR, not a rigorous uncertainty bound",
+    "platform_requirement": "np.longdouble must provide >= 64 mantissa bits AND pass a functional arithmetic probe ((1 + 2^-60) - 1 == 2^-60). If not (e.g. Windows/MSVC or Apple arm64 where longdouble == float64) Tier 3 stops and reports NOT EVALUABLE; ordinary double precision is never substituted. Every extended-precision entry point of sparse_exact_lattice.py enforces this (registry GATED_ENTRY_POINTS, tested)",
+    "refinement_gate_definition": "eta <= 1e-17 within 10 iterations (stop at the first iterate k>=1 with eta <= 1e-17); contraction ||d_k||/||d_(k-1)|| <= 0.1 for every step taken while the previous eta > 1e-17; eta = ||r||/(||b|| + ||A||_1 ||x||) with the unmerged operator in extended precision"
+  },
+  "b3x_artifact_hashes": {
+    "per_energy_comparison.csv": "sha256:903d70631750434694e3d2834e97fb65806c8f09050638bacbed5de570c73547",
+    "refinement_convergence.csv": "sha256:5d7a99c130d12a7c244fbed71a9068dc875e3469e0bc3950f2f5f919595b339a",
+    "summary.json": "sha256:e0016461fa89adc90f38a90fb6e516a0ffef6e0b93413dd174af66f25cb17dd1",
+    "run_metadata.json": "sha256:1cfe4d6e5f98724f2d6583c1c5b1471107415920c1b1539318fed77d63d87772",
+    "dx_ladder_diagnostic.csv": "sha256:623987157107cfdba51f2417b352c60be76ab9b2d97515e66ffaf77ebb860489"
+  },
+  "b3x_artifact_hashes_now": {
+    "results/rgf_b3x_validation/per_energy_comparison.csv": "sha256:903d70631750434694e3d2834e97fb65806c8f09050638bacbed5de570c73547"
+  },
+  "stopped_at": null,
+  "overall_status": "PASS",
+  "wall_time_s": 116.79516339302063,
+  "cache_dir_note": "per-case caches live outside the result tree; the result files are assembled from them",
+  "code_fingerprint": "sha256:aa25e76feace7ee470920b8e87e762d242775680b042b2550f4ce52d8d5ba6c0",
+  "code_files": {
+    "config.py": "sha256:68639f852048dbd6b3a1d48a7cae921276fec5e022ea31cddfc815b63ad8420d",
+    "potential.py": "sha256:a3b203335c1fb7363578141408fed404158ad6da38902ea042ef5991353df91c",
+    "disorder.py": "sha256:f8435f93e3ee158d0e17b252ea932ede3326e4f6a4f25a2afc16ae3a50c34c32",
+    "smatrix_spec.py": "sha256:e6029cbcd91eed8461f1ef351a757f6463aa0c8b008f7908db58253d010b0cf9",
+    "stationary.py": "sha256:7294be3c22fd88bd317d3df45858642f36cc53ea2912cc00be47b7d2dc17949e",
+    "sparse_reference.py": "sha256:3b201f7525a839816a4e4d5156f51c3d55816ffcdcbf65def5017c4903b50190",
+    "sparse_wavefunction.py": "sha256:eb93085a4e0af4b2b6c48f9ec383b804fa461a870784a5ab48a272a8c1a6e7db",
+    "sparse_exact_lattice.py": "sha256:9143f15abec82ba74efc224831204b2afc02b7e3f3a4283a4ada704722dd4409",
+    "validate_rgf_b3.py": "sha256:4584284008ee8ad6aaf7e6fabe2597fa2e6eaa7a36977b49ed08bdd8b11ed939",
+    "validate_rgf_b3x.py": "sha256:e32c5ee5ff83dbc42b4c6fbff525b23b465a4b9d0564a5bc4bec9874c94018cb",
+    "validate_rgf_b3y.py": "sha256:932ba688c7d88aa07fc4eaf6845201835ea2aa9a5a328adc1023ac565345e737"
+  },
+  "post_run_tests": {
+    "recorded_utc": "2026-11-07T17:41:29+00:00",
+    "runs": [
+      {
+        "command": "python -m pytest -q tests/test_rgf_b3y.py tests/test_rgf_b3y_driver.py",
+        "exit_status": 0,
+        "summary": "70 passed in 55.00s"
+      },
+      {
+        "command": "python -m pytest -q tests",
+        "exit_status": 0,
+        "summary": "322 passed, 2 xfailed, 4 warnings in 118.79s (0:01:58)"
+      }
+    ],
+    "note": "executed after the artifacts were generated; written by validate_rgf_b3y.py --record-tests"
+  }
+}
