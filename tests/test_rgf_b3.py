@@ -366,11 +366,13 @@ def test_artifacts_complete_and_row_counts():
     assert len(_csv("unitarity")) == 40 and len(_csv("reciprocity")) == 40
     assert len(_csv("dx_convergence")) == len(_csv("quadrature_convergence")) == len(_csv("buffer_convergence")) == 20
     closed = _csv("closed_channel_convergence")
-    crit = [r for r in closed if r["role"] == "criterion"]
-    assert len(crit) == 20 and len([r for r in closed if r["role"].startswith("exploratory")]) == 20
+    comb = [r for r in closed if r["role"] == b3.ROLE_COMBINED]          # SUPPLEMENTARY (raw label kept)
+    fixed = [r for r in closed if r["role"] == b3.ROLE_FIXED]            # FORMAL N_y criterion (raw label kept)
+    assert len(comb) == 20 and len(fixed) == 20
+    assert len(_csv("ny_convergence_formal")) == 20
     cond = [r for r in closed if r["role"].startswith("conditional")]
-    # N_y = 255 was run iff the zeta = 0.02 case failed at N_y = 127, and only for that case
-    A_failed = any(r["passed"] == "False" for r in crit if r["case"] == "A")
+    # N_y = 255 was run iff the zeta = 0.02 case failed the FORMAL N_y criterion at N_y = 127, and only for that case
+    A_failed = any(r["passed"] == "False" for r in fixed if r["case"] == "A")
     assert bool(cond) == A_failed and {r["case"] for r in cond} <= {"A"}
     assert len(cond) == (10 if A_failed else 0)
 
@@ -421,7 +423,7 @@ def test_summary_agrees_with_csv():
         assert s[f"reciprocity_{meth}"]["full"]["value"] == _num(q, "Q_full").max()
         assert s[f"reciprocity_{meth}"]["probability"]["value"] == _num(q, "Q_prob").max()
         assert s[f"reciprocity_{meth}"]["report_only_same_direction"]["max_RL"] == _num(q, "same_dir_RL_report_only").max()
-    for key, fn, role in (("closed_channel_Ny63_vs_Ny127", "closed_channel_convergence", "criterion"),
+    for key, fn, role in (("Ny_convergence_fixed_Nq254", "closed_channel_convergence", b3.ROLE_FIXED),
                           ("dx_1_512_vs_1_1024", "dx_convergence", "criterion"),
                           ("Nq_127_vs_254", "quadrature_convergence", "criterion"),
                           ("buffer_0.2_vs_0.4", "buffer_convergence", "criterion")):
@@ -437,7 +439,10 @@ def test_summary_agrees_with_csv():
                                                     for r in ident)
     cp = s["criteria_passed"]
     assert s["all_B3_criteria_passed"] == all(cp.values())
-    assert s["overall_B3_status"] == ("PASS" if all(cp.values()) else "FAIL (see criteria_passed)")
+    failed = [k for k, v in cp.items() if not v]
+    assert s["failed_criteria"] == failed and s["b3_full_pass"] == (not failed)
+    assert s["overall_B3_status"] == ("PASS" if not failed else "FAIL: " + ", ".join(failed))
+    assert "closed_channel_Ny63_vs_Ny127" not in cp and "supplementary_combined_Ny_Nq" not in cp
     for k in cp:                                                   # per-criterion flag equals value <= limit
         v = s[k]
         if "value" in v:
@@ -476,10 +481,18 @@ def test_metadata_complete_and_source_hashes_current():
     fp = code_fingerprint("rgf_b3")
     assert set(m["code_files"]) == set(fp["code_files"])
     # solver and spec files must be the ones the run used (protected files unchanged since the run)
-    for f in ("stationary.py", "smatrix_spec.py", "sparse_reference.py", "validate_rgf_b3.py", "potential.py", "disorder.py"):
+    for f in ("stationary.py", "smatrix_spec.py", "sparse_reference.py", "potential.py", "disorder.py", "config.py"):
         assert m["code_files"][f] == fp["code_files"][f], f"{f} changed after the artifacts were generated"
-    if "post_run_tests" in m:
-        assert all("exit_status" in r and "command" in r and "summary" in r for r in m["post_run_tests"]["runs"])
+    # validate_rgf_b3.py: the production hash is kept; after Revision 1 (summary logic only) the revision record
+    # must carry the hash of the current file
+    if "revisions" in m:
+        assert m["revisions"][0]["validate_rgf_b3_sha256"] == fp["code_files"]["validate_rgf_b3.py"]
+        assert m["revisions"][0]["revision"] == 1 and "raw_csv_sha256" in m["revisions"][0]
+    else:
+        assert m["code_files"]["validate_rgf_b3.py"] == fp["code_files"]["validate_rgf_b3.py"]
+    for key in ("post_run_tests", "post_revision_1_tests"):
+        if key in m:
+            assert all("exit_status" in r and "command" in r and "summary" in r for r in m[key]["runs"])
 
 
 @pytest.mark.skipif(not HAVE, reason="B3 artifacts not generated")
@@ -524,3 +537,142 @@ def test_exploratory_dx_is_consistent_and_does_not_replace_the_criterion():
     # the exploratory result does not rewrite the predeclared outcome
     assert s["criteria_passed"]["dx_1_512_vs_1_1024"] == (s["dx_1_512_vs_1_1024"]["value"] <= 2e-4)
     assert s["dx_1_512_vs_1_1024"]["limit"] == 2e-4
+
+
+# ----------------------------------------------------------------------
+# Revision 1: classification of the N_y criterion; the dx failure is preserved
+# ----------------------------------------------------------------------
+def _summary():
+    with open(SUMMARY) as f:
+        return json.load(f)
+
+
+def _meta():
+    with open(os.path.join(RES, "run_metadata.json")) as f:
+        return json.load(f)
+
+
+@pytest.mark.skipif(not HAVE, reason="B3 artifacts not generated")
+def test_formal_Ny_criterion_is_single_variable_fixed_Nq():
+    m, s = _meta(), _summary()
+    ref_v, var_v = m["variants"]["Nq"], m["variants"]["Ny127_Nq254"]
+    assert {k for k in ref_v if ref_v[k] != var_v[k]} == {"Ny"}                 # N_y is the ONLY change
+    assert ref_v["Nq"] == var_v["Nq"] == 254 and ref_v["Ny"] == 63 and var_v["Ny"] == 127
+    assert ref_v["dx"] == var_v["dx"] == 1 / 512 and ref_v["buffer"] == var_v["buffer"]
+    assert m["geometry"]["A"]["Nq"]["n_slices"] == m["geometry"]["A"]["Ny127_Nq254"]["n_slices"] == 719
+    # identical sampled potentials in both variants (same dx, N_q, buffer): identical hashes, bitwise to the direct call
+    ident = _csv("potential_identity")
+    for c in "ABCD":
+        a = [r for r in ident if r["case"] == c and r["variant"] == "Nq"]
+        b = [r for r in ident if r["case"] == c and r["variant"] == "Ny127_Nq254"]
+        assert len(a) == len(b) == 1 and a[0]["potential_hash"] == b[0]["potential_hash"]
+        assert a[0]["bitwise_equal"] == b[0]["bitwise_equal"] == "True" and a[0]["shape"] == b[0]["shape"]
+    # recompute the comparison from the RAW rows only (reference: quadrature_convergence T1_variant at N_y = 63, N_q = 254)
+    quad = {(r["case"], r["E"]): r for r in _csv("quadrature_convergence")}
+    fixed = [r for r in _csv("closed_channel_convergence") if r["role"] == b3.ROLE_FIXED]
+    assert len(fixed) == 20 and all(r["Ny_reference"] == "63" and r["Ny_variant"] == "127" for r in fixed)
+    deltas = []
+    for r in fixed:
+        ref = float(quad[(r["case"], r["E"])]["T1_variant"])
+        assert float(r["T1_reference"]) == ref                                   # bitwise: the reference IS the N_q = 254 run
+        assert int(r["n_open_reference"]) == int(r["n_open_variant"])
+        deltas.append(float(r["T1_variant"]) - ref)
+    mx = max(abs(d) for d in deltas)
+    assert mx == pytest.approx(9.456930838425137e-08, rel=1e-12)
+    f = s["Ny_convergence_fixed_Nq254"]
+    assert f["value"] == mx and f["limit"] == 2e-4 and f["passed"] == (mx <= 2e-4) and f["passed"]
+    assert f["argmax"]["case"] == "A" and f["argmax"]["E"] == pytest.approx(371.35615843785416)
+    assert "FORMAL" in f["classification"] and "fixed N_q = 254" in f["classification"]
+    assert f["provenance"]["reference"]["file"] == "quadrature_convergence.csv"
+    assert f["provenance"]["variant"]["rows"].endswith(f"'{b3.ROLE_FIXED}'")
+    # the derived table carries the same numbers with their sources
+    der = _csv("ny_convergence_formal")
+    assert len(der) == 20
+    for r, d in zip(der, deltas):
+        assert float(r["delta_T1"]) == pytest.approx(d, abs=1e-18) and (r["passed"] == "True") == (abs(d) <= 2e-4)
+        assert r["N_q"] == "254" and "quadrature_convergence.csv" in r["reference_source"]
+        assert float(r["T1_reference"]) == float(r["T1_reference_cross_check"])
+
+
+@pytest.mark.skipif(not HAVE, reason="B3 artifacts not generated")
+def test_combined_Ny_Nq_comparison_is_supplementary_and_preserved():
+    m, s = _meta(), _summary()
+    v = m["variants"]["Ny127"]
+    assert v["Ny"] == 127 and v["Nq"] == 255 and m["base_discretization"]["Nq"] == 127   # two parameters change
+    sc = s["supplementary_combined_Ny_Nq"]
+    assert "SUPPLEMENTARY" in sc["classification"] and "passed" not in sc
+    assert "supplementary_combined_Ny_Nq" not in s["criteria_passed"]
+    comb = [r for r in _csv("closed_channel_convergence") if r["role"] == b3.ROLE_COMBINED]
+    assert len(comb) == 20 and all(r["Ny_variant"] == "127" and r["reference"] == "base" for r in comb)
+    assert sc["value"] == _num(comb, "abs_delta_T1").max() == pytest.approx(1.8087564626068087e-06, rel=1e-12)
+    assert sc["meets_tolerance"] == (sc["value"] <= 2e-4)
+    # the original (revision 0) classification is retained, with identical numbers
+    h0 = s["revision_history"][0]
+    assert h0["revision"] == 0 and h0["closed_channel_Ny63_vs_Ny127"]["value"] == sc["value"]
+    assert h0["exploratory_fixed_Nq254_Ny63_vs_127"]["max_abs_delta_T1"] == s["Ny_convergence_fixed_Nq254"]["value"]
+    assert [h["revision"] for h in s["revision_history"]] == [0, 1]
+
+
+@pytest.mark.skipif(not HAVE, reason="B3 artifacts not generated")
+def test_dx_failure_is_preserved_and_B3_is_not_a_full_pass():
+    s = _summary()
+    dx = s["dx_1_512_vs_1_1024"]
+    assert dx["limit"] == 2e-4 and dx["passed"] is False and dx["value"] > 2e-4
+    assert dx["value"] == pytest.approx(5.968576250486857e-04, rel=1e-12)
+    assert dx["argmax"]["case"] == "D" and dx["argmax"]["E"] == pytest.approx(140.47412408188993)
+    assert len(dx["rows_failed"]) == 3 and {r["case"] for r in dx["rows_failed"]} == {"D"}
+    assert s["criteria_passed"]["dx_1_512_vs_1_1024"] is False
+    assert s["failed_criteria"] == ["dx_1_512_vs_1_1024"] and s["b3_full_pass"] is False
+    assert s["all_B3_criteria_passed"] is False and s["overall_B3_status"].startswith("FAIL")
+    assert s["revision_history"][0]["overall_B3_status"].startswith("FAIL")        # same overall outcome before the revision
+    rows = [r for r in _csv("dx_convergence") if float(r["abs_delta_T1"]) > 2e-4]
+    assert len(rows) == 3 and all(r["passed"] == "False" and r["case"] == "D" for r in rows)
+    assert s["limits"] == b3.LIMITS
+
+
+@pytest.mark.skipif(not HAVE, reason="B3 artifacts not generated")
+def test_summary_is_the_summarize_of_the_raw_csvs_and_raw_files_unchanged():
+    import copy
+    R = b3.load_raw(RES)
+    s_new, s = b3.summarize(copy.deepcopy(R)), _summary()
+    for k in ("criteria_passed", "failed_criteria", "b3_full_pass", "overall_B3_status"):
+        assert s_new[k] == s[k]
+    for k in ("S_agreement_RGF_vs_sparse", "Ny_convergence_fixed_Nq254", "supplementary_combined_Ny_Nq",
+              "dx_1_512_vs_1_1024", "Nq_127_vs_254", "buffer_0.2_vs_0.4", "unitarity_RGF", "unitarity_sparse"):
+        assert s_new[k]["value"] == s[k]["value"] and s_new[k]["per_case_max"] == s[k]["per_case_max"]
+    hashes = _meta()["revisions"][0]["raw_csv_sha256"]
+    assert set(hashes) == {f + ".csv" for f in b3.RAW_NAMES.values()}
+    for fn, h in hashes.items():
+        assert b3._sha_file(os.path.join(RES, fn)) == h, f"{fn} changed after the revision was recorded"
+
+
+@pytest.mark.skipif(not HAVE, reason="B3 artifacts not generated")
+def test_classification_logic_responds_to_the_raw_values():
+    """Mutating the loaded raw rows changes the classification exactly as specified."""
+    import copy
+    R0 = b3.load_raw(RES)
+    # (a) a formal fixed-N_q row exactly at the limit passes; just above it fails and B3 reports the failure
+    R = copy.deepcopy(R0)
+    row = [r for r in R["closed"] if r["role"] == b3.ROLE_FIXED][0]
+    row["abs_delta_T1"], row["passed"] = 2e-4, True
+    assert b3.summarize(R)["Ny_convergence_fixed_Nq254"]["passed"]
+    row["abs_delta_T1"], row["passed"] = 2e-4 * (1 + 1e-9), False
+    s2 = b3.summarize(R)
+    assert not s2["Ny_convergence_fixed_Nq254"]["passed"] and "Ny_convergence_fixed_Nq254" in s2["failed_criteria"]
+    assert not s2["b3_full_pass"] and s2["overall_B3_status"].startswith("FAIL")
+    # (b) a huge deviation in the SUPPLEMENTARY combined rows does not change the formal result or the failure list
+    R = copy.deepcopy(R0)
+    for r in R["closed"]:
+        if r["role"] == b3.ROLE_COMBINED:
+            r["abs_delta_T1"], r["passed"] = 1.0, False
+    s3 = b3.summarize(R)
+    assert s3["Ny_convergence_fixed_Nq254"]["passed"] and s3["failed_criteria"] == ["dx_1_512_vs_1_1024"]
+    assert s3["supplementary_combined_Ny_Nq"]["meets_tolerance"] is False
+    # (c) if the dx rows were all within tolerance and the formal N_y passes, the overall status would be PASS
+    R = copy.deepcopy(R0)
+    for r in R["dx"]:
+        r["abs_delta_T1"], r["passed"] = 0.0, True
+    s4 = b3.summarize(R)
+    assert s4["b3_full_pass"] and s4["overall_B3_status"] == "PASS"                 # logic only; the real data fail
+    # (d) the conditional N_y = 255 rule keys on the FORMAL rows of the zeta = 0.02 case
+    assert not s2["closed_channel_conditional_Ny255"]["triggered"]                  # rows absent in the raw data

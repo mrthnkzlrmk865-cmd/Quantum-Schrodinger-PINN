@@ -593,7 +593,7 @@ compare_reproduction.py  compare a rerun with the committed results
 paired_analysis.py       seed-wise paired bootstrap of the correlation-length sweep
 smatrix_spec.py          S-matrix conventions/formulas for the planned stationary solver (spec, tested)
 ode1d.py                 independent 1D stationary scattering reference (solve_ivp); validate_ode1d.py
-stationary.py            stationary mode-space RGF solver (B1: 5/6 configs pass; B2 passes; B3: dx criterion fails; B4 open); validate_rgf_b1.py, validate_rgf_b2.py, validate_rgf_b3.py (with sparse_reference.py)
+stationary.py            stationary mode-space RGF solver (B1: 5/6 configs pass; B2 passes; B3 and B3X: dx criterion fails; B4 open); validate_rgf_b1.py, validate_rgf_b2.py, validate_rgf_b3.py (with sparse_reference.py), validate_rgf_b3x.py (with sparse_wavefunction.py)
 experiment_disorder.py   transport sweeps
 experiment_localization.py  closed-box spreading / finite-size test
 experiment_pinn.py       PINN performance study
@@ -610,6 +610,7 @@ docs/ODE1D_VALIDATION.md  validation of the 1D ODE reference (measured errors)
 docs/RGF_B1_VALIDATION.md RGF solver: formulation and B1 clean-guide validation (measured)
 docs/RGF_B2_VALIDATION.md RGF vs independent 1D ODE, smooth barrier (B2, measured)
 docs/RGF_B3_VALIDATION.md RGF vs direct sparse Green function on fixed disorder realizations (B3, measured; one criterion fails)
+docs/RGF_B3X_VALIDATION.md extended B3: six configurations, independent wave-function reference (B3X, measured; the dx criterion fails)
 ```
 
 ## 13. Debugging history (engineering record)

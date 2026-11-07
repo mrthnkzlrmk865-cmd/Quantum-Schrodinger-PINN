@@ -29,8 +29,10 @@ Predeclared criteria (unchanged from the spec):
   U = max(|S^dag S - I|, |S S^dag - I|) <= 1e-10
   Q = max|S - S^T| <= 1e-8 (full), blocks r_L = r_L^T, r_R = r_R^T,
       t_LR = t_RL^T <= 1e-8, probabilities |t_RL[m,n]|^2 = |t_LR[n,m]|^2 <= 1e-8
-  |dT_1| <= 2e-4 for N_y 63 -> 127 (and 255 only if zeta = 0.02 fails at 127),
-      dx 1/512 -> 1/1024, N_q -> 2 N_q, buffer 0.2 -> 0.4
+  |dT_1| <= 2e-4 for N_y 63 -> 127 AT FIXED N_q = 254 (formal, single variable; Revision 1 of the
+      classification), N_y = 255 only if zeta = 0.02 fails that; dx 1/512 -> 1/1024,
+      N_q -> 2 N_q, buffer 0.2 -> 0.4. The combined N_y 63->127 + N_q 127->255 refinement is
+      SUPPLEMENTARY (reported, not a criterion).
   same realization: potential samples bitwise equal to a direct
       Potential(cfg, disorder_from_config(cfg, seed)).numpy call
 Same-direction transmission symmetry is report-only.
@@ -38,9 +40,11 @@ Same-direction transmission symmetry is report-only.
 Writes results/rgf_b3_validation/{rgf_sparse_comparison, unitarity,
 reciprocity, closed_channel_convergence, dx_convergence,
 quadrature_convergence, buffer_convergence, potential_identity}.csv,
-summary.json, run_metadata.json.
+ny_convergence_formal.csv (derived), summary.json, run_metadata.json.
 Usage: python validate_rgf_b3.py [--out DIR] [--cases ABCD]
-       python validate_rgf_b3.py --record-tests [--out DIR]   (runs and records the test suites)
+       python validate_rgf_b3.py --resummarize [--out DIR]    (re-derive summary.json and the derived CSV from the
+                                                               committed raw CSVs; recomputes nothing)
+       python validate_rgf_b3.py --record-tests [--test-key KEY] [--out DIR]   (runs and records the test suites)
 """
 
 from __future__ import annotations
@@ -86,6 +90,28 @@ VARIANTS = {                                   # one parameter changed at a time
     "Ny127_Nq254": dict(BASE, Ny=127, Nq=254),  # exploratory: pure truncation at fixed N_q = 254 (vs the Nq run)
     "Ny255": dict(BASE, Ny=255, Nq=511),       # conditional (zeta = 0.02 only, if it fails at 127)
 }
+
+
+# Raw-CSV role labels in closed_channel_convergence.csv are kept exactly as first written (the raw data are not
+# edited). Their CLASSIFICATION was revised (docs/RGF_B3_VALIDATION.md, "Revision 1"):
+ROLE_COMBINED = "criterion"                 # N_y 63->127 AND N_q 127->255: changes two parameters -> SUPPLEMENTARY
+ROLE_FIXED = "exploratory_fixed_Nq254"      # N_y 63->127 at fixed N_q = 254: single variable -> FORMAL N_y criterion
+NY_PROVENANCE = dict(
+    formal_primary=dict(
+        name="N_y 63 -> 127 at fixed N_q = 254 (single-variable)", summary_key="Ny_convergence_fixed_Nq254",
+        reference=dict(file="quadrature_convergence.csv", rows="all (variant == 'Nq')", column="T1_variant",
+                       config=dict(dx=1 / 512, N_y=63, N_q=254, buffer_requested=0.2, buffer_actual=103 / 512)),
+        variant=dict(file="closed_channel_convergence.csv", rows=f"role == '{ROLE_FIXED}'", column="T1_variant",
+                     config=dict(dx=1 / 512, N_y=127, N_q=254, buffer_requested=0.2, buffer_actual=103 / 512)),
+        cross_check="the T1_reference column of the variant rows equals the reference T1 bitwise",
+        derived_file="ny_convergence_formal.csv"),
+    supplementary_combined=dict(
+        name="N_y 63 -> 127 together with N_q 127 -> 255 (two parameters change)",
+        summary_key="supplementary_combined_Ny_Nq",
+        reference=dict(file="closed_channel_convergence.csv", rows=f"role == '{ROLE_COMBINED}'", column="T1_reference",
+                       config=dict(dx=1 / 512, N_y=63, N_q=127, buffer_requested=0.2, buffer_actual=103 / 512)),
+        variant=dict(file="closed_channel_convergence.csv", rows=f"role == '{ROLE_COMBINED}'", column="T1_variant",
+                     config=dict(dx=1 / 512, N_y=127, N_q=255, buffer_requested=0.2, buffer_actual=103 / 512))))
 
 
 def passes(value: float, limit: float) -> bool:
@@ -334,8 +360,8 @@ def run_case(case, log=print):
     rows, _ = rows_for("Ny127_Nq254", VARIANTS["Ny127_Nq254"], "exploratory_fixed_Nq254", ref_name="Nq(63,254)",
                        ref_vals=nq_vals)
     R["closed"] += closed(rows, BASE["Ny"], 127)
-    if p["zeta"] == 0.02 and any(not r["passed"] for r in R["closed"] if r["role"] == "criterion"):
-        log(f"  case {case}: |dT1| criterion failed at N_y = 127 -> running N_y = 255 (spec B3 rule)")
+    if p["zeta"] == 0.02 and any(not r["passed"] for r in R["closed"] if r["role"] == ROLE_FIXED):
+        log(f"  case {case}: formal fixed-N_q |dT1| criterion failed at N_y = 127 -> running N_y = 255 (spec B3 rule)")
         rows, _ = rows_for("Ny255", VARIANTS["Ny255"], "conditional_extension_127_to_255", ref_name="Ny127",
                            ref_vals=v127_vals)
         R["closed"] += closed(rows, 127, 255)
@@ -378,31 +404,43 @@ def summarize(R):
         s[f"reciprocity_{meth}"]["passed"] = all(s[f"reciprocity_{meth}"][k]["passed"]
                                                  for k in ("full", "rL", "rR", "tLR_vs_tRL_T", "probability"))
     crit = lambda rows: [r for r in rows if r["role"] == "criterion"]
-    for name, rows in (("closed_channel_Ny63_vs_Ny127", crit(R["closed"])), ("dx_1_512_vs_1_1024", crit(R["dx"])),
+    fixed = [r for r in R["closed"] if r["role"] == ROLE_FIXED]
+    comb = [r for r in R["closed"] if r["role"] == ROLE_COMBINED]
+    for name, rows in (("Ny_convergence_fixed_Nq254", fixed), ("dx_1_512_vs_1_1024", crit(R["dx"])),
                        ("Nq_127_vs_254", crit(R["quad"])), ("buffer_0.2_vs_0.4", crit(R["buffer"]))):
         s[name] = _crit(rows, "abs_delta_T1", LIMITS["dT1"])
         s[name]["max_abs_delta_T1_per_case_energy"] = {f"{r['case']}:{r['kx']:.4f}": r["abs_delta_T1"] for r in rows}
         s[name]["rows_failed"] = [dict(case=r["case"], kx=r["kx"], E=r["E"], abs_delta_T1=r["abs_delta_T1"])
                                   for r in rows if not r["passed"]]
-    cl = s["closed_channel_Ny63_vs_Ny127"]
-    cl["closed_channels_retained_range_Ny63"] = [int(min(r["closed_reference"] for r in crit(R["closed"]))),
-                                                 int(max(r["closed_reference"] for r in crit(R["closed"])))]
-    cl["closed_channels_retained_range_Ny127"] = [int(min(r["closed_variant"] for r in crit(R["closed"]))),
-                                                  int(max(r["closed_variant"] for r in crit(R["closed"])))]
+    cl = s["Ny_convergence_fixed_Nq254"]
+    cl.update(classification="FORMAL primary N_y criterion (single variable: N_y 63 -> 127 at fixed N_q = 254)",
+              provenance=NY_PROVENANCE["formal_primary"],
+              closed_channels_retained_range_Ny63=[int(min(r["closed_reference"] for r in fixed)),
+                                                   int(max(r["closed_reference"] for r in fixed))],
+              closed_channels_retained_range_Ny127=[int(min(r["closed_variant"] for r in fixed)),
+                                                    int(max(r["closed_variant"] for r in fixed))])
+    sc = _crit(comb, "abs_delta_T1", LIMITS["dT1"])
+    sc["meets_tolerance"] = sc.pop("passed")             # reported, but NOT counted in criteria_passed
+    sc["per_case_meets_tolerance"] = sc.pop("per_case_pass")
+    sc.update(classification="SUPPLEMENTARY combined N_y + N_q refinement (not a single-variable test; not a formal criterion)",
+              provenance=NY_PROVENANCE["supplementary_combined"],
+              max_abs_delta_T1_per_case_energy={f"{r['case']}:{r['kx']:.4f}": r["abs_delta_T1"] for r in comb},
+              closed_channels_retained_range_Ny63=[int(min(r["closed_reference"] for r in comb)),
+                                                   int(max(r["closed_reference"] for r in comb))],
+              closed_channels_retained_range_Ny127=[int(min(r["closed_variant"] for r in comb)),
+                                                    int(max(r["closed_variant"] for r in comb))])
+    s["supplementary_combined_Ny_Nq"] = sc
     ext = [r for r in R["closed"] if r["role"].startswith("conditional")]
     s["closed_channel_conditional_Ny255"] = dict(
-        triggered=bool(ext), rule="N_y = 255 is run only if the zeta = 0.02 case fails at N_y = 127",
+        triggered=bool(ext),
+        rule="N_y = 255 is run only if the zeta = 0.02 case fails the formal fixed-N_q N_y criterion at N_y = 127",
         rows=[dict(case=r["case"], kx=r["kx"], E=r["E"], role=r["role"], delta_T1=r["delta_T1"],
                    abs_delta_T1=r["abs_delta_T1"], passed=r["passed"]) for r in ext],
         max_abs_delta_127_to_255=float(max([r["abs_delta_T1"] for r in ext if r["role"].endswith("127_to_255")],
                                            default=float("nan"))),
         max_abs_delta_63_to_255=float(max([r["abs_delta_T1"] for r in ext if r["role"].endswith("63_to_255")],
                                           default=float("nan"))),
-        status="exploratory-labelled extension of the protocol; the criterion result above is not replaced")
-    expl = [r for r in R["closed"] if r["role"].startswith("exploratory")]
-    s["exploratory_fixed_Nq254_Ny63_vs_127"] = dict(
-        max_abs_delta_T1=float(max(r["abs_delta_T1"] for r in expl)),
-        note="exploratory, not a criterion: isolates the transverse truncation (N_q = 254 at both N_y)")
+        status="exploratory-labelled extension of the protocol; the formal result above is not replaced")
     ident = R["identity"]
     s["potential_identity"] = dict(
         passed=bool(all(r["bitwise_equal"] and r["coords_bitwise_equal"] for r in ident)), n_checks=len(ident),
@@ -412,8 +450,30 @@ def summarize(R):
     keys = [k for k, v in s.items() if isinstance(v, dict) and "passed" in v and k != "closed_channel_conditional_Ny255"]
     s["criteria_passed"] = {k: bool(s[k]["passed"]) for k in keys}
     s["all_B3_criteria_passed"] = bool(all(s["criteria_passed"].values()))
-    s["overall_B3_status"] = "PASS" if s["all_B3_criteria_passed"] else "FAIL (see criteria_passed)"
+    s["failed_criteria"] = [k for k, v in s["criteria_passed"].items() if not v]
+    s["b3_full_pass"] = s["all_B3_criteria_passed"]
+    s["overall_B3_status"] = "PASS" if s["b3_full_pass"] else "FAIL: " + ", ".join(s["failed_criteria"])
     return s
+
+
+def build_ny_formal(R):
+    """Derived (not raw) table of the formal fixed-N_q N_y comparison with the source of every number."""
+    ref = {(r["case"], r["E"]): r for r in R["quad"]}
+    rows = []
+    for r in R["closed"]:
+        if r["role"] != ROLE_FIXED:
+            continue
+        a = ref[(r["case"], r["E"])]
+        rows.append(dict(
+            case=r["case"], seed=r["seed"], W=r["W"], zeta=r["zeta"], Ld=r["Ld"], kx=r["kx"], E=r["E"],
+            dx=1 / 512, N_q=254, Ny_reference=r["Ny_reference"], Ny_variant=r["Ny_variant"],
+            T1_reference=a["T1_variant"], T1_variant=r["T1_variant"], T1_reference_cross_check=r["T1_reference"],
+            delta_T1=r["T1_variant"] - a["T1_variant"], abs_delta_T1=abs(r["T1_variant"] - a["T1_variant"]),
+            limit=LIMITS["dT1"], passed=passes(abs(r["T1_variant"] - a["T1_variant"]), LIMITS["dT1"]),
+            n_open=r["n_open_variant"], closed_reference=r["closed_reference"], closed_variant=r["closed_variant"],
+            reference_source="quadrature_convergence.csv: variant 'Nq' (N_y=63, N_q=254), column T1_variant",
+            variant_source=f"closed_channel_convergence.csv: role '{ROLE_FIXED}' (N_y=127, N_q=254), column T1_variant"))
+    return rows
 
 
 # ----------------------------------------------------------------------
@@ -431,17 +491,97 @@ def _pytest(args):
     return dict(command="python -m pytest -q " + " ".join(args), exit_status=p.returncode, summary=last)
 
 
-def record_tests(out):
+def record_tests(out, key="post_run_tests"):
     path = os.path.join(out, "run_metadata.json")
     with open(path) as f:
         m = json.load(f)
-    m["post_run_tests"] = dict(
+    m[key] = dict(
         recorded_utc=_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
         runs=[_pytest(["tests/test_rgf_b3.py"]), _pytest(["tests"])],
         note="executed after the artifacts were generated; written by validate_rgf_b3.py --record-tests")
     with open(path, "w") as f:
         json.dump(m, f, indent=2)
-    print(json.dumps(m["post_run_tests"], indent=1))
+    print(json.dumps(m[key], indent=1))
+
+
+RAW_NAMES = dict(comparison="rgf_sparse_comparison", unitarity="unitarity", reciprocity="reciprocity",
+                 closed="closed_channel_convergence", dx="dx_convergence", quad="quadrature_convergence",
+                 buffer="buffer_convergence", identity="potential_identity")
+
+
+def _conv(v):
+    if v in ("True", "False"):
+        return v == "True"
+    for f in (int, float):
+        try:
+            return f(v)
+        except ValueError:
+            pass
+    return v
+
+
+def load_raw(out):
+    """Read the committed raw CSVs back (values round-trip exactly: they were written as repr floats)."""
+    R = {}
+    for k, fn in RAW_NAMES.items():
+        with open(os.path.join(out, fn + ".csv")) as f:
+            R[k] = [{c: _conv(v) for c, v in row.items()} for row in csv.DictReader(f)]
+    return R
+
+
+def _sha_file(path):
+    with open(path, "rb") as f:
+        return "sha256:" + hashlib.sha256(f.read()).hexdigest()
+
+
+def resummarize(out):
+    """Re-derive summary.json and ny_convergence_formal.csv from the raw CSVs (no recomputation; no raw file is
+    written). The previous classification is kept in summary.json['revision_history'], and a revision record
+    (source hashes, raw-file hashes, command) is appended to run_metadata.json['revisions']."""
+    R = load_raw(out)
+    spath, mpath = os.path.join(out, "summary.json"), os.path.join(out, "run_metadata.json")
+    with open(spath) as f:
+        old = json.load(f)
+    with open(mpath) as f:
+        meta = json.load(f)
+    raw_hashes = {fn + ".csv": _sha_file(os.path.join(out, fn + ".csv")) for fn in RAW_NAMES.values()}
+    s = summarize(R)
+    for k in ("wall_time_s", "limits", "scope", "cases", "base_discretization"):
+        s[k] = old[k]
+    env = environment_info()
+    if "revision_history" in old:
+        s["revision_history"] = old["revision_history"]
+    else:
+        keep = lambda d: {k: d[k] for k in ("limit", "value", "argmax", "per_case_max", "passed") if k in d}
+        s["revision_history"] = [dict(
+            revision=0, summary_commit=env.get("git_commit"),
+            description="original classification: the combined N_y 63->127 (+ N_q 127->255) comparison was the formal N_y criterion; "
+                        "the fixed-N_q = 254 comparison was labelled exploratory",
+            closed_channel_Ny63_vs_Ny127=keep(old["closed_channel_Ny63_vs_Ny127"]),
+            exploratory_fixed_Nq254_Ny63_vs_127=old["exploratory_fixed_Nq254_Ny63_vs_127"],
+            criteria_passed=old["criteria_passed"], overall_B3_status=old["overall_B3_status"])]
+    s["revision_history"] = [h for h in s["revision_history"] if h["revision"] != 1]      # idempotent
+    s["revision_history"].append(dict(
+        revision=1, description="N_y criterion reclassified: the single-variable fixed-N_q = 254 comparison is the formal "
+                                "criterion; the combined N_y + N_q comparison is supplementary. No raw number, threshold "
+                                "or other criterion changed.",
+        overall_B3_status=s["overall_B3_status"], failed_criteria=s["failed_criteria"]))
+    write_csv(os.path.join(out, "ny_convergence_formal.csv"), build_ny_formal(R))
+    with open(spath, "w") as f:
+        json.dump(s, f, indent=2)
+    meta["revisions"] = [r for r in meta.get("revisions", []) if r["revision"] != 1]      # idempotent
+    meta["revisions"].append(dict(
+        revision=1, generated_utc=_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+        command=" ".join([os.path.basename(sys.executable)] + sys.argv),
+        previous_summary_commit=env.get("git_commit"), working_tree_dirty=env.get("git_dirty"),
+        reason="reclassification of the N_y convergence criterion (see summary.json revision_history)",
+        raw_csv_sha256=raw_hashes,
+        validate_rgf_b3_sha256=code_fingerprint("rgf_b3")["code_files"]["validate_rgf_b3.py"],
+        note="'code_files' / 'code_fingerprint' above describe the code that PRODUCED the raw data (commit "
+             f"{meta.get('source_commit')}); only validate_rgf_b3.py (summary logic) differs from it now"))
+    with open(mpath, "w") as f:
+        json.dump(meta, f, indent=2)
+    print(json.dumps({k: s[k] for k in ("criteria_passed", "failed_criteria", "b3_full_pass", "overall_B3_status")}, indent=1))
 
 
 if __name__ == "__main__":
@@ -449,9 +589,14 @@ if __name__ == "__main__":
     ap.add_argument("--out", default="results/rgf_b3_validation")
     ap.add_argument("--cases", default="ABCD")
     ap.add_argument("--record-tests", action="store_true")
+    ap.add_argument("--test-key", default="post_run_tests")
+    ap.add_argument("--resummarize", action="store_true")
     a = ap.parse_args()
     if a.record_tests:
-        record_tests(a.out)
+        record_tests(a.out, a.test_key)
+        sys.exit(0)
+    if a.resummarize:
+        resummarize(a.out)
         sys.exit(0)
     os.makedirs(a.out, exist_ok=True)
     t0 = time.time()
@@ -464,11 +609,9 @@ if __name__ == "__main__":
                 R.setdefault(k, []).extend(v)
             else:
                 R.setdefault(k, {})[case] = v
-    names = dict(comparison="rgf_sparse_comparison", unitarity="unitarity", reciprocity="reciprocity",
-                 closed="closed_channel_convergence", dx="dx_convergence", quad="quadrature_convergence",
-                 buffer="buffer_convergence", identity="potential_identity")
-    for k, fn in names.items():
+    for k, fn in RAW_NAMES.items():
         write_csv(os.path.join(a.out, fn + ".csv"), R[k])
+    write_csv(os.path.join(a.out, "ny_convergence_formal.csv"), build_ny_formal(R))
     summary = summarize(R)
     summary.update(wall_time_s=time.time() - t0, limits=LIMITS,
                    scope="numerical-method validation of fixed disorder realizations; not a statistical result",

@@ -7,6 +7,10 @@ Phase 2, benchmark B3 of [PHASE2_METHOD_SELECTION.md](PHASE2_METHOD_SELECTION.md
   `tests/test_rgf_b3.py`, additive `rgf_b3` entry in `provenance.py`). The B3 artifacts were
   generated from that commit with a clean working tree.
 * Exploratory diagnosis script: `explore_b3_dx.py` (commit `a0616cf`).
+* **Revision 1** (classification correction of the N_y convergence criterion, §12): the formal N_y
+  test is the single-variable comparison at fixed N_q = 254; the earlier combined N_y + N_q comparison
+  is supplementary. No raw number, threshold or other criterion changed, and the overall outcome
+  is unchanged (B3 does not pass).
 * Artifacts: `results/rgf_b3_validation/`.
 * Unchanged: `stationary.py`, `smatrix_spec.py`, `ode1d.py`, every B1/B2 threshold and
   artifact, all baseline results. No predeclared threshold was changed.
@@ -26,7 +30,7 @@ never replaces a criterion.
 | RGF vs sparse, full complex S | max 4.9×10⁻¹² | 10⁻¹⁰ | **PASS** |
 | Unitarity U (RGF / sparse) | 4.9×10⁻¹⁴ / 2.6×10⁻¹³ | 10⁻¹⁰ | **PASS** |
 | Reciprocity Q: full, r_L, r_R, t_LR vs t_RLᵀ, probabilities (RGF / sparse) | 2.6×10⁻¹⁴ / 2.1×10⁻¹³ | 10⁻⁸ | **PASS** |
-| N_y 63 → 127: max \|ΔT₁\| | 1.8×10⁻⁶ | 2×10⁻⁴ | **PASS** |
+| **N_y 63 → 127 at fixed N_q = 254** (formal, single variable): max \|ΔT₁\| | **9.46×10⁻⁸** (case A, E = 371.36) | 2×10⁻⁴ | **PASS** |
 | N_q 127 → 254: max \|ΔT₁\| | 1.9×10⁻⁶ | 2×10⁻⁴ | **PASS** |
 | Buffer 0.2012 → 0.4004: max \|ΔT₁\| | 7.6×10⁻¹¹ | 2×10⁻⁴ | **PASS** |
 | Same realization (bitwise potential identity) | 28 of 28 checks bitwise equal | bitwise | **PASS** |
@@ -37,6 +41,10 @@ specified finite-difference scheme in the strongest-disorder case (W = 200). It 
 error: the sparse reference agrees with the RGF to 10⁻¹² at dx = 1/1024 as well.
 Consequence: at the base resolution dx = 1/512, T₁ is not converged to 2×10⁻⁴ for the
 strong-disorder realization (§8.2, §9).
+
+Supplementary (not a criterion): the combined N_y 63 → 127 **and** N_q 127 → 255 refinement changes
+T₁ by at most 1.8×10⁻⁶ (case A). It changes two parameters at once and was the formal N_y test
+before Revision 1 (§12).
 
 B3 is a numerical-consistency validation on four fixed realizations. It makes no statement
 about disorder-averaged transport, about the ζ dependence, or about localization.
@@ -164,16 +172,17 @@ the nesting property failed. A dx refinement must not also change the buffer, so
 defined once on the coarse lattice. No result had been produced with the earlier geometry.
 
 **Refinements** (one parameter at a time, against the base):
-dx = 1/1024; N_q = 254; buffer 0.4004; N_y = 127 with the default N_q = 255.
-*Note:* the N_y criterion changes N_q along with N_y, because N_q ≥ 2N_y is required. The pure
-transverse truncation (N_y = 63 vs 127 at fixed N_q = 254) was computed separately and is
-labelled EXPLORATORY (§8.1).
+dx = 1/1024; N_q = 254; buffer 0.4004; and for N_y, **N_y = 127 at fixed N_q = 254** against N_y = 63
+at the same N_q = 254 (the N_q = 254 run of the quadrature test). This is a single-variable test.
+*Why N_q = 254:* N_q ≥ 2N_y is required, so N_y = 127 needs N_q ≥ 254, and N_y = 63 is run at the
+same N_q. The combined refinement N_y 63 → 127 with the default N_q = 2N_y + 1 (127 → 255)
+changes two parameters at once and is **supplementary** (§8.1, §12).
 
 ## 6. Predeclared criteria
 All from spec §3 B3 (values unchanged): max|S_RGF − S_sparse| ≤ 10⁻¹⁰ (complex, full S);
 U ≤ 10⁻¹⁰ (both products, both methods); Q ≤ 10⁻⁸ (full, three blocks, probabilities);
-|ΔT₁| ≤ 2×10⁻⁴ for N_y 63→127 (N_y = 255 only if the ζ = 0.02 case fails), dx, N_q and buffer
-refinements; potential samples bitwise identical to a direct call. Same-direction transmission
+|ΔT₁| ≤ 2×10⁻⁴ for N_y 63→127 **at fixed N_q = 254** (N_y = 255 only if the ζ = 0.02 case fails
+that test), dx, N_q and buffer refinements; potential samples bitwise identical to a direct call. Same-direction transmission
 symmetry is report-only.
 
 ## 7. Results
@@ -225,15 +234,16 @@ Maximum over the 5 energies of each case:
 
 | Refinement | A (ζ 0.02) | B (ζ 0.05) | C (ζ 0.20) | D (W 200) | Status |
 |---|---|---|---|---|---|
-| N_y 63 → 127 (N_q 127 → 255) | 1.8×10⁻⁶ | 4.0×10⁻⁷ | 4.7×10⁻⁸ | 1.6×10⁻⁶ | **PASS** |
+| **N_y 63 → 127 at fixed N_q = 254 (formal)** | **9.5×10⁻⁸** | 1.8×10⁻⁹ | 5.8×10⁻¹¹ | 1.3×10⁻⁸ | **PASS** |
 | N_q 127 → 254 | 1.9×10⁻⁶ | 4.0×10⁻⁷ | 4.7×10⁻⁸ | 1.6×10⁻⁶ | **PASS** |
 | buffer 0.2012 → 0.4004 | 2.7×10⁻¹¹ | 7.6×10⁻¹¹ | 4.7×10⁻¹¹ | 7.0×10⁻¹¹ | **PASS** |
 | **dx 1/512 → 1/1024** | 7.0×10⁻⁵ | **1.81×10⁻⁴** | 3.4×10⁻⁵ | **5.97×10⁻⁴** | **FAIL** (D) |
 
 * **Closed channels** retained: 55–59 at N_y = 63 and 119–123 at N_y = 127 (open channels 4–8).
-* **N_y = 255:** the rule requires it only if the ζ = 0.02 case fails at N_y = 127. Case A passes
-  (1.8×10⁻⁶), so it was **not run** (NOT TESTED).
-* The N_y change is dominated by the accompanying change of N_q (§8.1).
+* **N_y = 255:** the rule requires it only if the ζ = 0.02 case fails the formal fixed-N_q N_y test
+  at N_y = 127. Case A passes (9.5×10⁻⁸), so it was **not run** (NOT TESTED).
+* Supplementary, not a criterion: the combined N_y 63 → 127 + N_q 127 → 255 refinement gives
+  A 1.8×10⁻⁶, B 4.0×10⁻⁷, C 4.7×10⁻⁸, D 1.6×10⁻⁶ (within 2×10⁻⁴; §8.1).
 
 dx refinement, all 20 points (T₁ at dx = 1/512, 1/1024, change):
 
@@ -249,14 +259,20 @@ dx refinement, all 20 points (T₁ at dx = 1/512, 1/1024, change):
 ## 8. Numerical convergence analysis
 
 ### 8.1 Transverse truncation and quadrature
-* Raising N_q alone (127 → 254) changes T₁ by up to 1.9×10⁻⁶ (case A).
-* The criterion run (N_y 63→127 with N_q 127→255) differs from that by at most 9.3×10⁻⁸ per
-  energy, so the N_y entry of the criterion is almost entirely the N_q change.
-* **EXPLORATORY:** the pure truncation effect (N_y 63 vs 127, both at N_q = 254) is ≤ 9.5×10⁻⁸
-  (case A, E = 371.36), and ≤ 1.3×10⁻⁸ for B, C and D.
-* This shows that the spec's expectation that ζ = 0.02 needs the most transverse modes holds only
-  weakly here: with 55–59 closed channels retained, the ζ = 0.02 realization is converged in N_y
-  to < 10⁻⁷ at these five energies.
+* **Formal N_y test (single variable, N_q = 254 at both N_y):** max |ΔT₁| = **9.457×10⁻⁸** (case A,
+  E = 371.36, ΔT₁ = −9.457×10⁻⁸). Per case: A 9.5×10⁻⁸, B 1.8×10⁻⁹, C 5.8×10⁻¹¹, D 1.3×10⁻⁸. This is
+  about 2 100 times below the 2×10⁻⁴ limit. The two runs sample bitwise-identical potentials (same
+  dx, N_q and buffer; identical hashes in `potential_identity.csv`), so only the number of retained
+  transverse modes differs. 55–59 closed channels are retained at N_y = 63 and 119–123 at N_y = 127.
+* Raising N_q alone (127 → 254, N_y = 63) changes T₁ by up to 1.9×10⁻⁶ (case A): a larger effect
+  than the transverse truncation itself.
+* **Supplementary combined refinement** (N_y 63 → 127 together with N_q 127 → 255, i.e. the
+  "default N_q = 2N_y + 1 at each N_y" comparison that was the formal N_y test before Revision 1):
+  max |ΔT₁| = 1.809×10⁻⁶ (case A, E = 371.36). It is almost entirely the N_q change (it differs from
+  the N_q-only change by ≤ 9.3×10⁻⁸ per energy). It is reported but is **not** a criterion, and the
+  overall B3 status does not depend on it.
+* With 55–59 closed channels retained, the ζ = 0.02 realization is converged in N_y to
+  < 10⁻⁷ at these five energies. This is a statement about these energies only.
 
 ### 8.2 The dx failure: EXPLORATORY diagnosis (case D only)
 Script `explore_b3_dx.py`, files `exploratory_dx_case_D.csv` and `…_summary.json`. This is **not**
@@ -293,7 +309,7 @@ RGF T₁ at dx = 1/256, 1/512, 1/1024, 1/2048 (same N_y = 63, N_q = 127, buffer)
 * **Fixed realizations, five energies each.** B3 says nothing about ensemble statistics, the ζ
   dependence, or localization. B and D are the same draw at two amplitudes (§5).
 * **Convergence tested only against the specified one-step refinements.**
-  * N_y = 255: NOT TESTED (rule not triggered).
+  * N_y = 255: NOT TESTED (rule not triggered by the formal fixed-N_q test).
   * dx finer than 1/1024: only case D, EXPLORATORY.
   * dx behaviour of A, B, C beyond the criterion: NOT TESTED.
 * **The energy set is my choice** within the specified convention (§5), fixed before any result.
@@ -320,7 +336,8 @@ Before B4 the dx convergence should be established for each B4 realization, and 
 ```bash
 python validate_rgf_b3.py                  # 5.8 min on 4 cores; writes results/rgf_b3_validation/
 python explore_b3_dx.py                    # EXPLORATORY dx diagnosis (case D), 1.5 min
-python validate_rgf_b3.py --record-tests   # runs the B3 and the full test suites, records the outcome in run_metadata.json
+python validate_rgf_b3.py --resummarize    # Revision 1: re-derive summary.json and ny_convergence_formal.csv from the raw CSVs (no recomputation)
+python validate_rgf_b3.py --record-tests [--test-key post_revision_1_tests]   # runs the B3 and the full test suites, records the outcome in run_metadata.json
 python -m pytest -q tests/test_rgf_b3.py
 ```
 * A second full run into a separate directory reproduced **every CSV field identically** (the sparse
@@ -330,16 +347,27 @@ python -m pytest -q tests/test_rgf_b3.py
   every variant, per-device geometry and potential hashes, the sparse method
   (`scipy.sparse.linalg.splu`, SuperLU with COLAMD), the RGF implementation
   (`stationary.rgf_endpoint_blocks`), sha256 hashes of the source files (including
-  `stationary.py` and `smatrix_spec.py`), and the test results below.
+  `stationary.py` and `smatrix_spec.py`), and the test results below. After Revision 1 it also holds a
+  `revisions` record (§12); `code_files` / `code_fingerprint` still describe the code that produced the raw data.
 
 ## 11. Tests (actual commands and exit statuses)
+Production run (before Revision 1, recorded under `post_run_tests` in `run_metadata.json`):
+
 | Command | Exit status | Result |
 |---|---|---|
 | `python -m pytest -q tests/test_rgf_b3.py` | 0 | 35 passed |
-| `python -m pytest -q tests` (full suite) | 0 | 224 passed, 2 xfailed (the two known expected failures) |
+| `python -m pytest -q tests` | 0 | 224 passed, 2 xfailed |
 
-Both were run by `validate_rgf_b3.py --record-tests` after the artifacts existed. Before that, with
-the artifacts absent, the live tests gave 28 passed and 6 skipped. The tests cover:
+After Revision 1 (recorded under `post_revision_1_tests`, run by
+`python validate_rgf_b3.py --record-tests --test-key post_revision_1_tests`):
+
+| Command | Exit status | Result |
+|---|---|---|
+| `python -m pytest -q tests/test_rgf_b3.py` | 0 | 40 passed |
+| `python -m pytest -q tests` (full suite) | 0 | 229 passed, 2 xfailed (the two known expected failures) |
+
+No CI system was involved; these are local runs. Before the artifacts existed the live tests gave
+28 passed and 6 skipped. The tests cover:
 * configuration and seed selection; energies; geometry and nesting;
 * bitwise same-realization sampling, including detection of a 10⁻¹⁵ perturbation;
 * sparse matrix construction and independence from the RGF recursion;
@@ -349,8 +377,74 @@ the artifacts absent, the live tests gave 28 passed and 6 skipped. The tests cov
 * pass/fail handling exactly at the thresholds (equality passes, +10⁻¹² relative fails, NaN fails);
 * all four refinements, one parameter at a time;
 * artifact integrity: row counts, summary vs CSV, recomputed pass flags, hashes, metadata, current source hashes,
-  one comparison row recomputed live, and the exploratory results' consistency with the main run.
+  one comparison row recomputed live, and the exploratory results' consistency with the main run;
+* **Revision 1:** the formal N_y comparison is single-variable and recomputed from raw rows; the combined
+  comparison is supplementary and excluded from the criteria; the dx failure and the overall non-pass are
+  preserved; the summary equals `summarize()` of the raw CSVs; the raw CSVs match their recorded hashes;
+  the classification logic responds correctly to mutated raw values (including exactly at the threshold).
 
-The B3 test file contains 35 tests. Two earlier test failures during development were bugs in my own
-tests (an over-strict bitwise comparison and a too-weak scatterer) and were fixed in the tests, not by
+The B3 test file contains 40 tests. Two test failures during the original development were bugs in my
+own tests (an over-strict bitwise comparison and a too-weak scatterer) and were fixed in the tests, not by
 changing any threshold or solver.
+
+## 12. Revision 1: classification of the N_y convergence criterion
+
+**What was wrong.** In the first version of this report the formal N_y criterion was the comparison
+N_y = 63, N_q = 127 → N_y = 127, N_q = 255. That changes two parameters (N_y and N_q), so it is not a
+single-variable convergence test. The single-variable comparison (both at N_q = 254) existed in the
+same artifacts but was labelled exploratory.
+
+**What changed.**
+* Formal N_y criterion: N_y 63 → 127 **at fixed N_q = 254**. Max |ΔT₁| = 9.456930838425137×10⁻⁸ ≤ 2×10⁻⁴:
+  **PASS**, recomputed from raw rows (below), not copied from the earlier summary.
+* The combined N_y + N_q comparison is **supplementary**. Its data are unchanged and its values are
+  still reported (max 1.8087564626068087×10⁻⁶), but it is no longer counted in `criteria_passed`.
+* Unchanged: every raw number, every threshold, every other criterion, and the dx failure.
+  The overall outcome is the same as before: **B3 does not pass** (`failed_criteria` =
+  `["dx_1_512_vs_1_1024"]`, `b3_full_pass` = false, `overall_B3_status` = "FAIL: dx_1_512_vs_1_1024").
+* The role labels in the raw `closed_channel_convergence.csv` are **kept as first written**
+  (`criterion` = combined, `exploratory_fixed_Nq254` = fixed N_q), so the raw file is not edited. The
+  classification is carried by `summary.json` and the derived table `ny_convergence_formal.csv`.
+* The original classification is retained in `summary.json["revision_history"][0]`, and a revision
+  record (`revisions[0]`, with raw-file hashes and the driver hash) in `run_metadata.json`.
+
+**Provenance of each comparison** (all in `results/rgf_b3_validation/`; dx = 1/512, buffer 0.2 requested =
+103/512 actual, N = 719 slices, energies as in §5):
+
+| Comparison | Status | Reference values | Variant values | Configurations |
+|---|---|---|---|---|
+| N_y 63 → 127 at fixed N_q = 254 | **formal** | `quadrature_convergence.csv`, column `T1_variant` (all 20 rows) | `closed_channel_convergence.csv`, rows `role == exploratory_fixed_Nq254`, column `T1_variant` | ref: N_y = 63, N_q = 254; var: N_y = 127, N_q = 254 |
+| N_y 63 → 127 with N_q 127 → 255 | supplementary | `closed_channel_convergence.csv`, rows `role == criterion`, column `T1_reference` (= the base run) | same rows, column `T1_variant` | ref: N_y = 63, N_q = 127; var: N_y = 127, N_q = 255 |
+
+`ny_convergence_formal.csv` (derived, 20 rows) lists, for each case and energy, both T₁ values, ΔT₁, the
+limit, the pass flag, the open/closed channel counts and the source of each number.
+Cross-check: the `T1_reference` column of the fixed-N_q rows equals the reference T₁ bitwise.
+
+**Verification** (three independent routes agree):
+1. *From the raw CSVs:* the 20 differences T₁(127, 254) − T₁(63, 254) were recomputed with a
+   script that reads only the raw rows. The maximum is 9.456930838425137×10⁻⁸ (case A, E = 371.3562;
+   the other cases: B 1.79×10⁻⁹, C 5.8×10⁻¹¹, D 1.26×10⁻⁸).
+2. *From scratch:* a standalone script that does not use the B3 driver (only `stationary.build_device` /
+   `scattering_matrix`, `Potential`, `disorder_from_config` and hand-written geometry and energies)
+   recomputed all 40 T₁ values. They equal the CSV values **bitwise** (difference 0.0), and so
+   does ΔT₁.
+3. *Whole-pipeline rerun:* a fresh full `python validate_rgf_b3.py` with the revised driver into a
+   separate directory reproduced all raw CSVs and the derived CSV field for field, and its
+   `summary.json` equals the re-derived one (apart from NaN placeholders for the untriggered N_y = 255 rule).
+
+The raw CSVs were not modified: git reports them unchanged against the pre-revision commit
+(`9870d6b`), and their sha256 hashes are recorded in `revisions[0]["raw_csv_sha256"]` and re-checked by a test.
+
+**Resulting criterion table** (B3 status: **FAIL**, one criterion):
+
+| Criterion | Value | Limit | Status |
+|---|---|---|---|
+| RGF vs sparse, full complex S | 4.9×10⁻¹² | 10⁻¹⁰ | PASS |
+| Unitarity (RGF / sparse) | 4.9×10⁻¹⁴ / 2.6×10⁻¹³ | 10⁻¹⁰ | PASS |
+| Reciprocity (RGF / sparse) | 2.6×10⁻¹⁴ / 2.1×10⁻¹³ | 10⁻⁸ | PASS |
+| N_y 63 → 127 at fixed N_q = 254 (formal) | 9.46×10⁻⁸ | 2×10⁻⁴ | PASS |
+| N_q 127 → 254 | 1.9×10⁻⁶ | 2×10⁻⁴ | PASS |
+| Buffer 0.2012 → 0.4004 | 7.6×10⁻¹¹ | 2×10⁻⁴ | PASS |
+| Same realization (bitwise) | 28 / 28 | bitwise | PASS |
+| **dx 1/512 → 1/1024** | **5.97×10⁻⁴** | **2×10⁻⁴** | **FAIL** |
+| *Supplementary:* N_y + N_q combined | 1.8×10⁻⁶ | (2×10⁻⁴, not a criterion) | reported only |
