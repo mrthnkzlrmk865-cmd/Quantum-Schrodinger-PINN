@@ -1,0 +1,880 @@
+{
+  "name": "B3Y: independent fine-grid validation of the RGF (failed B3X configurations)",
+  "status": "PREDECLARED protocol (revision 1: clarifications); the Tier 3 module is implemented and synthetically tested; no B3Y numerical comparison has been run",
+  "base_commit": "5360a9f4dbb2e0de77642f22dd73b3e92b0afb80",
+  "b3x_artifacts_sha256": {
+    "per_energy_comparison.csv": "sha256:903d70631750434694e3d2834e97fb65806c8f09050638bacbed5de570c73547",
+    "refinement_convergence.csv": "sha256:5d7a99c130d12a7c244fbed71a9068dc875e3469e0bc3950f2f5f919595b339a",
+    "summary.json": "sha256:e0016461fa89adc90f38a90fb6e516a0ffef6e0b93413dd174af66f25cb17dd1",
+    "run_metadata.json": "sha256:1cfe4d6e5f98724f2d6583c1c5b1471107415920c1b1539318fed77d63d87772",
+    "dx_ladder_diagnostic.csv": "sha256:623987157107cfdba51f2417b352c60be76ab9b2d97515e66ffaf77ebb860489"
+  },
+  "authorization_decisions": {
+    "D5": "absolute |dS| <= 1e-10 is the criterion; rho is a diagnostic only; exceedance is PRECISION-LIMITED / inconclusive pending Tier 3, not an automatic implementation failure",
+    "Tier3": "included: separate high-precision exact-lattice reference module; existing B3X solver files are not modified",
+    "Tier1": "all 15 W=200 points + W100_z0.05 E=371.36 control at dx 1/512 and 1/1024; RGF, Green-block, wave-function; full complex S",
+    "Tier2": "the 5 B3X-failed points at dx 1/2048 with the three methods and the Tier 3 reference",
+    "Tier3_runs": "Tier 3 reference at dx 1/1024 and 1/2048 for the 5 failed points (and 1/512 for validation)",
+    "buffer_control": "205/512 vs 103/512 at dx 1/1024 for the 5 failed points; reported separately",
+    "dx_4096": "not part of B3Y (possible later exploratory study)",
+    "potential_identity": "bitwise vs direct call at each resolution; bitwise at coincident slices across resolutions; hashes recorded; clean-lead boundaries verified",
+    "lead_guard": "1e-6 unchanged; a device above it is NOT EVALUABLE under the predeclared geometry"
+  },
+  "points": [
+    {
+      "id": "W100_z0.05@E371.36",
+      "config": "W100_z0.05",
+      "W": 100.0,
+      "zeta": 0.05,
+      "kx": 27.071067811865476,
+      "E": 371.35615843785416,
+      "E_repr": "371.35615843785416",
+      "n_open": 8,
+      "tier1": true,
+      "role": "control",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 0.0001813197277753531,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 8,
+        "bound_512": 7.746105715769596e-12,
+        "bound_1024": 3.0983192188267535e-11,
+        "bound_2048": 1.2393153816990908e-10,
+        "predicted_band_1024": [
+          2.5124375481826466e-12,
+          1.1067410032713225e-11
+        ],
+        "predicted_band_2048": [
+          1.0049650404325273e-11,
+          4.426920055805678e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.02@E88.51",
+      "config": "W200_z0.02",
+      "W": 200.0,
+      "zeta": 0.02,
+      "kx": 12.928932188134526,
+      "E": 88.5134459632352,
+      "E_repr": "88.5134459632352",
+      "n_open": 4,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 5.743166427410462e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 4,
+        "bound_512": 1.867117469236234e-11,
+        "bound_1024": 7.468418826404443e-11,
+        "bound_2048": 2.987362425573157e-10,
+        "predicted_band_1024": [
+          6.056166120971252e-12,
+          2.667770736649673e-11
+        ],
+        "predicted_band_2048": [
+          2.4224623087359386e-11,
+          1.0671064711227098e-10
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.02@E140.47",
+      "config": "W200_z0.02",
+      "W": 200.0,
+      "zeta": 0.02,
+      "kx": 16.464466094067262,
+      "E": 140.47412408188993,
+      "E_repr": "140.47412408188993",
+      "n_open": 5,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 6.697375586023346e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 5,
+        "bound_512": 1.3956515307835831e-11,
+        "bound_1024": 5.582537825764682e-11,
+        "bound_2048": 2.2330083007255718e-10,
+        "predicted_band_1024": [
+          4.5268988302994386e-12,
+          1.9941210307008028e-11
+        ],
+        "predicted_band_2048": [
+          1.8107539939899785e-11,
+          7.976459727071138e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.02@E204.93",
+      "config": "W200_z0.02",
+      "W": 200.0,
+      "zeta": 0.02,
+      "kx": 20.0,
+      "E": 204.93480220054468,
+      "E_repr": "204.93480220054468",
+      "n_open": 6,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 8.977713115743136e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 6,
+        "bound_512": 1.1050792986445738e-11,
+        "bound_1024": 4.420230936525399e-11,
+        "bound_2048": 1.7680837491204726e-10,
+        "predicted_band_1024": [
+          3.5843802372211083e-12,
+          1.578936989983085e-11
+        ],
+        "predicted_band_2048": [
+          1.4337451004496427e-11,
+          6.315717149088022e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.02@E281.90",
+      "config": "W200_z0.02",
+      "W": 200.0,
+      "zeta": 0.02,
+      "kx": 23.535533905932738,
+      "E": 281.8954803191994,
+      "E_repr": "281.8954803191994",
+      "n_open": 7,
+      "tier1": true,
+      "role": "priority_failed_in_B3X",
+      "tier2_dx2048": true,
+      "tier3_xp_1024_2048": true,
+      "buffer_control": true,
+      "b3x_dx_abs_delta_T1": 0.00025831419653221666,
+      "b3x_dx_criterion_passed": false,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 7,
+        "bound_512": 9.116272016627545e-12,
+        "bound_1024": 3.6464042405123896e-11,
+        "bound_2048": 1.458551240153301e-10,
+        "predicted_band_1024": [
+          2.95688154856584e-12,
+          1.3025207547870632e-11
+        ],
+        "predicted_band_2048": [
+          1.1827441405786355e-11,
+          5.210045669410277e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.02@E371.36",
+      "config": "W200_z0.02",
+      "W": 200.0,
+      "zeta": 0.02,
+      "kx": 27.071067811865476,
+      "E": 371.35615843785416,
+      "E_repr": "371.35615843785416",
+      "n_open": 8,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 0.00013297581928212177,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 8,
+        "bound_512": 7.746105715769596e-12,
+        "bound_1024": 3.0983192188267535e-11,
+        "bound_2048": 1.2393153816990908e-10,
+        "predicted_band_1024": [
+          2.5124375481826466e-12,
+          1.1067410032713225e-11
+        ],
+        "predicted_band_2048": [
+          1.0049650404325273e-11,
+          4.426920055805678e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.05@E88.51",
+      "config": "W200_z0.05",
+      "W": 200.0,
+      "zeta": 0.05,
+      "kx": 12.928932188134526,
+      "E": 88.5134459632352,
+      "E_repr": "88.5134459632352",
+      "n_open": 4,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 2.071149152294005e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 4,
+        "bound_512": 1.867117469236234e-11,
+        "bound_1024": 7.468418826404443e-11,
+        "bound_2048": 2.987362425573157e-10,
+        "predicted_band_1024": [
+          6.056166120971252e-12,
+          2.667770736649673e-11
+        ],
+        "predicted_band_2048": [
+          2.4224623087359386e-11,
+          1.0671064711227098e-10
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.05@E140.47",
+      "config": "W200_z0.05",
+      "W": 200.0,
+      "zeta": 0.05,
+      "kx": 16.464466094067262,
+      "E": 140.47412408188993,
+      "E_repr": "140.47412408188993",
+      "n_open": 5,
+      "tier1": true,
+      "role": "priority_failed_in_B3X",
+      "tier2_dx2048": true,
+      "tier3_xp_1024_2048": true,
+      "buffer_control": true,
+      "b3x_dx_abs_delta_T1": 0.0005968576250486857,
+      "b3x_dx_criterion_passed": false,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 5,
+        "bound_512": 1.3956515307835831e-11,
+        "bound_1024": 5.582537825764682e-11,
+        "bound_2048": 2.2330083007255718e-10,
+        "predicted_band_1024": [
+          4.5268988302994386e-12,
+          1.9941210307008028e-11
+        ],
+        "predicted_band_2048": [
+          1.8107539939899785e-11,
+          7.976459727071138e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.05@E204.93",
+      "config": "W200_z0.05",
+      "W": 200.0,
+      "zeta": 0.05,
+      "kx": 20.0,
+      "E": 204.93480220054468,
+      "E_repr": "204.93480220054468",
+      "n_open": 6,
+      "tier1": true,
+      "role": "priority_failed_in_B3X",
+      "tier2_dx2048": true,
+      "tier3_xp_1024_2048": true,
+      "buffer_control": true,
+      "b3x_dx_abs_delta_T1": 0.00027960465783294364,
+      "b3x_dx_criterion_passed": false,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 6,
+        "bound_512": 1.1050792986445738e-11,
+        "bound_1024": 4.420230936525399e-11,
+        "bound_2048": 1.7680837491204726e-10,
+        "predicted_band_1024": [
+          3.5843802372211083e-12,
+          1.578936989983085e-11
+        ],
+        "predicted_band_2048": [
+          1.4337451004496427e-11,
+          6.315717149088022e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.05@E281.90",
+      "config": "W200_z0.05",
+      "W": 200.0,
+      "zeta": 0.05,
+      "kx": 23.535533905932738,
+      "E": 281.8954803191994,
+      "E_repr": "281.8954803191994",
+      "n_open": 7,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 0.0001265631864361405,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 7,
+        "bound_512": 9.116272016627545e-12,
+        "bound_1024": 3.6464042405123896e-11,
+        "bound_2048": 1.458551240153301e-10,
+        "predicted_band_1024": [
+          2.95688154856584e-12,
+          1.3025207547870632e-11
+        ],
+        "predicted_band_2048": [
+          1.1827441405786355e-11,
+          5.210045669410277e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.05@E371.36",
+      "config": "W200_z0.05",
+      "W": 200.0,
+      "zeta": 0.05,
+      "kx": 27.071067811865476,
+      "E": 371.35615843785416,
+      "E_repr": "371.35615843785416",
+      "n_open": 8,
+      "tier1": true,
+      "role": "priority_failed_in_B3X",
+      "tier2_dx2048": true,
+      "tier3_xp_1024_2048": true,
+      "buffer_control": true,
+      "b3x_dx_abs_delta_T1": 0.0002797555923419459,
+      "b3x_dx_criterion_passed": false,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 8,
+        "bound_512": 7.746105715769596e-12,
+        "bound_1024": 3.0983192188267535e-11,
+        "bound_2048": 1.2393153816990908e-10,
+        "predicted_band_1024": [
+          2.5124375481826466e-12,
+          1.1067410032713225e-11
+        ],
+        "predicted_band_2048": [
+          1.0049650404325273e-11,
+          4.426920055805678e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.2@E88.51",
+      "config": "W200_z0.2",
+      "W": 200.0,
+      "zeta": 0.2,
+      "kx": 12.928932188134526,
+      "E": 88.5134459632352,
+      "E_repr": "88.5134459632352",
+      "n_open": 4,
+      "tier1": true,
+      "role": "priority_failed_in_B3X",
+      "tier2_dx2048": true,
+      "tier3_xp_1024_2048": true,
+      "buffer_control": true,
+      "b3x_dx_abs_delta_T1": 0.0009165006057900715,
+      "b3x_dx_criterion_passed": false,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 4,
+        "bound_512": 1.867117469236234e-11,
+        "bound_1024": 7.468418826404443e-11,
+        "bound_2048": 2.987362425573157e-10,
+        "predicted_band_1024": [
+          6.056166120971252e-12,
+          2.667770736649673e-11
+        ],
+        "predicted_band_2048": [
+          2.4224623087359386e-11,
+          1.0671064711227098e-10
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.2@E140.47",
+      "config": "W200_z0.2",
+      "W": 200.0,
+      "zeta": 0.2,
+      "kx": 16.464466094067262,
+      "E": 140.47412408188993,
+      "E_repr": "140.47412408188993",
+      "n_open": 5,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 9.36290529279793e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 5,
+        "bound_512": 1.3956515307835831e-11,
+        "bound_1024": 5.582537825764682e-11,
+        "bound_2048": 2.2330083007255718e-10,
+        "predicted_band_1024": [
+          4.5268988302994386e-12,
+          1.9941210307008028e-11
+        ],
+        "predicted_band_2048": [
+          1.8107539939899785e-11,
+          7.976459727071138e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.2@E204.93",
+      "config": "W200_z0.2",
+      "W": 200.0,
+      "zeta": 0.2,
+      "kx": 20.0,
+      "E": 204.93480220054468,
+      "E_repr": "204.93480220054468",
+      "n_open": 6,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 3.058529473642935e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 6,
+        "bound_512": 1.1050792986445738e-11,
+        "bound_1024": 4.420230936525399e-11,
+        "bound_2048": 1.7680837491204726e-10,
+        "predicted_band_1024": [
+          3.5843802372211083e-12,
+          1.578936989983085e-11
+        ],
+        "predicted_band_2048": [
+          1.4337451004496427e-11,
+          6.315717149088022e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.2@E281.90",
+      "config": "W200_z0.2",
+      "W": 200.0,
+      "zeta": 0.2,
+      "kx": 23.535533905932738,
+      "E": 281.8954803191994,
+      "E_repr": "281.8954803191994",
+      "n_open": 7,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 6.38678500236578e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 7,
+        "bound_512": 9.116272016627545e-12,
+        "bound_1024": 3.6464042405123896e-11,
+        "bound_2048": 1.458551240153301e-10,
+        "predicted_band_1024": [
+          2.95688154856584e-12,
+          1.3025207547870632e-11
+        ],
+        "predicted_band_2048": [
+          1.1827441405786355e-11,
+          5.210045669410277e-11
+        ]
+      }
+    },
+    {
+      "id": "W200_z0.2@E371.36",
+      "config": "W200_z0.2",
+      "W": 200.0,
+      "zeta": 0.2,
+      "kx": 27.071067811865476,
+      "E": 371.35615843785416,
+      "E_repr": "371.35615843785416",
+      "n_open": 8,
+      "tier1": true,
+      "role": "W200_context",
+      "tier2_dx2048": false,
+      "tier3_xp_1024_2048": false,
+      "buffer_control": false,
+      "b3x_dx_abs_delta_T1": 1.5631541333771537e-05,
+      "b3x_dx_criterion_passed": true,
+      "prediction_rho_bound": {
+        "lowest_k_open_channel": 8,
+        "bound_512": 7.746105715769596e-12,
+        "bound_1024": 3.0983192188267535e-11,
+        "bound_2048": 1.2393153816990908e-10,
+        "predicted_band_1024": [
+          2.5124375481826466e-12,
+          1.1067410032713225e-11
+        ],
+        "predicted_band_2048": [
+          1.0049650404325273e-11,
+          4.426920055805678e-11
+        ]
+      }
+    }
+  ],
+  "point_sets": {
+    "tier1": [
+      "W100_z0.05@E371.36",
+      "W200_z0.02@E88.51",
+      "W200_z0.02@E140.47",
+      "W200_z0.02@E204.93",
+      "W200_z0.02@E281.90",
+      "W200_z0.02@E371.36",
+      "W200_z0.05@E88.51",
+      "W200_z0.05@E140.47",
+      "W200_z0.05@E204.93",
+      "W200_z0.05@E281.90",
+      "W200_z0.05@E371.36",
+      "W200_z0.2@E88.51",
+      "W200_z0.2@E140.47",
+      "W200_z0.2@E204.93",
+      "W200_z0.2@E281.90",
+      "W200_z0.2@E371.36"
+    ],
+    "tier2_dx2048": [
+      "W200_z0.02@E281.90",
+      "W200_z0.05@E140.47",
+      "W200_z0.05@E204.93",
+      "W200_z0.05@E371.36",
+      "W200_z0.2@E88.51"
+    ],
+    "tier3_xp_1024_2048": [
+      "W200_z0.02@E281.90",
+      "W200_z0.05@E140.47",
+      "W200_z0.05@E204.93",
+      "W200_z0.05@E371.36",
+      "W200_z0.2@E88.51"
+    ],
+    "tier3_xp_512_validation": [
+      "W100_z0.05@E371.36",
+      "W200_z0.02@E88.51",
+      "W200_z0.02@E140.47",
+      "W200_z0.02@E204.93",
+      "W200_z0.02@E281.90",
+      "W200_z0.02@E371.36",
+      "W200_z0.05@E88.51",
+      "W200_z0.05@E140.47",
+      "W200_z0.05@E204.93",
+      "W200_z0.05@E281.90",
+      "W200_z0.05@E371.36",
+      "W200_z0.2@E88.51",
+      "W200_z0.2@E140.47",
+      "W200_z0.2@E204.93",
+      "W200_z0.2@E281.90",
+      "W200_z0.2@E371.36"
+    ],
+    "buffer_control": [
+      "W200_z0.02@E281.90",
+      "W200_z0.05@E140.47",
+      "W200_z0.05@E204.93",
+      "W200_z0.05@E371.36",
+      "W200_z0.2@E88.51"
+    ]
+  },
+  "realization": {
+    "seed": 0,
+    "Ld": 1.0,
+    "disorder_n_modes": 512,
+    "disorder_edge": 0.02,
+    "disorder_region": [
+      1.9,
+      2.9
+    ],
+    "note": "identical to B3X; W=200 is exactly 2x W=100 for equal seed and zeta"
+  },
+  "discretization": {
+    "N_y": 63,
+    "N_q": 127,
+    "dx_levels": [
+      0.001953125,
+      0.0009765625,
+      0.00048828125
+    ],
+    "buffer_slices_at_dx_1_512": 103,
+    "buffer_length": 0.201171875,
+    "rule": "n_buffer = 103*inv/512 slices on each side; x_start = 1.9 - n_buffer*dx, x_end = 2.9 + n_buffer*dx: the physical device [x_start, x_end] is identical at every dx",
+    "n_slices": {
+      "512": 719,
+      "1024": 1437,
+      "2048": 2873
+    },
+    "buffer_control": {
+      "dx": 0.0009765625,
+      "buffer_length": 0.400390625,
+      "n_buffer_slices": 410,
+      "n_slices": 1845,
+      "note": "a physically LONGER device; reference planes (first/last slice) move, so complex S differ by plane phases: only plane-independent quantities (|S_ij|^2, T1) are compared between the two buffers"
+    }
+  },
+  "methods": {
+    "M1_RGF": "stationary.scattering_matrix (block recursion; smatrix_spec lead data and Fisher-Lee)",
+    "M2_green_block": "sparse_reference.sparse_scattering_matrix (SuperLU COLAMD; G blocks; smatrix_spec lead data and Fisher-Lee)",
+    "M3_wavefunction": "sparse_wavefunction.wavefunction_scattering_matrix (own lead data, cosine-sum V blocks, SuperLU MMD_AT_PLUS_A + 1 refinement step, S from the scattering state)",
+    "M4_exact_lattice": "NEW module sparse_exact_lattice.py (to be written after protocol approval): unmerged operator, extended-precision residuals, cancellation-free lead data"
+  },
+  "limits": {
+    "S_abs": 1e-10,
+    "TR_offdiag_abs": 2e-10,
+    "unitarity": 1e-10,
+    "reciprocity": 1e-08,
+    "sparse_backward_error": 1e-14,
+    "dT1_buffer": 0.0002,
+    "lead_tail_guard": 1e-06,
+    "order_window": [
+      1.8,
+      2.2
+    ],
+    "T1_method_spread_for_solver_independence": 2e-06,
+    "precision_limited_growth_per_halving": 10.0,
+    "dominance_factor": 2.0,
+    "term_resolution_factor": 10.0,
+    "_new_numbers_note": "dominance_factor and term_resolution_factor are new in revision 1 (flagged for review)",
+    "precision_limited_growth_per_halving_note": "operational precision-consistency classification (factor 10 per halving of dx); NOT a mathematical proof of round-off dominance"
+  },
+  "xp_gates": {
+    "platform_min_mantissa_bits": 64,
+    "lead_data_vs_mpmath_rel": 1e-17,
+    "scalar_problem_vs_mpmath_abs": 1e-13,
+    "refinement_contraction_max": 0.1,
+    "refinement_max_iterations": 10,
+    "final_relative_operator_residual_max": 1e-17,
+    "fisher_lee_vs_wavefunction_forms_abs": 1e-13,
+    "preconditioner_ordering_stability_abs": 1e-13,
+    "validation_vs_B3X_refs_at_dx_1_512_abs": 1e-10,
+    "mpmath_dps": 50,
+    "error_indicator_max": 1e-11,
+    "error_indicator_note": "e_ind = max(max|S^(k)-S^(k-1)| over the last two refinement iterates, kappa1_hat * eta_final): a convergence/error INDICATOR, not a rigorous uncertainty bound",
+    "platform_requirement": "np.longdouble must provide >= 64 mantissa bits (x86-64 80-bit extended). If it does not (e.g. Windows/MSVC or Apple arm64 where longdouble == float64) Tier 3 stops and reports NOT EVALUABLE; ordinary double precision is never substituted",
+    "refinement_gate_definition": "eta <= 1e-17 within 10 iterations (stop at the first iterate k>=1 with eta <= 1e-17); contraction ||d_k||/||d_(k-1)|| <= 0.1 for every step taken while the previous eta > 1e-17; eta = ||r||/(||b|| + ||A||_1 ||x||) with the unmerged operator in extended precision"
+  },
+  "rho_diagnostic": {
+    "definition": "rho = max|Delta S| / [(N-1)*eps_mach/sin(k*dx)]; eps_mach = 2.220446049250313e-16; N = number of device slices; k = wave number of the lowest-k open channel (largest open n); sin(k dx) = sqrt(x(2-x)), x = (E-E_perp_n) dx^2",
+    "status": "DIAGNOSTIC ONLY; never used to classify a point",
+    "why_not_a_bound": "the B1 bound (|dphi| <= 0.89 N eps/sin(k dx)) was measured for one method (RGF) on a clean guide against an exact reference; it is not a proven pairwise bound for two independent implementations on disordered multichannel devices",
+    "b3x_calibration_at_dx_1_512": {
+      "n": 30,
+      "min": 0.08109033868802054,
+      "median": 0.1618924159126878,
+      "max": 0.3572068999689497
+    }
+  },
+  "criteria": [
+    {
+      "id": "P1",
+      "name": "potential identity",
+      "rule": "V samples of every method and every device bitwise equal to the direct Potential(cfg, disorder_from_config(cfg, 0)).numpy call; E and E_perp doubles bitwise identical across methods"
+    },
+    {
+      "id": "P2",
+      "name": "cross-resolution identity",
+      "rule": "potential at coincident physical slices bitwise equal across 1/512, 1/1024, 1/2048"
+    },
+    {
+      "id": "P3",
+      "name": "records",
+      "rule": "sha256 of every potential array and coordinate array recorded (completeness, not pass/fail)"
+    },
+    {
+      "id": "P4",
+      "name": "clean-lead guard",
+      "rule": "|V| <= 1e-6 on the first lead slices x_start-dx and x_end+dx of every device; otherwise the device is NOT EVALUABLE under the predeclared geometry"
+    },
+    {
+      "id": "N1",
+      "name": "channels",
+      "rule": "open count equal in all methods and equal to the analytic count; Gamma_closed == 0; closed lambda real with |lambda| < 1; >= 1 closed channel retained"
+    },
+    {
+      "id": "S1",
+      "name": "S agreement RGF vs Green-block",
+      "tol": 1e-10,
+      "rule": "max|S_M1 - S_M2| complex full S, each point and dx"
+    },
+    {
+      "id": "S2",
+      "name": "S agreement RGF vs wave-function",
+      "tol": 1e-10,
+      "rule": "max|S_M1 - S_M3|"
+    },
+    {
+      "id": "S3",
+      "name": "reference vs reference",
+      "tol": 1e-10,
+      "rule": "max|S_M2 - S_M3|"
+    },
+    {
+      "id": "S4",
+      "name": "T, R and off-diagonal transmission agreement",
+      "tol": 2e-10,
+      "rule": "max over | |S_ij|^2 difference | (all elements), |T1 diff|, |R1 diff|, off-diagonal transmission differences; M1 vs M2 and M1 vs M3"
+    },
+    {
+      "id": "S5",
+      "name": "unitarity",
+      "tol": 1e-10,
+      "rule": "max|S^H S - I| and max|S S^H - I| separately, M1-M3"
+    },
+    {
+      "id": "S6",
+      "name": "reciprocity",
+      "tol": 1e-08,
+      "rule": "max|S-S^T|; blocks r_L, r_R, t_LR vs t_RL^T; probabilities |t_RL|^2 vs (|t_LR|^2)^T; M1-M3"
+    },
+    {
+      "id": "R1",
+      "name": "sparse backward error",
+      "tol": 1e-14,
+      "rule": "relative residual of the solved double-precision sparse systems (M2, M3) after refinement"
+    },
+    {
+      "id": "V1",
+      "name": "Tier 3 validation at dx = 1/512",
+      "rule": "gates X0-X7 pass and X8 (XP vs M2, M3 <= 1e-10 for all 16 points) before XP is used to interpret finer grids"
+    },
+    {
+      "id": "K1",
+      "name": "buffer control",
+      "tol": 0.0002,
+      "rule": "|dT1| for buffer 205/512 vs 103/512 at dx = 1/1024, RGF and wave-function; plus complex-S agreement RGF vs wave-function within each geometry <= 1e-10; separate from primary results"
+    },
+    {
+      "id": "O1",
+      "name": "convergence orders (classification, not pass/fail)",
+      "rule": "orders from T1 at 1/512, 1/1024, 1/2048 for each method independently (5 points); Richardson estimate only where both orders lie in [1.8, 2.2]; always labelled as an estimate; no continuum-convergence claim"
+    },
+    {
+      "id": "H1",
+      "name": "solver-independence of the dx dependence (statement rule)",
+      "rule": "for a point the dx dependence is called solver-independent only if S1-S4 hold at all its dx (or exceedances are adjudicated by Tier 3) and the T1 spread among M1-M4 at each dx is <= 2e-6"
+    }
+  ],
+  "status_vocabulary": {
+    "PASS": "criterion met as stated",
+    "FAIL": "criterion not met and not attributable to precision limits, or an XP gate failed",
+    "PRECISION-LIMITED (inconclusive)": "S1-S3 absolute discrepancy > 1e-10; NOT an implementation failure by itself; pending Tier 3 adjudication; stays inconclusive where no Tier 3 data exist",
+    "NOT EVALUABLE": "lead-tail guard exceeded, or extended precision unavailable on the platform",
+    "PRECISION-CONSISTENT": "exceedance of 1e-10 against the exact lattice for which eps_m(1/512) <= 1e-10 and the growth per halving of dx is <= 10 (operational); makes NO claim about the mechanism",
+    "PRECISION-LIMITED (measured; representation-dominated)": "PRECISION-CONSISTENT AND the Tier 3 decomposition supports representation dominance (M2, M3 only)",
+    "UNEXPLAINED": "growth rule violated, or representation dominance asserted but not supported by the decomposition, or the decomposition is unresolved"
+  },
+  "tier3_adjudication": {
+    "precondition": "V1 passed and the Tier 3 convergence/error indicator e_ind <= 1e-11 at the point",
+    "step1": "eps_m = max|S_m - S_XP| for m in M1, M2, M3 at the same point and dx",
+    "step2": "eps_m <= 1e-10 : m is consistent with the exact lattice solution at 1e-10; eps_m > 1e-10: m EXCEEDS 1e-10 against the exact lattice (reported with its value; never upgraded to PASS)",
+    "step3": "for M2 and M3 the total error is split exactly (telescoping identity) into bulk-operator rounding, lead-data and linear-solver/extraction terms; M1 has no explicit matrix: only its total error is available and NO mechanism claim can be made for M1",
+    "step4": "PRECISION-CONSISTENT (operational classification, not a proof): eps_m(1/512) <= 1e-10 and eps_m grows by at most a factor 10 per halving of dx",
+    "step5": "representation dominance may be claimed only for M2/M3 and only if the decomposition supports it: bulk-rounding term >= dominance_factor (2) x each of the lead and solver terms AND each term > term_resolution_factor (10) x e_ind. If the claim is attempted and not supported, or the terms are unresolved, the result is UNEXPLAINED",
+    "step6": "a result that violates the growth rule is UNEXPLAINED and is investigated before any conclusion",
+    "overall": "B3Y is called PASS only if every criterion is met with no exceedance; any exceedance makes the overall status PRECISION-LIMITED/PRECISION-CONSISTENT (resolved by Tier 3), UNEXPLAINED or INCONCLUSIVE, never PASS"
+  },
+  "run_order": [
+    "G0 reproduce B3X values at dx 1/512 (RGF T1 bitwise; rgf_wf dS within 1e-13)",
+    "XP gates X0-X7 on synthetic problems vs mpmath",
+    "X8 / V1: XP vs M2, M3 at dx 1/512 (16 points)",
+    "Tier 1 at 1/1024 (3 methods)",
+    "Tier 2 at 1/2048 (3 methods + XP)",
+    "Tier 3 at 1/1024 (5 points)",
+    "buffer control (K1)",
+    "analysis and report"
+  ],
+  "stop_rule": "a failed gate stops the run order and is reported; no later stage is run on a failed gate",
+  "prediction_register": {
+    "status": "recorded BEFORE any B3Y run; diagnostic priors, not results or bounds",
+    "basis": "B3X observed rgf_wf dS / B at dx = 1/512 over 30 points (min/median/max in rho_diagnostic.b3x_calibration_at_dx_1_512) times B at the finer dx; see points[].prediction_rho_bound",
+    "probe": "docs/RGF_B3Y_VALIDATION.md section I.9 (synthetic probe): single-channel double-precision error 1.9e-12, 1.5e-11, 7.9e-11 at 1/512, 1/1024, 1/2048"
+  },
+  "outputs": {
+    "directory": "results/rgf_b3y_validation/",
+    "files": [
+      "per_point_comparison.csv",
+      "numerical_diagnostics.csv",
+      "tier3_exact_lattice.csv",
+      "tier3_error_decomposition.csv",
+      "xp_gates.csv",
+      "convergence_orders.csv",
+      "buffer_control.csv",
+      "potential_identity.csv",
+      "summary.json",
+      "run_metadata.json"
+    ],
+    "planned_code": [
+      "sparse_exact_lattice.py",
+      "validate_rgf_b3y.py",
+      "tests/test_rgf_b3y.py",
+      "provenance.py (additive 'rgf_b3y' kind)"
+    ],
+    "not_modified": "stationary.py, smatrix_spec.py, sparse_reference.py, sparse_wavefunction.py, validate_rgf_b3x.py and all B1/B2/B3/B3X files and results"
+  },
+  "metadata_required": [
+    "commit sha",
+    "working tree dirty flag",
+    "python and dependency versions (numpy, scipy, mpmath)",
+    "hardware (cpu model, core count, memory)",
+    "precision details (np.finfo of float64 and longdouble, mpmath dps, sizeof)",
+    "potential array hashes",
+    "protocol sha256 and commit",
+    "exact energy points",
+    "solver settings (permc_spec, refinement iterations, tolerances)",
+    "B3X artifact hashes",
+    "test commands and results"
+  ],
+  "revision_history": [
+    {
+      "revision": 0,
+      "commit": "5d39721dccb8ff47359d7a4f94a3e7e162813f37",
+      "description": "initial protocol and self-audit"
+    },
+    {
+      "revision": 1,
+      "description": "clarifications only: (1) absolute 1e-10 S criterion preserved, rho diagnostic; (2) factor-10-per-halving is an operational precision-consistency classification, not a proof; (3) any claim that representation error dominates must be supported by the Tier 3 decomposition, otherwise UNEXPLAINED; (4) u_XP renamed convergence/error indicator e_ind (threshold 1e-11 unchanged, not a rigorous bound); (5) np.longdouble must give >= 64 mantissa bits, otherwise Tier 3 is NOT EVALUABLE (no silent double fallback; Windows). Two NEW numbers for the dominance rule (dominance_factor, term_resolution_factor) are flagged for review. No value of an existing criterion or gate changed."
+    }
+  ],
+  "implementation_status": {
+    "sparse_exact_lattice": "implemented; tested on synthetic problems only (clean guide, smooth y-uniform barrier, dense-mixing toy); NO B3Y point has been computed",
+    "synthetic_energies": "gates X2/X3 are exercised in this stage at synthetic energies that are NOT B3Y points; the B3Y-energy instances of X1-X3 and X8 belong to the later, separately authorized numerical stage"
+  },
+  "protected_files_sha256": {
+    "stationary.py": "sha256:7294be3c22fd88bd317d3df45858642f36cc53ea2912cc00be47b7d2dc17949e",
+    "smatrix_spec.py": "sha256:e6029cbcd91eed8461f1ef351a757f6463aa0c8b008f7908db58253d010b0cf9",
+    "sparse_reference.py": "sha256:3b201f7525a839816a4e4d5156f51c3d55816ffcdcbf65def5017c4903b50190",
+    "sparse_wavefunction.py": "sha256:eb93085a4e0af4b2b6c48f9ec383b804fa461a870784a5ab48a272a8c1a6e7db",
+    "validate_rgf_b1.py": "sha256:322aa578ede3a7a7c24d2ff865dae84e0aee275b136a28d1aa9cc2dbe9033b79",
+    "validate_rgf_b2.py": "sha256:38478a872a8a8eb6b0b06bac2e18ee0196d23b99e88b38c2632ce52574430ccc",
+    "validate_rgf_b3.py": "sha256:4584284008ee8ad6aaf7e6fabe2597fa2e6eaa7a36977b49ed08bdd8b11ed939",
+    "validate_rgf_b3x.py": "sha256:e32c5ee5ff83dbc42b4c6fbff525b23b465a4b9d0564a5bc4bec9874c94018cb",
+    "potential.py": "sha256:a3b203335c1fb7363578141408fed404158ad6da38902ea042ef5991353df91c",
+    "disorder.py": "sha256:f8435f93e3ee158d0e17b252ea932ede3326e4f6a4f25a2afc16ae3a50c34c32",
+    "config.py": "sha256:68639f852048dbd6b3a1d48a7cae921276fec5e022ea31cddfc815b63ad8420d",
+    "analytic.py": "sha256:036d982be88098e50940b37a95f2f51a61929f61e8985b94d2743571e5e16a1d",
+    "ode1d.py": "sha256:ce98bfb11fb94af339bcc4854f163231d508fb6147f62effc161f07cfe68e422",
+    "docs/RGF_B1_VALIDATION.md": "sha256:df9b416dd1412b9acc92d01872bf5b1775ebb7544d6f6b0f6601fd894ee1ef94",
+    "docs/RGF_B2_VALIDATION.md": "sha256:69ac886e3ff4884a2c2844233ec8a32f94ac160985d1e2803f876072facd2e2f",
+    "docs/RGF_B3_VALIDATION.md": "sha256:fd74f97fc9acde330375094c04f9190b819c23c98d9b9cf724d463a6b32d7d89",
+    "docs/RGF_B3X_VALIDATION.md": "sha256:6d0a86b358a230990a973db9b80743422bf846771fd43db97bfb144d9b2af637",
+    "docs/rgf_b3x_protocol.json": "sha256:7a9aa89860af5c472e1c76232019f44d955e7fc15c4ea802c35d1f89d9653c59"
+  },
+  "protected_results_trees": {
+    "rgf_b1_validation": {
+      "sha256": "sha256:f4d84d5462415e54997df03358e6c1238863146896d9aaa7d5ae0aa73e3d23ea",
+      "n_files": 8
+    },
+    "rgf_b2_validation": {
+      "sha256": "sha256:a7448587239ad1ab2aa8981f85730ba2b1333d115999548a6716b485bad7c918",
+      "n_files": 10
+    },
+    "rgf_b3_validation": {
+      "sha256": "sha256:85c6116d51852faf4b61e728022b6298bd0f201318bfe869017e7bfefd0a5f16",
+      "n_files": 13
+    },
+    "rgf_b3x_validation": {
+      "sha256": "sha256:49fe3f51c663b39de47a3e96c1cbece7238072a2edb6119fab097da4edf0fd91",
+      "n_files": 8
+    }
+  }
+}
