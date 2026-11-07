@@ -1,0 +1,55 @@
+{
+  "name": "B3X: extended independent validation of the RGF under fixed disorder realizations",
+  "status": "PREDECLARED before any B3X number was computed",
+  "configurations": {
+    "seed": 0,
+    "W": [100.0, 200.0],
+    "zeta": [0.02, 0.05, 0.2],
+    "Ld": 1.0,
+    "ids": {"W100_z0.02": [100.0, 0.02], "W100_z0.05": [100.0, 0.05], "W100_z0.2": [100.0, 0.2],
+            "W200_z0.02": [200.0, 0.02], "W200_z0.05": [200.0, 0.05], "W200_z0.2": [200.0, 0.2]}
+  },
+  "energies": {
+    "rule": "kx = kx0 + j*sigma_k, j = -2..2, sigma_k = 1/(sqrt(2) sigma_x), E = (kx^2 + pi^2/Ly^2)/2 (same as B3)",
+    "n_per_configuration": 5,
+    "threshold_rule": "|E - E_n| >= 1e-3 E for every transverse threshold, else the run aborts (never silently dropped)"
+  },
+  "base_discretization": {"dx": 0.001953125, "N_y": 63, "N_q": 127, "buffer_requested": 0.2,
+                          "buffer_rule": "ceil(buffer*512)/512 on the dx = 1/512 lattice, identical at every dx"},
+  "refinements": {
+    "dx": {"base": 0.001953125, "variant": 0.0009765625},
+    "N_q": {"base": 127, "variant": 254},
+    "buffer": {"base": 0.2, "variant": 0.4},
+    "N_y_fixed_Nq": {"base": 63, "variant": 127, "N_q": 254},
+    "N_y_255": "run only if a zeta = 0.02 configuration fails the N_y criterion at 127",
+    "dx_ladder_diagnostic": [0.00390625, 0.001953125, 0.0009765625, 0.00048828125]
+  },
+  "limits": {
+    "S_agreement": 1e-10,
+    "T_R_agreement": 2e-10,
+    "offdiag_transmission_agreement": 2e-10,
+    "unitarity": 1e-10,
+    "reciprocity": 1e-8,
+    "dT1_refinement": 2e-4,
+    "potential_block_agreement_relative": 1e-12,
+    "retarded_root_agreement": 1e-9
+  },
+  "limit_justification": {
+    "S_agreement": "spec B3 value, unchanged. Both solvers work in double precision; the observed RGF-vs-sparse level in B3 was 5e-12 and the sparse backward error 1e-15, so 1e-10 leaves ~20x margin while being 6 orders below the 2e-4 transmission accuracy that matters for B4.",
+    "T_R_agreement": "|S_ij|^2 differs by at most 2|S_ij||dS_ij| <= 2 max|dS| since |S_ij| <= 1; so 2 x S_agreement is the implied bound. Summed T1, R1 over <= 8 open channels would allow n x 2e-10 but are checked per element and in the sum with the same 2e-10.",
+    "offdiag_transmission_agreement": "same implied bound as T_R_agreement, applied to every off-diagonal |t_mn|^2 (channel mixing is physical under disorder, so its agreement, not its smallness, is the criterion)",
+    "unitarity": "spec value. Roundoff amplified by up to N*N_y = 45000 recursion/solve steps is expected at 1e-13; 1e-10 is the smallest round value that leaves >=2 orders of margin over the B3 observation (2.6e-13).",
+    "reciprocity": "spec value 1e-8, deliberately loose: S = S^T is a symmetry check of an RGF whose G_1N is computed independently of G_N1; observed 2e-14 in B3.",
+    "dT1_refinement": "spec value, the transmission accuracy assumed in the B4 error budget (<= 2e-4). Applied per energy to the first-channel total transmission T1.",
+    "potential_block_agreement_relative": "the two independent routes to V_j (matrix product vs cosine sums) differ only by rounding of O(N_q) terms: ~1e-15 relative; 1e-12 relative to max|V| is a loose rounding-level bound.",
+    "retarded_root_agreement": "closed-form retarded root vs the root with |lambda|<1 of the E+i*eta problem (eta = 1e-9): the eta shift moves lambda by ~eta*dx^2/sin(k dx) ~ 1e-15 .. 1e-11; 1e-9 is a safe bound for the sign/branch test."
+  },
+  "criteria": [
+    "same_realization_bitwise", "potential_blocks_independent_routes_agree", "open_channel_count_equal_and_matches_thresholds",
+    "closed_channels_gamma_zero_and_real_lambda", "S_agreement_RGF_vs_wavefunction_reference", "S_agreement_RGF_vs_greenblock_reference",
+    "T_R_agreement", "offdiag_transmission_agreement", "unitarity_both_products_all_methods", "reciprocity_full_blocks_probability_all_methods",
+    "dx_refinement", "Nq_refinement", "buffer_refinement", "Ny_refinement_fixed_Nq"
+  ],
+  "report_only": ["same-direction transmission asymmetry", "dx ladder orders and Richardson estimates (diagnostic)", "cross-check with the existing B3 numbers"],
+  "overall_rule": "B3X passes only if EVERY listed criterion is evaluated and met. A failed criterion is a valid result and is never re-labelled."
+}
