@@ -21,6 +21,13 @@ Revision 0 is commit `5d39721`. Revision 1 clarifies five points and adds the Ti
 5. **Extended precision is mandatory.** `np.longdouble` must provide **at least 64 mantissa bits** (x86-64 80-bit extended). Where it does not (for example
    Windows/MSVC builds, or Apple arm64, where longdouble equals float64), Tier 3 stops and reports **NOT EVALUABLE**. Ordinary double precision is never substituted silently.
 
+### Protocol revision 2 (Tier 3 audit; branch `claude/b3y-tier3-audit`; no numerical B3Y comparison)
+Details and the full mathematical audit are in [RGF_B3Y_TIER3_AUDIT.md](RGF_B3Y_TIER3_AUDIT.md). Changes: (1) **representation dominance is now judged against the SUM** of the lead-data and solver terms,
+`bulk_rounding ≥ 2 × (lead_data + solver)`, a strictly stronger criterion than the revision-1 `bulk_rounding ≥ 2 × max(lead_data, solver)`; `term_resolution_factor` = 10 and the rule that unresolved
+terms are UNEXPLAINED are unchanged. (2) `error_decomposition` computes all three terms explicitly and reports a three-term and a two-term identity residual separately; these algebraic identities do
+**not** validate the individual S-matrices. (3) Resolution is judged against the largest e_ind among the extended solves used. (4) The platform gate now covers **every** extended-precision entry point
+(six had none) and adds a functional arithmetic probe. No threshold was weakened and no formula changed.
+
 Two **new numbers** are introduced by item 3 and are flagged for review: `dominance_factor` = 2 and `term_resolution_factor` = 10 (§I.8.3). The B3Y energy-point instances of gates
 X1–X3 and X8 remain for the later numerical stage; in this stage the gate code is exercised only on synthetic problems at energies that are not B3Y points.
 
@@ -125,7 +132,7 @@ In double precision it is: the ulp of the diagonal entry is 5.8×10⁻¹¹ (dx =
 
 **Extended precision.** `np.longdouble` (x86-64: 80-bit, 64-bit mantissa, ε = 1.08×10⁻¹⁹; measured 0.94 s per block matvec at N = 2873).
 Precision is **platform dependent**: on x86-64 Linux it is 80-bit; on aarch64 Linux it is IEEE quad (software); on Apple/ARM and
-Windows it equals double. **Gate X0 requires `np.finfo(np.longdouble)` to provide at least 64 mantissa bits; otherwise Tier 3 stops and reports NOT EVALUABLE on that platform**
+Windows it equals double. **Gate X0 requires `np.finfo(np.longdouble)` to provide at least 64 mantissa bits and a functional arithmetic probe ((1 + 2⁻⁶⁰) − 1 = 2⁻⁶⁰); otherwise Tier 3 stops and reports NOT EVALUABLE on that platform**
 (no silent fallback to double precision; the code raises `ExtendedPrecisionUnavailable`). The platform, `np.finfo(np.longdouble)` and the library versions are recorded.
 
 **Lead data (cancellation-free).** x_n = (E − E⊥ₙ)dx² in extended precision. Open (x ∈ (0,2)): θ = 2·asin√(x/2), λ = e^{iθ}, Γ = 2t·sinθ,
@@ -215,12 +222,13 @@ as a pre-run prior (§I.11).
 Precondition: V1 passed and the convergence/error indicator e_ind ≤ 10⁻¹¹ at the point.
 1. ε_m = max|S_m − S_M4| for M1, M2, M3 at the same point and dx.
 2. ε_m ≤ 10⁻¹⁰ → m is consistent with the exact lattice solution at 10⁻¹⁰. ε_m > 10⁻¹⁰ → m **exceeds** 10⁻¹⁰ against the exact lattice (reported with its value; never upgraded to PASS).
-3. For M2 and M3 the total error is split **exactly** (telescoping identity, §I.6) into a bulk-operator rounding term, a lead-data term and a linear-solver/extraction term. For M1 only the
+3. For M2 and M3 the total error is split **exactly** (telescoping identity, §I.6) into a bulk-operator rounding term, a lead-data term and a linear-solver/extraction term (an algebraic identity: its residual tests the arithmetic, not the individual S-matrices; the terms are measured sizes, not rigorous bounds). For M1 only the
    total error is available, and **no mechanism claim is allowed for M1**.
 4. **PRECISION-CONSISTENT** (an *operational* classification, **not a mathematical proof** of round-off dominance): ε_m(1/512) ≤ 10⁻¹⁰ and ε_m grows by at most a factor 10 per halving of dx.
    It makes no statement about the mechanism.
-5. **Representation dominance** may be asserted only for M2/M3 and only if the decomposition supports it: the bulk-rounding term ≥ `dominance_factor` (2) × each of the lead-data and solver terms,
-   **and** every term is resolved, i.e. > `term_resolution_factor` (10) × e_ind. A supported claim gives **PRECISION-LIMITED (measured; representation-dominated)**.
+5. **Representation dominance** may be asserted only for M2/M3 and only if the decomposition supports it: the bulk-rounding term ≥ `dominance_factor` (2) × (lead-data term **+** solver term)
+   (revision 2: dominance over the *sum*), **and** every term is resolved, i.e. > `term_resolution_factor` (10) × e_ind, with e_ind the largest indicator among the extended solves used.
+   Meaning: by the exact identity and the triangle inequality, |‖total‖ − bulk| ≤ lead + solver ≤ bulk/2, so the bulk term alone fixes the size of the total error to within 50 % whatever the cancellations. A supported claim gives **PRECISION-LIMITED (measured; representation-dominated)**.
    If the claim is attempted and is not supported, or the terms are unresolved, the result is **UNEXPLAINED**.
 6. A result that violates the growth rule of step 4 is **UNEXPLAINED** and is investigated before any conclusion.
 7. **Overall:** B3Y is **PASS** only if every criterion is met with no exceedance. Any exceedance makes the overall status PRECISION-LIMITED / PRECISION-CONSISTENT (resolved by Tier 3), UNEXPLAINED or INCONCLUSIVE, never PASS.

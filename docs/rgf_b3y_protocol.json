@@ -1,6 +1,6 @@
 {
   "name": "B3Y: independent fine-grid validation of the RGF (failed B3X configurations)",
-  "status": "PREDECLARED protocol (revision 1: clarifications); the Tier 3 module is implemented and synthetically tested; no B3Y numerical comparison has been run",
+  "status": "PREDECLARED protocol (revision 2: Tier 3 audit); the Tier 3 module is implemented and synthetically tested; no B3Y numerical comparison has been run",
   "base_commit": "5360a9f4dbb2e0de77642f22dd73b3e92b0afb80",
   "b3x_artifacts_sha256": {
     "per_energy_comparison.csv": "sha256:903d70631750434694e3d2834e97fb65806c8f09050638bacbed5de570c73547",
@@ -635,7 +635,9 @@
     "dominance_factor": 2.0,
     "term_resolution_factor": 10.0,
     "_new_numbers_note": "dominance_factor and term_resolution_factor are new in revision 1 (flagged for review)",
-    "precision_limited_growth_per_halving_note": "operational precision-consistency classification (factor 10 per halving of dx); NOT a mathematical proof of round-off dominance"
+    "precision_limited_growth_per_halving_note": "operational precision-consistency classification (factor 10 per halving of dx); NOT a mathematical proof of round-off dominance",
+    "dominance_rule": "bulk_rounding >= dominance_factor * (lead_data + solver)   [revision 2; replaces bulk_rounding >= dominance_factor * max(lead_data, solver)]",
+    "dominance_meaning": "with the exact telescoping identity and the triangle inequality: | ||total|| - bulk | <= lead + solver <= bulk/2, so the bulk-rounding term alone fixes the size of the total error to within 50% regardless of cancellations; not a rigorous error bound"
   },
   "xp_gates": {
     "platform_min_mantissa_bits": 64,
@@ -650,7 +652,7 @@
     "mpmath_dps": 50,
     "error_indicator_max": 1e-11,
     "error_indicator_note": "e_ind = max(max|S^(k)-S^(k-1)| over the last two refinement iterates, kappa1_hat * eta_final): a convergence/error INDICATOR, not a rigorous uncertainty bound",
-    "platform_requirement": "np.longdouble must provide >= 64 mantissa bits (x86-64 80-bit extended). If it does not (e.g. Windows/MSVC or Apple arm64 where longdouble == float64) Tier 3 stops and reports NOT EVALUABLE; ordinary double precision is never substituted",
+    "platform_requirement": "np.longdouble must provide >= 64 mantissa bits AND pass a functional arithmetic probe ((1 + 2^-60) - 1 == 2^-60). If not (e.g. Windows/MSVC or Apple arm64 where longdouble == float64) Tier 3 stops and reports NOT EVALUABLE; ordinary double precision is never substituted. Every extended-precision entry point of sparse_exact_lattice.py enforces this (registry GATED_ENTRY_POINTS, tested)",
     "refinement_gate_definition": "eta <= 1e-17 within 10 iterations (stop at the first iterate k>=1 with eta <= 1e-17); contraction ||d_k||/||d_(k-1)|| <= 0.1 for every step taken while the previous eta > 1e-17; eta = ||r||/(||b|| + ||A||_1 ||x||) with the unmerged operator in extended precision"
   },
   "rho_diagnostic": {
@@ -769,7 +771,7 @@
     "step2": "eps_m <= 1e-10 : m is consistent with the exact lattice solution at 1e-10; eps_m > 1e-10: m EXCEEDS 1e-10 against the exact lattice (reported with its value; never upgraded to PASS)",
     "step3": "for M2 and M3 the total error is split exactly (telescoping identity) into bulk-operator rounding, lead-data and linear-solver/extraction terms; M1 has no explicit matrix: only its total error is available and NO mechanism claim can be made for M1",
     "step4": "PRECISION-CONSISTENT (operational classification, not a proof): eps_m(1/512) <= 1e-10 and eps_m grows by at most a factor 10 per halving of dx",
-    "step5": "representation dominance may be claimed only for M2/M3 and only if the decomposition supports it: bulk-rounding term >= dominance_factor (2) x each of the lead and solver terms AND each term > term_resolution_factor (10) x e_ind. If the claim is attempted and not supported, or the terms are unresolved, the result is UNEXPLAINED",
+    "step5": "representation dominance may be claimed only for M2/M3 and only if the decomposition supports it: bulk-rounding term >= dominance_factor (2) x (lead-data term + solver term) [dominance over the SUM] AND each of the three terms > term_resolution_factor (10) x e_ind, where e_ind is the LARGEST convergence/error indicator among the extended solves used (exact, hybrid, rounded matrix; NaN => unresolved). If the claim is attempted and not supported, or any term is unresolved, the result is UNEXPLAINED",
     "step6": "a result that violates the growth rule is UNEXPLAINED and is investigated before any conclusion",
     "overall": "B3Y is called PASS only if every criterion is met with no exceedance; any exceedance makes the overall status PRECISION-LIMITED/PRECISION-CONSISTENT (resolved by Tier 3), UNEXPLAINED or INCONCLUSIVE, never PASS"
   },
@@ -833,10 +835,15 @@
     {
       "revision": 1,
       "description": "clarifications only: (1) absolute 1e-10 S criterion preserved, rho diagnostic; (2) factor-10-per-halving is an operational precision-consistency classification, not a proof; (3) any claim that representation error dominates must be supported by the Tier 3 decomposition, otherwise UNEXPLAINED; (4) u_XP renamed convergence/error indicator e_ind (threshold 1e-11 unchanged, not a rigorous bound); (5) np.longdouble must give >= 64 mantissa bits, otherwise Tier 3 is NOT EVALUABLE (no silent double fallback; Windows). Two NEW numbers for the dominance rule (dominance_factor, term_resolution_factor) are flagged for review. No value of an existing criterion or gate changed."
+    },
+    {
+      "revision": 2,
+      "branch": "claude/b3y-tier3-audit",
+      "description": "Tier 3 audit (no numerical B3Y comparison): (1) representation dominance now requires bulk_rounding >= dominance_factor (2) x (lead_data + solver) -- dominance over the SUM, a strictly STRONGER criterion than the previous 2 x max(lead, solver); term_resolution_factor (10) unchanged and unresolved terms stay UNEXPLAINED; (2) error_decomposition computes all three terms explicitly with a separate three-term and two-term identity residual; neither identity validates the individual S-matrices; (3) the resolution test uses the LARGEST convergence/error indicator among the exact, hybrid and rounded-matrix solves; (4) the extended-precision platform gate now covers every extended-precision entry point (six had no gate) and adds a functional arithmetic probe; (5) the mathematical audit is documented in docs/RGF_B3Y_TIER3_AUDIT.md. No threshold weakened; no formula changed."
     }
   ],
   "implementation_status": {
-    "sparse_exact_lattice": "implemented; tested on synthetic problems only (clean guide, smooth y-uniform barrier, dense-mixing toy); NO B3Y point has been computed",
+    "sparse_exact_lattice": "implemented; revision 2 audited (gate on every entry point, three-term decomposition, sum-form dominance); synthetic tests only; NO B3Y point has been computed",
     "synthetic_energies": "gates X2/X3 are exercised in this stage at synthetic energies that are NOT B3Y points; the B3Y-energy instances of X1-X3 and X8 belong to the later, separately authorized numerical stage"
   },
   "protected_files_sha256": {
