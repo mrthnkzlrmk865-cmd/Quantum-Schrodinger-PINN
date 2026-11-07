@@ -1,6 +1,6 @@
 {
   "name": "B3Y: independent fine-grid validation of the RGF (failed B3X configurations)",
-  "status": "PREDECLARED protocol; no B3Y numerical comparison has been run",
+  "status": "PREDECLARED protocol (revision 1: clarifications); the Tier 3 module is implemented and synthetically tested; no B3Y numerical comparison has been run",
   "base_commit": "5360a9f4dbb2e0de77642f22dd73b3e92b0afb80",
   "b3x_artifacts_sha256": {
     "per_energy_comparison.csv": "sha256:903d70631750434694e3d2834e97fb65806c8f09050638bacbed5de570c73547",
@@ -631,7 +631,11 @@
       2.2
     ],
     "T1_method_spread_for_solver_independence": 2e-06,
-    "precision_limited_growth_per_halving": 10.0
+    "precision_limited_growth_per_halving": 10.0,
+    "dominance_factor": 2.0,
+    "term_resolution_factor": 10.0,
+    "_new_numbers_note": "dominance_factor and term_resolution_factor are new in revision 1 (flagged for review)",
+    "precision_limited_growth_per_halving_note": "operational precision-consistency classification (factor 10 per halving of dx); NOT a mathematical proof of round-off dominance"
   },
   "xp_gates": {
     "platform_min_mantissa_bits": 64,
@@ -642,9 +646,12 @@
     "final_relative_operator_residual_max": 1e-17,
     "fisher_lee_vs_wavefunction_forms_abs": 1e-13,
     "preconditioner_ordering_stability_abs": 1e-13,
-    "uncertainty_max": 1e-11,
     "validation_vs_B3X_refs_at_dx_1_512_abs": 1e-10,
-    "mpmath_dps": 50
+    "mpmath_dps": 50,
+    "error_indicator_max": 1e-11,
+    "error_indicator_note": "e_ind = max(max|S^(k)-S^(k-1)| over the last two refinement iterates, kappa1_hat * eta_final): a convergence/error INDICATOR, not a rigorous uncertainty bound",
+    "platform_requirement": "np.longdouble must provide >= 64 mantissa bits (x86-64 80-bit extended). If it does not (e.g. Windows/MSVC or Apple arm64 where longdouble == float64) Tier 3 stops and reports NOT EVALUABLE; ordinary double precision is never substituted",
+    "refinement_gate_definition": "eta <= 1e-17 within 10 iterations (stop at the first iterate k>=1 with eta <= 1e-17); contraction ||d_k||/||d_(k-1)|| <= 0.1 for every step taken while the previous eta > 1e-17; eta = ||r||/(||b|| + ||A||_1 ||x||) with the unmerged operator in extended precision"
   },
   "rho_diagnostic": {
     "definition": "rho = max|Delta S| / [(N-1)*eps_mach/sin(k*dx)]; eps_mach = 2.220446049250313e-16; N = number of device slices; k = wave number of the lowest-k open channel (largest open n); sin(k dx) = sqrt(x(2-x)), x = (E-E_perp_n) dx^2",
@@ -751,15 +758,20 @@
     "PASS": "criterion met as stated",
     "FAIL": "criterion not met and not attributable to precision limits, or an XP gate failed",
     "PRECISION-LIMITED (inconclusive)": "S1-S3 absolute discrepancy > 1e-10; NOT an implementation failure by itself; pending Tier 3 adjudication; stays inconclusive where no Tier 3 data exist",
-    "NOT EVALUABLE": "lead-tail guard exceeded, or extended precision unavailable on the platform"
+    "NOT EVALUABLE": "lead-tail guard exceeded, or extended precision unavailable on the platform",
+    "PRECISION-CONSISTENT": "exceedance of 1e-10 against the exact lattice for which eps_m(1/512) <= 1e-10 and the growth per halving of dx is <= 10 (operational); makes NO claim about the mechanism",
+    "PRECISION-LIMITED (measured; representation-dominated)": "PRECISION-CONSISTENT AND the Tier 3 decomposition supports representation dominance (M2, M3 only)",
+    "UNEXPLAINED": "growth rule violated, or representation dominance asserted but not supported by the decomposition, or the decomposition is unresolved"
   },
   "tier3_adjudication": {
-    "precondition": "V1 passed and the XP uncertainty u_XP <= 1e-11 at the point",
+    "precondition": "V1 passed and the Tier 3 convergence/error indicator e_ind <= 1e-11 at the point",
     "step1": "eps_m = max|S_m - S_XP| for m in M1, M2, M3 at the same point and dx",
     "step2": "eps_m <= 1e-10 : m is consistent with the exact lattice solution at 1e-10; eps_m > 1e-10: m EXCEEDS 1e-10 against the exact lattice (reported with its value; never upgraded to PASS)",
-    "step3": "for M2 and M3 the exceedance is split into operator representation error (S_fl(A) - S_XP), lead-data error and linear-solver error (S_double - S_fl(A)); M1 has no explicit matrix: only its total error is available",
-    "step4": "an exceedance is called PRECISION-LIMITED (measured) only if eps_m(1/512) <= 1e-10 and eps_m grows by at most a factor 10 per halving of dx; otherwise it is flagged UNEXPLAINED and investigated before any conclusion",
-    "overall": "B3Y is called PASS only if every criterion is met without exceedances; any adjudicated exceedance makes the overall status PRECISION-LIMITED (resolved by Tier 3) or INCONCLUSIVE, never PASS"
+    "step3": "for M2 and M3 the total error is split exactly (telescoping identity) into bulk-operator rounding, lead-data and linear-solver/extraction terms; M1 has no explicit matrix: only its total error is available and NO mechanism claim can be made for M1",
+    "step4": "PRECISION-CONSISTENT (operational classification, not a proof): eps_m(1/512) <= 1e-10 and eps_m grows by at most a factor 10 per halving of dx",
+    "step5": "representation dominance may be claimed only for M2/M3 and only if the decomposition supports it: bulk-rounding term >= dominance_factor (2) x each of the lead and solver terms AND each term > term_resolution_factor (10) x e_ind. If the claim is attempted and not supported, or the terms are unresolved, the result is UNEXPLAINED",
+    "step6": "a result that violates the growth rule is UNEXPLAINED and is investigated before any conclusion",
+    "overall": "B3Y is called PASS only if every criterion is met with no exceedance; any exceedance makes the overall status PRECISION-LIMITED/PRECISION-CONSISTENT (resolved by Tier 3), UNEXPLAINED or INCONCLUSIVE, never PASS"
   },
   "run_order": [
     "G0 reproduce B3X values at dx 1/512 (RGF T1 bitwise; rgf_wf dS within 1e-13)",
@@ -811,5 +823,58 @@
     "solver settings (permc_spec, refinement iterations, tolerances)",
     "B3X artifact hashes",
     "test commands and results"
-  ]
+  ],
+  "revision_history": [
+    {
+      "revision": 0,
+      "commit": "5d39721dccb8ff47359d7a4f94a3e7e162813f37",
+      "description": "initial protocol and self-audit"
+    },
+    {
+      "revision": 1,
+      "description": "clarifications only: (1) absolute 1e-10 S criterion preserved, rho diagnostic; (2) factor-10-per-halving is an operational precision-consistency classification, not a proof; (3) any claim that representation error dominates must be supported by the Tier 3 decomposition, otherwise UNEXPLAINED; (4) u_XP renamed convergence/error indicator e_ind (threshold 1e-11 unchanged, not a rigorous bound); (5) np.longdouble must give >= 64 mantissa bits, otherwise Tier 3 is NOT EVALUABLE (no silent double fallback; Windows). Two NEW numbers for the dominance rule (dominance_factor, term_resolution_factor) are flagged for review. No value of an existing criterion or gate changed."
+    }
+  ],
+  "implementation_status": {
+    "sparse_exact_lattice": "implemented; tested on synthetic problems only (clean guide, smooth y-uniform barrier, dense-mixing toy); NO B3Y point has been computed",
+    "synthetic_energies": "gates X2/X3 are exercised in this stage at synthetic energies that are NOT B3Y points; the B3Y-energy instances of X1-X3 and X8 belong to the later, separately authorized numerical stage"
+  },
+  "protected_files_sha256": {
+    "stationary.py": "sha256:7294be3c22fd88bd317d3df45858642f36cc53ea2912cc00be47b7d2dc17949e",
+    "smatrix_spec.py": "sha256:e6029cbcd91eed8461f1ef351a757f6463aa0c8b008f7908db58253d010b0cf9",
+    "sparse_reference.py": "sha256:3b201f7525a839816a4e4d5156f51c3d55816ffcdcbf65def5017c4903b50190",
+    "sparse_wavefunction.py": "sha256:eb93085a4e0af4b2b6c48f9ec383b804fa461a870784a5ab48a272a8c1a6e7db",
+    "validate_rgf_b1.py": "sha256:322aa578ede3a7a7c24d2ff865dae84e0aee275b136a28d1aa9cc2dbe9033b79",
+    "validate_rgf_b2.py": "sha256:38478a872a8a8eb6b0b06bac2e18ee0196d23b99e88b38c2632ce52574430ccc",
+    "validate_rgf_b3.py": "sha256:4584284008ee8ad6aaf7e6fabe2597fa2e6eaa7a36977b49ed08bdd8b11ed939",
+    "validate_rgf_b3x.py": "sha256:e32c5ee5ff83dbc42b4c6fbff525b23b465a4b9d0564a5bc4bec9874c94018cb",
+    "potential.py": "sha256:a3b203335c1fb7363578141408fed404158ad6da38902ea042ef5991353df91c",
+    "disorder.py": "sha256:f8435f93e3ee158d0e17b252ea932ede3326e4f6a4f25a2afc16ae3a50c34c32",
+    "config.py": "sha256:68639f852048dbd6b3a1d48a7cae921276fec5e022ea31cddfc815b63ad8420d",
+    "analytic.py": "sha256:036d982be88098e50940b37a95f2f51a61929f61e8985b94d2743571e5e16a1d",
+    "ode1d.py": "sha256:ce98bfb11fb94af339bcc4854f163231d508fb6147f62effc161f07cfe68e422",
+    "docs/RGF_B1_VALIDATION.md": "sha256:df9b416dd1412b9acc92d01872bf5b1775ebb7544d6f6b0f6601fd894ee1ef94",
+    "docs/RGF_B2_VALIDATION.md": "sha256:69ac886e3ff4884a2c2844233ec8a32f94ac160985d1e2803f876072facd2e2f",
+    "docs/RGF_B3_VALIDATION.md": "sha256:fd74f97fc9acde330375094c04f9190b819c23c98d9b9cf724d463a6b32d7d89",
+    "docs/RGF_B3X_VALIDATION.md": "sha256:6d0a86b358a230990a973db9b80743422bf846771fd43db97bfb144d9b2af637",
+    "docs/rgf_b3x_protocol.json": "sha256:7a9aa89860af5c472e1c76232019f44d955e7fc15c4ea802c35d1f89d9653c59"
+  },
+  "protected_results_trees": {
+    "rgf_b1_validation": {
+      "sha256": "sha256:f4d84d5462415e54997df03358e6c1238863146896d9aaa7d5ae0aa73e3d23ea",
+      "n_files": 8
+    },
+    "rgf_b2_validation": {
+      "sha256": "sha256:a7448587239ad1ab2aa8981f85730ba2b1333d115999548a6716b485bad7c918",
+      "n_files": 10
+    },
+    "rgf_b3_validation": {
+      "sha256": "sha256:85c6116d51852faf4b61e728022b6298bd0f201318bfe869017e7bfefd0a5f16",
+      "n_files": 13
+    },
+    "rgf_b3x_validation": {
+      "sha256": "sha256:49fe3f51c663b39de47a3e96c1cbece7238072a2edb6119fab097da4edf0fd91",
+      "n_files": 8
+    }
+  }
 }

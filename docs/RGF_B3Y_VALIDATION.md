@@ -4,10 +4,25 @@ Phase 2, follow-up of [B3X](RGF_B3X_VALIDATION.md) (unchanged). Date: 2026-11-07
 Machine-readable protocol: [rgf_b3y_protocol.json](rgf_b3y_protocol.json).
 Base commit: `5360a9f` (merge of PR #6).
 
-**Status: protocol and self-audit only. No B3Y numerical comparison has been run.** Part I was written
+**Status: protocol (revision 1) and the synthetic implementation of Tier 3. No B3Y numerical comparison has been run.** Part I was written
 before any B3Y number exists; Part II (results) is appended only after the protocol is approved and the runs
 are done. The only numerical work done in this stage is the synthetic design-verification probe of §I.9
 (a single-channel chain; it uses no B3Y point and no output of the RGF or of any B3X reference).
+
+### Protocol revision 1 (clarifications; no existing criterion value changed)
+Revision 0 is commit `5d39721`. Revision 1 clarifies five points and adds the Tier 3 implementation (synthetic tests only).
+1. **Absolute S criterion preserved.** The criterion on S is max|ΔS| ≤ 10⁻¹⁰, absolute. ρ remains a diagnostic quantity and is never used to classify.
+2. **The factor-10-per-halving rule is an operational precision-consistency classification, not a mathematical proof of round-off dominance.** It only says that an
+   error that already met 10⁻¹⁰ at dx = 1/512 grew by at most 10× per halving; it says nothing about the mechanism.
+3. **Representation dominance needs the decomposition.** Any claim that operator-representation error dominates must be supported by the Tier 3 error decomposition
+   (§I.8.3 step 5). If the decomposition does not support it, or cannot be resolved, the result is classified **UNEXPLAINED**. M1 (the RGF) has no explicit matrix, so
+   no mechanism claim is allowed for it.
+4. **u_XP is renamed the convergence/error indicator e_ind.** It is a convergence indicator, not a rigorous uncertainty bound; its predeclared threshold 10⁻¹¹ is unchanged.
+5. **Extended precision is mandatory.** `np.longdouble` must provide **at least 64 mantissa bits** (x86-64 80-bit extended). Where it does not (for example
+   Windows/MSVC builds, or Apple arm64, where longdouble equals float64), Tier 3 stops and reports **NOT EVALUABLE**. Ordinary double precision is never substituted silently.
+
+Two **new numbers** are introduced by item 3 and are flagged for review: `dominance_factor` = 2 and `term_resolution_factor` = 10 (§I.8.3). The B3Y energy-point instances of gates
+X1–X3 and X8 remain for the later numerical stage; in this stage the gate code is exercised only on synthetic problems at energies that are not B3Y points.
 
 ## Part I: Protocol
 
@@ -110,8 +125,8 @@ In double precision it is: the ulp of the diagonal entry is 5.8×10⁻¹¹ (dx =
 
 **Extended precision.** `np.longdouble` (x86-64: 80-bit, 64-bit mantissa, ε = 1.08×10⁻¹⁹; measured 0.94 s per block matvec at N = 2873).
 Precision is **platform dependent**: on x86-64 Linux it is 80-bit; on aarch64 Linux it is IEEE quad (software); on Apple/ARM and
-Windows it equals double. Gate X0 requires ≥ 64 mantissa bits; otherwise Tier 3 is **NOT EVALUABLE on that platform**
-(no silent fallback). The platform, `np.finfo(np.longdouble)` and the library versions are recorded.
+Windows it equals double. **Gate X0 requires `np.finfo(np.longdouble)` to provide at least 64 mantissa bits; otherwise Tier 3 stops and reports NOT EVALUABLE on that platform**
+(no silent fallback to double precision; the code raises `ExtendedPrecisionUnavailable`). The platform, `np.finfo(np.longdouble)` and the library versions are recorded.
 
 **Lead data (cancellation-free).** x_n = (E − E⊥ₙ)dx² in extended precision. Open (x ∈ (0,2)): θ = 2·asin√(x/2), λ = e^{iθ}, Γ = 2t·sinθ,
 sinθ = √(x(2−x)). Closed (x < 0): λ = 1/(c + √(c²−1)), c = 1 − x. This avoids the cancellation in c = 1 − x that gives Γ a relative
@@ -121,8 +136,10 @@ error of 1.3×10⁻¹¹ at dx = 1/2048 in the double formulas (measured against 
 **Solution and refinement.** Preconditioner: SuperLU of the double matrix. Iterates x_k are stored in extended precision. Residual
 r_k = b − A x_k with the *unmerged* operator in extended precision; correction δ = LU⁻¹ r_k; x_{k+1} = x_k + δ.
 A small residual computed from the rounded matrix is **not** accepted as evidence (it measures only the solver). Convergence
-must be demonstrated for every solve (gate X4): contraction ≤ 0.1 per step, ≤ 10 iterations, final relative operator residual
-η = ‖r‖∞/(‖b‖∞ + ‖A‖₁‖x‖∞) ≤ 10⁻¹⁷ (≈ 100 ε_ld).
+must be demonstrated for every solve (gate X4): the relative operator residual η = ‖r‖∞/(‖b‖∞ + ‖A‖₁‖x‖∞) must reach ≤ 10⁻¹⁷ (≈ 100 ε_ld) within 10 iterations
+(the loop stops at the first iterate k ≥ 1 with η ≤ 10⁻¹⁷, so an iterate difference exists), and the contraction ‖δ_k‖/‖δ_{k−1}‖ must be ≤ 0.1 for **every step taken
+while the previous η still exceeded 10⁻¹⁷**. Below the target the correction stagnates at the evaluation-noise floor by construction, so contraction is not
+meaningful there. (An earlier draft anchored the floor to a multiple of ε_ld·‖x‖; the implementation showed that noise floor is ≈ 150–200 ε_ld‖x‖, so the η-anchored definition is used.)
 
 **Separating representation error from solver error.** With S(·) the S-matrix from a solution:
 S_double − S_exact = [S(x_fl(A)) − S_exact] + [S_double − S(x_fl(A))], where x_fl(A) solves the rounded matrix **exactly** (to extended
@@ -131,8 +148,9 @@ error. A further split of the first bracket (bulk-operator rounding vs lead data
 terms. These identities need the explicit matrix, so they are available for M2 and M3. **M1 has no explicit matrix: for M1 only the total
 error S_M1 − S_exact is measured.**
 
-**Uncertainty u_XP.** u_XP = max(‖S^(k) − S^(k−1)‖ over the last two iterates, κ̂₁·η), with κ̂₁ the 1-norm condition estimate of the
-double matrix. Adjudication at a point requires u_XP ≤ 10⁻¹¹ (10× below the target 10⁻¹⁰); otherwise the point is **unresolved**.
+**Convergence / error indicator e_ind.** e_ind = max(max|S^(k) − S^(k−1)| over the last two iterates, κ̂₁·η_final), with κ̂₁ the 1-norm condition estimate of the
+double matrix. It is an **indicator of convergence and of the size of the remaining error, not a rigorous uncertainty bound** (the bound κ̂₁·η is a first-order normwise estimate;
+the iterate difference is a stagnation measure). Adjudication at a point requires e_ind ≤ 10⁻¹¹ (10× below the 10⁻¹⁰ target; threshold unchanged); otherwise the point is **unresolved**.
 
 **Two S forms.** M4 extracts S from the scattering state and also by Fisher–Lee from the same Green columns; their difference (gate X5,
 ≤ 10⁻¹³) tests the equivalence of the two formulations free of round-off.
@@ -144,10 +162,10 @@ double matrix. Adjudication at a point requires u_XP ≤ 10⁻¹¹ (10× below t
 | X1 | λ, Γ of every channel/point/dx vs mpmath (50 digits) | relative 10⁻¹⁷ | ≈ 100 ε_ld; the probe reached 10⁻¹⁷ on t |
 | X2 | clean guide (zero potential, N_y = 63): t_nn vs mpmath λⁿ⁻¹ at dx 1/512, 1/1024, 1/2048, at the five failed energies | 10⁻¹³ | probe error ≤ 2×10⁻¹⁷; 10⁻¹³ leaves room for 63 channels |
 | X3 | y-uniform smooth barrier (the B2 barrier), channels decoupled: M4 vs mpmath single-channel transfer matrix for every open channel | 10⁻¹³ | same |
-| X4 | refinement convergence (contraction ≤ 0.1, ≤ 10 iterations, η ≤ 10⁻¹⁷) at every solve | as stated | §I.6 |
+| X4 | refinement convergence: η ≤ 10⁻¹⁷ within 10 iterations; contraction ≤ 0.1 for every step taken while the previous η > 10⁻¹⁷ (§I.6) | as stated | §I.6 |
 | X5 | scattering-state S vs Fisher–Lee S from the same solution | 10⁻¹³ | formulations equivalent; extended arithmetic |
 | X6 | S stable under the preconditioner ordering (COLAMD vs MMD_AT_PLUS_A) | 10⁻¹³ | the result must not depend on the preconditioner |
-| X7 | u_XP at every use | ≤ 10⁻¹¹ | §I.6 |
+| X7 | convergence/error indicator e_ind at every use | ≤ 10⁻¹¹ | §I.6 (an indicator, not a rigorous bound) |
 | X8 | at dx = 1/512, all 16 points: max\|S_M4 − S_M2\|, max\|S_M4 − S_M3\|, max\|S_M4 − S_M1\| | 10⁻¹⁰ | validation against the existing B3X-era references before any finer-grid use |
 | G0 | recomputed dx = 1/512 reproduces B3X: M1 T1 bitwise; M1–M3 max\|ΔS\| within 10⁻¹³ of the B3X value | as stated | the same code path gives the same numbers |
 
@@ -178,7 +196,8 @@ transmission, open/closed channel counts, closed-channel decay and amplitude con
 
 #### I.8.1 Status vocabulary
 **PASS**; **FAIL** (criterion not met and not attributable to precision limits, or an M4 gate failed); **PRECISION-LIMITED (inconclusive)** (S1–S3 absolute
-discrepancy > 10⁻¹⁰); **NOT EVALUABLE** (lead guard exceeded, or no extended precision).
+discrepancy > 10⁻¹⁰); **NOT EVALUABLE** (lead guard exceeded, or `np.longdouble` has fewer than 64 mantissa bits); and, from Tier 3 adjudication, **PRECISION-CONSISTENT**
+(operational), **PRECISION-LIMITED (measured; representation-dominated)** and **UNEXPLAINED** (§I.8.3).
 
 #### I.8.2 The absolute 10⁻¹⁰ target (decision D5)
 S1–S3 are judged by the absolute discrepancy only. A discrepancy > 10⁻¹⁰ is **not** automatically an implementation failure: it is
@@ -192,15 +211,19 @@ method (the RGF) on a clean guide against an exact reference. For two independen
 disordered multichannel devices, or for differences between two methods. The B3X calibration (observed/bound at dx = 1/512: min 0.081, median 0.162, max 0.357) is used only
 as a pre-run prior (§I.11).
 
-#### I.8.3 Tier 3 adjudication (predeclared)
-Precondition: V1 passed and u_XP ≤ 10⁻¹¹ at the point.
+#### I.8.3 Tier 3 adjudication (predeclared; revision 1)
+Precondition: V1 passed and the convergence/error indicator e_ind ≤ 10⁻¹¹ at the point.
 1. ε_m = max|S_m − S_M4| for M1, M2, M3 at the same point and dx.
 2. ε_m ≤ 10⁻¹⁰ → m is consistent with the exact lattice solution at 10⁻¹⁰. ε_m > 10⁻¹⁰ → m **exceeds** 10⁻¹⁰ against the exact lattice (reported with its value; never upgraded to PASS).
-3. For M2, M3 the exceedance is split into representation, lead-data and solver parts (§I.6). For M1 only the total is available.
-4. An exceedance is called **PRECISION-LIMITED (measured)** only if ε_m(1/512) ≤ 10⁻¹⁰ and ε_m grows by at most a factor 10 per halving of dx; otherwise it is
-   **UNEXPLAINED** and investigated before any conclusion.
-5. **Overall:** B3Y is **PASS** only if every criterion is met with no exceedance. Any adjudicated exceedance makes the overall status PRECISION-LIMITED (resolved by Tier 3)
-   or INCONCLUSIVE, never PASS.
+3. For M2 and M3 the total error is split **exactly** (telescoping identity, §I.6) into a bulk-operator rounding term, a lead-data term and a linear-solver/extraction term. For M1 only the
+   total error is available, and **no mechanism claim is allowed for M1**.
+4. **PRECISION-CONSISTENT** (an *operational* classification, **not a mathematical proof** of round-off dominance): ε_m(1/512) ≤ 10⁻¹⁰ and ε_m grows by at most a factor 10 per halving of dx.
+   It makes no statement about the mechanism.
+5. **Representation dominance** may be asserted only for M2/M3 and only if the decomposition supports it: the bulk-rounding term ≥ `dominance_factor` (2) × each of the lead-data and solver terms,
+   **and** every term is resolved, i.e. > `term_resolution_factor` (10) × e_ind. A supported claim gives **PRECISION-LIMITED (measured; representation-dominated)**.
+   If the claim is attempted and is not supported, or the terms are unresolved, the result is **UNEXPLAINED**.
+6. A result that violates the growth rule of step 4 is **UNEXPLAINED** and is investigated before any conclusion.
+7. **Overall:** B3Y is **PASS** only if every criterion is met with no exceedance. Any exceedance makes the overall status PRECISION-LIMITED / PRECISION-CONSISTENT (resolved by Tier 3), UNEXPLAINED or INCONCLUSIVE, never PASS.
 
 ### I.9 Design-verification probe (synthetic; not a B3Y result)
 Script `probe_b3y_tier3_design.py` (imports no repository module). A single-channel chain (N_y = 1, E⊥ = threshold of channel 4, E = 88.5134459632352,
@@ -245,6 +268,51 @@ Predicted RGF–reference |ΔS| band at the priority points (full list in the JS
 If these priors hold, no exceedance of 10⁻¹⁰ is expected at 1/1024 and a marginal one is possible at 1/2048 for W200_z0.2. The probe (§I.9) shows that a single method can sit at
 8×10⁻¹¹ against the exact lattice answer, so exceedances at 1/2048 are plausible and are handled by §I.8.3.
 
+### I.12 Tier 3 implementation and synthetic gate results (no B3Y data)
+`sparse_exact_lattice.py` implements §I.6 and imports only the standard library, NumPy, SciPy and mpmath (an AST test forbids any import from, or reference to, `stationary`,
+`smatrix_spec`, `sparse_reference`, `sparse_wavefunction` or the Fisher–Lee/solver function names). Main parts: platform check (`platform_precision`, `require_extended_precision`,
+`ExtendedPrecisionUnavailable`), cancellation-free extended lead data with an mpmath scalar reference, extended-precision cosine-sum potential blocks, the unmerged operator
+(`UnmergedOperator`) and an exact extended-precision product with a *rounded* double matrix (`apply_matrix_extended`), iterative refinement with the double SuperLU as a
+preconditioner only, S from the scattering state and, from separate unit-source solves, by Fisher–Lee, the 1-norm condition estimate, the convergence/error indicator e_ind, the exact
+solution of a rounded matrix (`solve_matrix_extended`, with an optional "hybrid" operator: rounded bulk, exact lead terms), the telescoping `error_decomposition`, the classification
+functions of §I.8.3, and mpmath references (single-channel transfer matrix; dense-mixing small devices).
+
+**Platform behaviour.** If `np.longdouble` has fewer than 64 mantissa bits every entry point raises `ExtendedPrecisionUnavailable("NOT EVALUABLE: …")`; there is no fallback to double precision. A test simulates a
+53-bit longdouble (the Windows/MSVC or Apple arm64 case) and checks that every entry point refuses, and that a 113-bit type (aarch64 Linux quad) is accepted.
+Measured here: x86-64 Linux, 64 mantissa bits, ε = 1.08×10⁻¹⁹. The extended precision is the hardware 80-bit x87 type; results are platform dependent in the sense of §I.6.
+
+**Synthetic gate results** (clean guide and y-uniform B2 smooth barrier, N_y = 63, geometry as in B3Y, at synthetic energies E = 95.0, 150.25, 263.5 that are not B3Y energies;
+single-channel and dense-mixing toys). Every number is measured; mpmath uses 50 digits.
+
+| Gate | Problem | Result | Limit |
+|---|---|---|---|
+| X0 | this platform | 64 mantissa bits, evaluable | ≥ 64 |
+| X1 | λ and Γ of all 63 channels, E = 95.0 and 263.5, dx 1/512, 1/1024, 1/2048 | relative 2.7×10⁻²⁰ – 1.1×10⁻¹⁹ | 10⁻¹⁷ |
+| X2 | clean guide, t_nn vs mpmath λⁿ⁻¹, off-diagonal t, r (dx 1/512, 1/1024, 1/2048) | ≤ 3.7×10⁻¹⁸ (1/512), 6.2×10⁻¹⁸ (1/1024), 3.3×10⁻¹⁷ (1/2048) | 10⁻¹³ |
+| X3 | smooth barrier, every open channel, t and r vs the mpmath single-channel transfer matrix | ≤ 6.2×10⁻¹⁸ (1/512), 1.3×10⁻¹⁷ (1/1024, 1/2048) | 10⁻¹³ |
+| X4 | all 14 solves (state and Green) | 2 iterations; worst contraction 1.6×10⁻⁶; η_final ≤ 4.9×10⁻²⁰ | ≤ 0.1; ≤ 10⁻¹⁷ |
+| X5 | scattering state vs Fisher–Lee (separate unit-source solve) | ≤ 5.9×10⁻¹⁷ | 10⁻¹³ |
+| X6 | COLAMD vs MMD_AT_PLUS_A (barrier, 1/512) | 1.0×10⁻¹⁷ | 10⁻¹³ |
+| X7 | convergence/error indicator e_ind | 2.7×10⁻¹⁵ (1/512) – 9.5×10⁻¹⁴ (1/2048); κ̂₁ up to 2.1×10⁶ | ≤ 10⁻¹¹ |
+| dense mixing | 3-channel dense blocks, N = 24 (dx 1/512) and N = 30 (dx 1/2048), vs an exact mpmath dense solve | ≤ 10⁻¹³ (test limit); gates X4, X5, X7 met | 10⁻¹³ |
+| dense toy | 6-channel dense device, dx = 0.05, vs RGF, Green-block and wave-function references | ≤ 10⁻¹² (test limit); unitarity, reciprocity ≤ 10⁻¹⁴ | 10⁻¹² |
+| decomposition | single channel (E⊥ = threshold of channel 4), dx 1/512 and 1/2048: telescoping identity; M4 vs mpmath | identity ≤ 10⁻¹⁸; M4 error ≤ 10⁻¹³ | exact |
+
+The e_ind values are dominated by κ̂₁·η; they are well below the 10⁻¹¹ threshold on these synthetic problems. Passing these gates on synthetic problems is **not** evidence about any B3Y point; gates X1–X3 at the B3Y energies and gate X8 are
+run only in the numerical stage, after explicit authorization.
+
+**Tests (actual commands and exit statuses; local runs, no CI).**
+
+| Command | Exit status | Result |
+|---|---|---|
+| `python -m pytest -q tests/test_rgf_b3y.py` | 0 | 34 passed (≈ 60 s) |
+| `python -m pytest -q tests` (complete suite) | 0 | 286 passed, 2 xfailed (the two known expected failures) |
+
+The 34 tests cover: independence (AST) of the module, equality of every constant with the protocol, the revision-1 clarifications, protected-file and prior-artifact hashes, gate X0 including the simulated 53-bit
+longdouble, X1 (six cases), the extended potential blocks, the unmerged-vs-merged operator, the exact extended product with a rounded matrix, X2 (four cases), X3 (three cases), X6, dense mixing
+(mpmath dense solve and the three existing solvers on a toy), the error decomposition with a stand-in double method, gate X4 logic at its boundaries, e_ind, and the classification rules including their boundaries.
+Audit results: no import of, or reference to, an existing solver module in the implementation; the 18 protected file hashes and the four prior result trees (B1, B2, B3, B3X) are unchanged; no B3Y result directory exists.
+
 ---
 
 ## Part I-B: Protocol self-audit
@@ -253,8 +321,8 @@ If these priors hold, no exceedance of 10⁻¹⁰ is expected at 1/1024 and a ma
 | # | Ambiguity | Resolution | Needs your review |
 |---|---|---|---|
 | A1 | "exact failed energy points" | the five B3X rows with `passed = False`, identified by configuration id and full-precision E; the "371.4" label occurs twice | no |
-| A2 | what happens when \|ΔS\| > 10⁻¹⁰ | §I.8.2–I.8.3: inconclusive until Tier 3 adjudicates | **yes: the factor-10-per-halving rule (item 4)** is my choice; the probe shows single-method error growing ×8 then ×5 per halving |
-| A3 | how uncertain M4 itself is | u_XP defined in §I.6; adjudication requires u_XP ≤ 10⁻¹¹ | yes |
+| A2 | what happens when \|ΔS\| > 10⁻¹⁰ | §I.8.2–I.8.3: inconclusive until Tier 3 adjudicates. Revision 1: the factor-10 rule is an operational classification, not a proof | accepted in revision 1 |
+| A3 | how reliable M4's own answer is | convergence/error indicator e_ind (§I.6), not a rigorous bound; adjudication requires e_ind ≤ 10⁻¹¹ | accepted in revision 1 (threshold unchanged) |
 | A4 | the authorization does not name the methods of the buffer control | M1 and M3 (M4 excluded to keep it cheap) | yes |
 | A5 | which k enters ρ | lowest-k open channel (largest open n); formula in the JSON | no (diagnostic only) |
 | A6 | meaning of "full pass" | §I.8.3 item 5; "PASS" is unreachable with any exceedance | no |
@@ -281,8 +349,8 @@ but M4's accuracy comes from the extended-precision residual, not from the LU.
 ### I-B.3 Can Tier 3 actually separate operator representation error from solver error?
 **Argument.** The decomposition is an identity: S_double − S_exact = [S(x_fl(A)) − S_exact] + [S_double − S(x_fl(A))]. It is realized by two refinements, one against the unmerged exact
 operator (giving S_exact) and one against the rounded matrix entries (giving S(x_fl(A))); both use extended-precision residuals and the same double LU as a preconditioner. It works if:
-(i) both refinements converge (contraction ≈ κ̂ε_double ≈ 10⁻⁹ ≪ 1); (ii) the extended-precision error κ̂ε_ld ≲ 10⁻¹² is well below the quantities being separated (≈ 10⁻¹¹ – 10⁻¹⁰), i.e. u_XP ≤ 10⁻¹¹ (gate X7); (iii) the representation
-term is large enough to resolve (predicted from the diagonal ulp to be ≈ 10⁻¹¹ – 10⁻¹⁰ at dx = 1/2048). If a term is below u_XP it is reported as unresolved.
+(i) both refinements converge (contraction ≈ κ̂ε_double ≈ 10⁻⁹ ≪ 1); (ii) the extended-precision error κ̂ε_ld ≲ 10⁻¹² is well below the quantities being separated (≈ 10⁻¹¹ – 10⁻¹⁰), i.e. e_ind ≤ 10⁻¹¹ (gate X7; an indicator, not a rigorous bound); (iii) the representation
+term is large enough to resolve (predicted from the diagonal ulp to be ≈ 10⁻¹¹ – 10⁻¹⁰ at dx = 1/2048). A term is resolved only if it exceeds 10 × e_ind; otherwise it is unresolved and no dominance claim is allowed (UNEXPLAINED).
 **Evidence so far (§I.9):** on a synthetic single-channel chain both refinements converge in two steps, M4-style error vs the mpmath exact lattice answer is ≤ 2×10⁻¹⁷ and the three terms are cleanly
 separated (representation dominant, solver smaller).
 **Limits:** (a) multichannel dense blocks and the real κ̂ are untested until gates X2–X8; (b) M1 has no explicit matrix, so its representation and solver errors cannot be separated, only its total;
@@ -298,8 +366,8 @@ separated (representation dominant, solver smaller).
 7. A finite number of grids cannot prove continuum convergence; B3Y makes no such claim.
 
 ### I-B.5 Items I ask you to approve or change before any run
-A2 (factor 10), A3/A10 (u_XP ≤ 10⁻¹¹ and the M4 gate tolerances), A4 (buffer control methods), A8, A9 (H1 spread limit). The code (`sparse_exact_lattice.py`, `validate_rgf_b3y.py`, tests) is **not** written yet; I propose
-writing it, with unit tests on synthetic problems only, as the next step after approval, and running nothing on B3Y points until you approve the numerical stage.
+A2 and A3 were settled in revision 1. Still open from the first review: A4 (buffer control methods), A8, A9 (H1 spread limit), A10 (gate tolerances), plus the two new numbers of revision 1 (`dominance_factor` = 2, `term_resolution_factor` = 10).
+`sparse_exact_lattice.py` is implemented with synthetic tests only; `validate_rgf_b3y.py` is not written, and nothing is run on B3Y points until the numerical stage is authorized.
 
 ## Part II: Results
 *Not yet written. No B3Y numerical comparison has been run.*
