@@ -4,7 +4,7 @@ Phase 2, follow-up of [B3X](RGF_B3X_VALIDATION.md) (unchanged). Date: 2026-11-07
 Machine-readable protocol: [rgf_b3y_protocol.json](rgf_b3y_protocol.json).
 Base commit: `5360a9f` (merge of PR #6).
 
-**Status: protocol (revision 1) and the synthetic implementation of Tier 3. No B3Y numerical comparison has been run.** Part I was written
+**Status: protocol (revision 2) and the synthetic implementation of Tier 3. No B3Y numerical comparison has been run (until Part II below is written).** Part I was written
 before any B3Y number exists; Part II (results) is appended only after the protocol is approved and the runs
 are done. The only numerical work done in this stage is the synthetic design-verification probe of §I.9
 (a single-channel chain; it uses no B3Y point and no output of the RGF or of any B3X reference).

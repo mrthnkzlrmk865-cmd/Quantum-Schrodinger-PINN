@@ -70,6 +70,9 @@ CODE_FILES = {
                "sparse_reference.py", "validate_rgf_b3.py"],
     "rgf_b3x": ["config.py", "potential.py", "disorder.py", "smatrix_spec.py", "stationary.py",
                 "sparse_reference.py", "sparse_wavefunction.py", "validate_rgf_b3.py", "validate_rgf_b3x.py"],
+    "rgf_b3y": ["config.py", "potential.py", "disorder.py", "smatrix_spec.py", "stationary.py",
+                "sparse_reference.py", "sparse_wavefunction.py", "sparse_exact_lattice.py", "validate_rgf_b3.py",
+                "validate_rgf_b3x.py", "validate_rgf_b3y.py"],
 }
 
 # Config fields that never influence a reference-solver result.
@@ -160,6 +163,7 @@ ENV_PACKAGES = {
     "rgf_b2": ("python", "numpy", "scipy", "machine"),
     "rgf_b3": ("python", "numpy", "scipy", "machine"),
     "rgf_b3x": ("python", "numpy", "scipy", "machine"),
+    "rgf_b3y": ("python", "numpy", "scipy", "machine"),
     "pinn": ("python", "numpy", "scipy", "torch", "machine"),
 }
 

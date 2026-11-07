@@ -66,6 +66,7 @@ ORDERING_TOL = 1e-13
 ERROR_INDICATOR_MAX = 1e-11
 VALIDATION_ABS = 1e-10
 MPMATH_DPS = 50
+CHUNK_BYTES = 256 * 1024 * 1024    # memory budget of one chunk of apply_matrix_extended (bitwise result independent of the chunking)
 GROWTH_PER_HALVING_MAX = 10.0
 DOMINANCE_FACTOR = 2.0
 TERM_RESOLUTION_FACTOR = 10.0
@@ -245,6 +246,9 @@ def apply_matrix_extended(M: sp.spmatrix, X: np.ndarray, chunk_rows: int = 20000
     Y = np.zeros((n, nr), dtype=CLD)
     indptr, indices = M.indptr, M.indices
     data = M.data.astype(np.complex128).astype(CLD)
+    nnz_row = max(1, int(indptr[-1]) // max(n, 1))
+    budget_rows = max(1, int(CHUNK_BYTES // (nnz_row * max(nr, 1) * 32)))        # bound the (nnz x nrhs) clongdouble temporary
+    chunk_rows = max(1, min(chunk_rows, budget_rows))
     for r0 in range(0, n, chunk_rows):
         r1 = min(r0 + chunk_rows, n)
         a, b = indptr[r0], indptr[r1]
@@ -280,7 +284,13 @@ def condition_estimate_1norm(M: sp.csc_matrix, lu) -> float:
     n = M.shape[0]
     lo = spla.LinearOperator((n, n), matvec=lambda v: lu.solve(v), rmatvec=lambda v: lu.solve(v, trans="H"),
                              matmat=lambda m: lu.solve(m), rmatmat=lambda m: lu.solve(m, trans="H"), dtype=complex)
-    return float(spla.norm(M, 1) * spla.onenormest(lo, t=4))
+    state = np.random.get_state()                       # scipy's onenormest draws random starting vectors from the GLOBAL numpy RNG:
+    np.random.seed(20240607)                            # fix it so kappa_1 (and hence e_ind) is reproducible run to run; the RNG state is restored
+    try:
+        est = spla.onenormest(lo, t=4)
+    finally:
+        np.random.set_state(state)
+    return float(spla.norm(M, 1) * est)
 
 
 # ----------------------------------------------------------------------
