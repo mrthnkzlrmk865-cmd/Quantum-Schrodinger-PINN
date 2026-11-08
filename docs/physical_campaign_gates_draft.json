@@ -722,8 +722,16 @@
   "decisions": [
    "REJECTED",
    "NOT REJECTED",
-   "NOT RESOLVED - Monte Carlo ambiguous"
-  ]
+   "NOT RESOLVED — Monte Carlo ambiguous"
+  ],
+  "B_stage1": 100000,
+  "B_stage2": 1000000,
+  "mc_alpha_total": 0.01,
+  "mc_alpha_per_test_stage1": 7.352941176470589e-05,
+  "mc_alpha_per_test_stage2": 7.352941176470589e-05,
+  "holm_alpha": 0.05,
+  "rank_tie_rule": "ascending p_hi_final; ties broken by protocol test order (observables in listed order, then contrast list order); affects only the reported rank/threshold, not the Holm rejection set",
+  "schema_note": "columns follow docs/PHYSICAL_CAMPAIGN_PLAN.md section 5.3 (h) / R3-5; K_stage1 is the Stage-1 exceedance count of every test, needed to verify the Stage-2 selection rule (f)"
  },
  "stages": [
   "C6_clean_guide",
@@ -758,7 +766,9 @@
    "W",
    "zeta",
    "seed",
-   "bitwise_equal"
+   "bitwise_equal",
+   "selection_algorithm",
+   "selection_seed"
   ],
   "solver_cross_check": [
    "W",
@@ -804,7 +814,21 @@
   "tests": [
    "observable",
    "contrast_id",
+   "theta_hat",
+   "ci95_sampling_lo",
+   "ci95_sampling_hi",
+   "K_stage1",
+   "K",
+   "B",
+   "stage",
    "p_hat",
+   "mc_se",
+   "mc_ci_sim99_lo",
+   "mc_ci_sim99_hi",
+   "p_lo_final",
+   "p_hi_final",
+   "holm_rank",
+   "holm_threshold",
    "p_holm_adj_from_phi",
    "decision"
   ],
@@ -826,5 +850,7 @@
   "not_evaluable": [
    "NOT EVALUABLE"
   ]
- }
+ },
+ "reproducibility_selection": null,
+ "reproducibility_selection_note": "PROTOCOL DECISION REQUIRED: the plan specifies a '1 % random subset' (count ceil(0.01 * 16 * N) distinct (W, zeta, seed) units of the confirmatory ensemble) but no selection algorithm or seed. Until both are fixed in the protocol the C0 reproducibility gate is NOT EVALUABLE (fail-closed); no seed is invented."
 }
