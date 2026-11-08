@@ -11,6 +11,8 @@ Approved in the review of revision 2 and not reopened: τ̄ primary / T̄1 secon
 | R3-1 | Monte Carlo intervals used for the Holm decision | 99 % Clopper–Pearson interval **per test** (marginal) | **Bonferroni-adjusted Clopper–Pearson intervals with simultaneous coverage ≥ 99 % over everything used in the decision, across both stages**: per-test two-sided level α₁ = 0.005/68 in Stage 1 and α₂ = 0.005/68 in Stage 2 (total MC error budget 0.01) | marginal 99 % intervals give no 99 % coverage over 68 tests (review) |
 | R3-2 | definitions | p-value formula only | explicit definitions of the exceedance count K, the plus-one estimator, the probability parameter π covered by the interval, the comparison of interval endpoints with Holm (monotonicity argument), Stage-2 selection and use, and the conservative final rule (§5.3) | review |
 | R3-3 | Stage-2 counts | "recomputed with B₂ = 10⁶" | Stage-2 counts **replace** (are not pooled with) the Stage-1 counts for the selected tests; no Stage 3; the selection rule is fixed in advance | avoid data-dependent pooling/extension |
+| R3-4 | wording of p̂ (§5.3 (b)) | "the standard valid Monte Carlo p-value" | "plus-one-corrected Monte Carlo estimate of the ideal bootstrap tail probability π"; validity of the test attributed to the asymptotic validity of the paired bootstrap; estimator unchanged | review (wording only) |
+| R3-5 | reporting (§5.3 (h), §5.1) | adjusted p not listed; interval labels not separated | Holm-adjusted p computed from p^hi_final is a required column; sampling CI (`ci95_sampling`) and simultaneous MC interval (`mc_ci_sim99`) have distinct columns and labels | review (reporting only) |
 
 ## Changes in revision 2 (with respect to revision 1)
 
@@ -121,7 +123,7 @@ Energies of one realization are correlated: standard errors are always across re
 
 ### 5.1 Estimates and intervals
 
-* Per (cell, E, observable): mean, sample SD (ddof = 1), **SE = SD/√N**, 95 % percentile-bootstrap CI over realizations (B₁ = 10⁵ resamples), median, IQR, min, max, skewness. SD (spread of the population of realizations), SE (uncertainty of the mean) and the CI are separate columns. Primary (τ̄) and secondary (T̄1) results are in separate tables.
+* Per (cell, E, observable): mean, sample SD (ddof = 1), **SE = SD/√N**, 95 % percentile-bootstrap CI over realizations (B₁ = 10⁵ resamples; labelled "sampling CI" everywhere, to keep it distinct from the Monte Carlo intervals of §5.3), median, IQR, min, max, skewness. SD (spread of the population of realizations), SE (uncertainty of the mean) and the CI are separate columns. Primary (τ̄) and secondary (T̄1) results are in separate tables.
 ### 5.2 Confirmatory tests, Holm correction and bootstrap resolution
 
 * **Contrasts** (defined identically for O = τ̄ and O = T̄1; definitions unchanged from revision 1): C-W: Ō(2W, ζ) − Ō(W, ζ), 3 steps × 4 ζ = 12; C-ζ: Ō(W, 2ζ) − Ō(W, ζ), 12; C-int: difference of differences over adjacent (W, ζ) steps, 3 × 3 = 9; C-iso: least-squares slope of Ō against ln ζ along the W·ζ = 5 line, 1. 34 per observable, **68 in total**.
@@ -141,11 +143,11 @@ All quantities in this subsection are computed separately for each of the m = 68
 **(a) Bootstrap replicate and exceedance count.** A replicate b resamples N seeds with replacement from the confirmatory seeds; the same resampled seed list is applied to all 16 cells, all energies and both observables (paired design), and θ*_{i,b} is the contrast i recomputed from the resampled realizations. With θ̂_i the contrast on the original data, the **exceedance count** is
 K_i = #{ b = 1 … B : |θ*_{i,b} − θ̂_i| ≥ |θ̂_i| }  (null-centred, two-sided; ties count as exceedances, which is conservative).
 
-**(b) p-value estimator.** The reported p-value is the **plus-one** Monte Carlo estimator p̂_i = (K_i + 1)/(B + 1). It is never 0 (minimum 1/(B+1)) and is the standard valid Monte Carlo p-value (Davison & Hinkley 1997; Phipson & Smyth 2010). Its MC standard error is reported as √(p̂_i(1−p̂_i)/B).
+**(b) Estimator.** The reported value p̂_i = (K_i + 1)/(B + 1): the **plus-one-corrected Monte Carlo estimate of the ideal bootstrap tail probability π_i** defined in (c). The correction keeps it strictly positive (minimum 1/(B+1)) and slightly conservative relative to K_i/B. Its Monte Carlo standard error √(p̂_i(1−p̂_i)/B) is reported. It is an estimate of π_i, not a p-value with an exact finite-sample guarantee of its own: the scientific validity of the test rests on the asymptotic validity of the paired bootstrap under the null hypothesis (see (i)), and the Monte Carlo uncertainty of p̂_i about π_i is quantified separately by the interval in (c)–(d).
 
 **(c) Parameter covered by the interval.** Conditional on the observed data, the B replicates are independent draws from the bootstrap distribution, so K_i ~ Binomial(B, π_i) exactly, with
 π_i = P*( |θ* − θ̂_i| ≥ |θ̂_i| ),
-the **ideal (B → ∞) bootstrap p-value** of test i. The Clopper–Pearson interval [π_i^lo, π_i^hi] covers π_i; it quantifies **Monte Carlo error only**, not the sampling uncertainty of the data (which is what the bootstrap test itself addresses) and not the asymptotic accuracy of the bootstrap.
+the **ideal bootstrap tail probability** of test i (the value the bootstrap p-value would take as B → ∞). The Clopper–Pearson interval [π_i^lo, π_i^hi] covers π_i; it quantifies **Monte Carlo error only**, not the sampling uncertainty of the data (which is what the bootstrap test itself addresses) and not the asymptotic accuracy of the bootstrap.
 
 **(d) Simultaneous coverage.** Each interval is the exact two-sided Clopper–Pearson interval at per-test level α_MC (lower limit Beta(α_MC/2; K, B−K+1), upper limit Beta(1−α_MC/2; K+1, B−K); lower = 0 if K = 0, upper = 1 if K = B). Clopper–Pearson coverage is ≥ 1 − α_MC for every π (exact-conservative). By the Bonferroni inequality, the probability that *any* of a set of intervals misses its π is at most the sum of their α_MC, **whatever the dependence between them** — this matters because all 68 counts of one stage come from the same replicates and are strongly dependent. The total MC error budget is split equally between the stages:
 * Stage 1 (B₁ = 10⁵, all 68 tests): α₁ = 0.005/68 ≈ 7.35×10⁻⁵ per test;
@@ -167,7 +169,17 @@ Thus every test in H(p^hi) is rejected by the ideal bootstrap Holm procedure, an
 
 **(g) Conservative decision if Stage 2 remains ambiguous.** Only tests in **R_claim** may be reported as rejected (and only R_claim enters "resolved", together with the control conditions of §5.2). Tests in A_final are reported as **"NOT RESOLVED — Monte Carlo ambiguous"** with their counts, p̂, intervals and the Holm thresholds they straddle; they are never counted as rejections and never as "no effect". Because R_claim is computed from the upper vector of *all* 68 tests, a residual ambiguity in one test cannot make another test's claim more liberal. No further resamples are drawn after Stage 2.
 
-**(h) Reported per test:** θ̂_i; unadjusted 95 % percentile CI (Stage-1 replicates); K_i, B and the stage used; p̂_i and its MC SE; the simultaneous MC interval [π_i^lo, π_i^hi] with its per-test level; Holm rank and threshold; the decision (rejected / not rejected / MC-ambiguous). The bootstrap seeds of both stages and the total MC error budget (0.01) are recorded in the metadata.
+**(h) Reported per test** (one row per test i; the two kinds of interval are always in separately named columns and never share a label):
+* θ̂_i (the contrast estimate);
+* **sampling interval** — column `ci95_sampling_lo/hi`, label "95 % percentile-bootstrap CI (sampling uncertainty of the data; unadjusted for multiplicity)", from the Stage-1 replicates;
+* K_i, B and the stage whose count is used (1 or 2);
+* p̂_i (plus-one estimate of π_i) and its MC SE;
+* **Monte Carlo interval** — column `mc_ci_sim99_lo/hi`, label "simultaneous ≥ 99 % Clopper–Pearson interval for π_i (Monte Carlo uncertainty only; per-test level 0.005/68 in its stage)" — i.e. [π_i^lo, π_i^hi];
+* p_i^hi_final = max(π_i^hi, p̂_i) and p_i^lo_final;
+* Holm rank (in the ordering of p^hi_final) and the corresponding threshold α/(m − rank + 1);
+* **Holm-adjusted p-value from p^hi_final** — column `p_holm_adj_from_phi`: with p^hi_final sorted ascending, p_(j)^adj = max_{k ≤ j} min{1, (m − k + 1) p_(k)^hi_final}, mapped back to the tests; test i is in R_claim iff its adjusted value ≤ 0.05 (equivalent to the step-down definition of R_claim);
+* decision: REJECTED (in R_claim) / NOT REJECTED / NOT RESOLVED — Monte Carlo ambiguous (in A_final).
+Summary tables use the same separation: effect-size tables show only the sampling CIs; decision tables show p̂, the simultaneous MC interval and the Holm-adjusted p from p^hi_final. The bootstrap seeds of both stages and the total MC error budget (0.01) are recorded in the metadata.
 
 **(i) What the 99 % refers to.** It is the probability, over the Monte Carlo resampling only, that the reported Holm decisions agree with those of the ideal (B → ∞) bootstrap procedure in the conservative direction. The family-wise error control of the *scientific* conclusions is the Holm α = 0.05 (asymptotic validity of the paired bootstrap test assumed); the two are separate and both are stated.
 
@@ -235,6 +247,6 @@ Purpose: test whether level-2 (asymptotic energy-integrated) packet transmission
 
 Approved in earlier reviews (recorded, not reopened): 4×4 grid with the W·ζ = 5 iso-line; 40-seed pilot and χ² upper-bound rule with disjoint pilot/confirmatory seeds, N_max = 1000 and pause-for-decision; buffer 205/512; C4 and C7; fail-closed driver as prerequisite; equivalence framework (0.25 h, TOST at α = 0.05, under-powered rule); τ̄ primary / T̄1 secondary with LOW PRECISION rules; the single 68-test Holm family; the 10⁵ / 10⁶ two-stage bootstrap with an independent Stage-2 stream; per-control h; separate τ̄/T̄1 control evaluation.
 
-Open for approval: the Monte Carlo procedure of §5.3 — Bonferroni-adjusted Clopper–Pearson intervals (α₁ = α₂ = 0.005/68, total budget 0.01, simultaneous coverage ≥ 99 % across both stages), the definitions (a)–(c), the endpoint rule p^hi = max(π^hi, p̂), the replacement (not pooling) of Stage-1 counts for the selected tests, and the conservative rule (g).
+§5.3 architecture approved in the review of revision 3 (budget split α₁ = α₂ = 0.005/68, conditional Clopper–Pearson intervals for π, independent Stage-2 stream with replacement of counts, endpoint vectors and Holm monotonicity, conservative handling of residual ambiguity). Open for confirmation: the wording clarification R3-4 and the reporting clarification R3-5 (no change to the statistical procedure).
 
 After approval: the next implementation task is **only** the fail-closed driver and its mutation tests; the protocol is frozen and hashed after the pilot addendum, before any confirmatory run.

@@ -1,0 +1,856 @@
+{
+ "name": "Physical ensemble campaign: fail-closed gate specification",
+ "status": "DRAFT - NOT frozen, NOT hashed, NOT an approved run protocol. Machine-readable transcription of docs/PHYSICAL_CAMPAIGN_PLAN.md (commit c4d1dc1) sections 3-8, used only by the fail-closed driver and its tests. It will be superseded by the frozen protocol after the pilot addendum.",
+ "source_plan_commit": "c4d1dc1",
+ "grid": {
+  "W": [
+   25.0,
+   50.0,
+   100.0,
+   200.0
+  ],
+  "zeta": [
+   0.025,
+   0.05,
+   0.1,
+   0.2
+  ],
+  "iso_line_W_times_zeta": 5.0,
+  "corner_cells": [
+   [
+    25.0,
+    0.025
+   ],
+   [
+    25.0,
+    0.2
+   ],
+   [
+    200.0,
+    0.025
+   ],
+   [
+    200.0,
+    0.2
+   ]
+  ]
+ },
+ "energies": {
+  "kx0": 20.0,
+  "j": [
+   -2,
+   -1,
+   0,
+   1,
+   2
+  ],
+  "n_energies": 5,
+  "sigma_k_definition": "1/(sqrt(2) sigma_x), sigma_x = 0.2"
+ },
+ "observables": {
+  "primary": "tau_bar",
+  "secondary": "T1_bar"
+ },
+ "seeds": {
+  "confirmatory_first": 1,
+  "N": null,
+  "N_min": 100,
+  "N_max": 1000,
+  "N_note": "fixed by the pilot addendum (plan section 3.1); the driver refuses to build the gate registry without it",
+  "pilot_seeds": [
+   10001,
+   10040
+  ]
+ },
+ "limits": {
+  "unitarity": 1e-10,
+  "reciprocity": 1e-08,
+  "lead_tail_guard": 1e-06,
+  "solver_cross_check_S_abs": 1e-10,
+  "b3y_reproduction_abs_dT1": 1e-06,
+  "clean_guide_Tnn_abs": 1e-12,
+  "delta": 0.02,
+  "equivalence_fraction_of_h": 0.25,
+  "tost_alpha": 0.05,
+  "underpowered_fraction_of_eps": 0.5,
+  "control_seed_extension_max": 100,
+  "reproducibility_subset_fraction": 0.01,
+  "holm_alpha": 0.05
+ },
+ "controls": {
+  "C1": {
+   "what": "dx 1/1024 vs 1/512",
+   "cells": "all",
+   "n_seeds": 20,
+   "observables": [
+    "tau_bar",
+    "T1_bar"
+   ],
+   "contrasts": "covered"
+  },
+  "C1b": {
+   "what": "dx 1/2048 vs 1/1024",
+   "cells": "corners",
+   "n_seeds": 5,
+   "observables": [
+    "tau_bar",
+    "T1_bar"
+   ],
+   "contrasts": "covered"
+  },
+  "C2": {
+   "what": "M3 vs M1, max|dS|",
+   "cells": "all",
+   "n_seeds": 10,
+   "energies": "all"
+  },
+  "C3": {
+   "what": "N_y 127 / N_q 254 vs 63 / 127",
+   "cells": [
+    [
+     25.0,
+     0.025
+    ],
+    [
+     200.0,
+     0.025
+    ]
+   ],
+   "n_seeds": 10,
+   "observables": [
+    "tau_bar",
+    "T1_bar"
+   ],
+   "contrasts": "covered"
+  },
+  "C4": {
+   "what": "buffer 410/512 vs 205/512 (adverse subset)",
+   "cells": "corners",
+   "n_seeds": 10,
+   "observables": [
+    "tau_bar",
+    "T1_bar"
+   ],
+   "contrasts": "covered"
+  },
+  "C5": {
+   "what": "B3Y reproduction, seed 0",
+   "W": 200.0,
+   "zeta": [
+    0.05,
+    0.2
+   ],
+   "energies": "all"
+  },
+  "C6": {
+   "what": "clean guide W = 0",
+   "energies": "all"
+  },
+  "C7": {
+   "what": "precision target, primary only",
+   "observable": "tau_bar",
+   "units": [
+    "cells",
+    "contrasts"
+   ]
+  }
+ },
+ "contrasts": [
+  {
+   "id": "CW:z0.025:W25-50",
+   "family": "C-W",
+   "cells": [
+    [
+     50.0,
+     0.025
+    ],
+    [
+     25.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.025:W50-100",
+   "family": "C-W",
+   "cells": [
+    [
+     100.0,
+     0.025
+    ],
+    [
+     50.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.025:W100-200",
+   "family": "C-W",
+   "cells": [
+    [
+     200.0,
+     0.025
+    ],
+    [
+     100.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.05:W25-50",
+   "family": "C-W",
+   "cells": [
+    [
+     50.0,
+     0.05
+    ],
+    [
+     25.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.05:W50-100",
+   "family": "C-W",
+   "cells": [
+    [
+     100.0,
+     0.05
+    ],
+    [
+     50.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.05:W100-200",
+   "family": "C-W",
+   "cells": [
+    [
+     200.0,
+     0.05
+    ],
+    [
+     100.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.1:W25-50",
+   "family": "C-W",
+   "cells": [
+    [
+     50.0,
+     0.1
+    ],
+    [
+     25.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.1:W50-100",
+   "family": "C-W",
+   "cells": [
+    [
+     100.0,
+     0.1
+    ],
+    [
+     50.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.1:W100-200",
+   "family": "C-W",
+   "cells": [
+    [
+     200.0,
+     0.1
+    ],
+    [
+     100.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.2:W25-50",
+   "family": "C-W",
+   "cells": [
+    [
+     50.0,
+     0.2
+    ],
+    [
+     25.0,
+     0.2
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.2:W50-100",
+   "family": "C-W",
+   "cells": [
+    [
+     100.0,
+     0.2
+    ],
+    [
+     50.0,
+     0.2
+    ]
+   ]
+  },
+  {
+   "id": "CW:z0.2:W100-200",
+   "family": "C-W",
+   "cells": [
+    [
+     200.0,
+     0.2
+    ],
+    [
+     100.0,
+     0.2
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W25:z0.025-0.05",
+   "family": "C-zeta",
+   "cells": [
+    [
+     25.0,
+     0.05
+    ],
+    [
+     25.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W25:z0.05-0.1",
+   "family": "C-zeta",
+   "cells": [
+    [
+     25.0,
+     0.1
+    ],
+    [
+     25.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W25:z0.1-0.2",
+   "family": "C-zeta",
+   "cells": [
+    [
+     25.0,
+     0.2
+    ],
+    [
+     25.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W50:z0.025-0.05",
+   "family": "C-zeta",
+   "cells": [
+    [
+     50.0,
+     0.05
+    ],
+    [
+     50.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W50:z0.05-0.1",
+   "family": "C-zeta",
+   "cells": [
+    [
+     50.0,
+     0.1
+    ],
+    [
+     50.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W50:z0.1-0.2",
+   "family": "C-zeta",
+   "cells": [
+    [
+     50.0,
+     0.2
+    ],
+    [
+     50.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W100:z0.025-0.05",
+   "family": "C-zeta",
+   "cells": [
+    [
+     100.0,
+     0.05
+    ],
+    [
+     100.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W100:z0.05-0.1",
+   "family": "C-zeta",
+   "cells": [
+    [
+     100.0,
+     0.1
+    ],
+    [
+     100.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W100:z0.1-0.2",
+   "family": "C-zeta",
+   "cells": [
+    [
+     100.0,
+     0.2
+    ],
+    [
+     100.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W200:z0.025-0.05",
+   "family": "C-zeta",
+   "cells": [
+    [
+     200.0,
+     0.05
+    ],
+    [
+     200.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W200:z0.05-0.1",
+   "family": "C-zeta",
+   "cells": [
+    [
+     200.0,
+     0.1
+    ],
+    [
+     200.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CZ:W200:z0.1-0.2",
+   "family": "C-zeta",
+   "cells": [
+    [
+     200.0,
+     0.2
+    ],
+    [
+     200.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CI:W25-50:z0.025-0.05",
+   "family": "C-int",
+   "cells": [
+    [
+     50.0,
+     0.05
+    ],
+    [
+     25.0,
+     0.05
+    ],
+    [
+     50.0,
+     0.025
+    ],
+    [
+     25.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CI:W25-50:z0.05-0.1",
+   "family": "C-int",
+   "cells": [
+    [
+     50.0,
+     0.1
+    ],
+    [
+     25.0,
+     0.1
+    ],
+    [
+     50.0,
+     0.05
+    ],
+    [
+     25.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CI:W25-50:z0.1-0.2",
+   "family": "C-int",
+   "cells": [
+    [
+     50.0,
+     0.2
+    ],
+    [
+     25.0,
+     0.2
+    ],
+    [
+     50.0,
+     0.1
+    ],
+    [
+     25.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CI:W50-100:z0.025-0.05",
+   "family": "C-int",
+   "cells": [
+    [
+     100.0,
+     0.05
+    ],
+    [
+     50.0,
+     0.05
+    ],
+    [
+     100.0,
+     0.025
+    ],
+    [
+     50.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CI:W50-100:z0.05-0.1",
+   "family": "C-int",
+   "cells": [
+    [
+     100.0,
+     0.1
+    ],
+    [
+     50.0,
+     0.1
+    ],
+    [
+     100.0,
+     0.05
+    ],
+    [
+     50.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CI:W50-100:z0.1-0.2",
+   "family": "C-int",
+   "cells": [
+    [
+     100.0,
+     0.2
+    ],
+    [
+     50.0,
+     0.2
+    ],
+    [
+     100.0,
+     0.1
+    ],
+    [
+     50.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CI:W100-200:z0.025-0.05",
+   "family": "C-int",
+   "cells": [
+    [
+     200.0,
+     0.05
+    ],
+    [
+     100.0,
+     0.05
+    ],
+    [
+     200.0,
+     0.025
+    ],
+    [
+     100.0,
+     0.025
+    ]
+   ]
+  },
+  {
+   "id": "CI:W100-200:z0.05-0.1",
+   "family": "C-int",
+   "cells": [
+    [
+     200.0,
+     0.1
+    ],
+    [
+     100.0,
+     0.1
+    ],
+    [
+     200.0,
+     0.05
+    ],
+    [
+     100.0,
+     0.05
+    ]
+   ]
+  },
+  {
+   "id": "CI:W100-200:z0.1-0.2",
+   "family": "C-int",
+   "cells": [
+    [
+     200.0,
+     0.2
+    ],
+    [
+     100.0,
+     0.2
+    ],
+    [
+     200.0,
+     0.1
+    ],
+    [
+     100.0,
+     0.1
+    ]
+   ]
+  },
+  {
+   "id": "CISO:Wz5",
+   "family": "C-iso",
+   "cells": [
+    [
+     200.0,
+     0.025
+    ],
+    [
+     100.0,
+     0.05
+    ],
+    [
+     50.0,
+     0.1
+    ],
+    [
+     25.0,
+     0.2
+    ]
+   ]
+  }
+ ],
+ "statistics": {
+  "n_tests": 68,
+  "observables": [
+   "tau_bar",
+   "T1_bar"
+  ],
+  "decisions": [
+   "REJECTED",
+   "NOT REJECTED",
+   "NOT RESOLVED — Monte Carlo ambiguous"
+  ],
+  "B_stage1": 100000,
+  "B_stage2": 1000000,
+  "mc_alpha_total": 0.01,
+  "mc_alpha_per_test_stage1": 7.352941176470589e-05,
+  "mc_alpha_per_test_stage2": 7.352941176470589e-05,
+  "holm_alpha": 0.05,
+  "rank_tie_rule": "ascending p_hi_final; ties broken by protocol test order (observables in listed order, then contrast list order); affects only the reported rank/threshold, not the Holm rejection set",
+  "schema_note": "columns follow docs/PHYSICAL_CAMPAIGN_PLAN.md section 5.3 (h) / R3-5; K_stage1 is the Stage-1 exceedance count of every test, needed to verify the Stage-2 selection rule (f)"
+ },
+ "stages": [
+  "C6_clean_guide",
+  "C5_b3y_reproduction",
+  "main_ensemble",
+  "C0_reproducibility",
+  "C2_solver_cross_check",
+  "C1_dx_1024",
+  "C1b_dx_2048",
+  "C3_basis",
+  "C4_buffer",
+  "statistics",
+  "C7_precision"
+ ],
+ "tables": {
+  "realizations": [
+   "W",
+   "zeta",
+   "seed",
+   "energy_index",
+   "status",
+   "unitarity",
+   "reciprocity",
+   "n_open",
+   "n_open_analytic",
+   "lead_tail_max",
+   "v_hash",
+   "tau",
+   "T1"
+  ],
+  "reproducibility": [
+   "W",
+   "zeta",
+   "seed",
+   "bitwise_equal",
+   "selection_algorithm",
+   "selection_seed"
+  ],
+  "solver_cross_check": [
+   "W",
+   "zeta",
+   "seed",
+   "energy_index",
+   "max_abs_dS"
+  ],
+  "adjudication": [
+   "W",
+   "zeta",
+   "seed",
+   "energy_index",
+   "status",
+   "eps_M1",
+   "eps_M3"
+  ],
+  "b3y_reproduction": [
+   "zeta",
+   "energy_index",
+   "abs_dT1"
+  ],
+  "clean_guide": [
+   "energy_index",
+   "max_abs_Tnn_minus_1"
+  ],
+  "controls": [
+   "control_id",
+   "observable",
+   "unit_type",
+   "unit_id",
+   "n_k",
+   "d_mean",
+   "se_d",
+   "h"
+  ],
+  "precision": [
+   "observable",
+   "unit_type",
+   "unit_id",
+   "half_width"
+  ],
+  "tests": [
+   "observable",
+   "contrast_id",
+   "theta_hat",
+   "ci95_sampling_lo",
+   "ci95_sampling_hi",
+   "K_stage1",
+   "K",
+   "B",
+   "stage",
+   "p_hat",
+   "mc_se",
+   "mc_ci_sim99_lo",
+   "mc_ci_sim99_hi",
+   "p_lo_final",
+   "p_hi_final",
+   "holm_rank",
+   "holm_threshold",
+   "p_holm_adj_from_phi",
+   "decision"
+  ],
+  "stages": [
+   "stage",
+   "status",
+   "reason"
+  ]
+ },
+ "stage_status_vocabulary": [
+  "COMPLETED",
+  "FAILED",
+  "NOT RUN"
+ ],
+ "row_status_vocabulary": {
+  "ok": [
+   "OK"
+  ],
+  "not_evaluable": [
+   "NOT EVALUABLE"
+  ]
+ },
+ "reproducibility_selection": null,
+ "reproducibility_selection_note": "PROTOCOL DECISION REQUIRED: the plan specifies a '1 % random subset' (count ceil(0.01 * 16 * N) distinct (W, zeta, seed) units of the confirmatory ensemble) but no selection algorithm or seed. Until both are fixed in the protocol the C0 reproducibility gate is NOT EVALUABLE (fail-closed); no seed is invented."
+}
