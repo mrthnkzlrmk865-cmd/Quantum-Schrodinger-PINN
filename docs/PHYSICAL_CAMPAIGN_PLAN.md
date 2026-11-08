@@ -1,8 +1,18 @@
-# Physical campaign: proposal, revision 1 (NOT approved, NOT frozen, NOT run)
+# Physical campaign: proposal, revision 2 (NOT frozen, NOT hashed, NOT run)
 
-Status: **revised proposal for review.** No campaign code exists, no simulation was run, no number below is a result, and this protocol has **not** been frozen or hashed. Cost figures are planning estimates from B3Y timings. Arithmetic shown (sample-size tables, χ² factors, grid counts) is pure calculation, not data.
+Status: **revised proposal for review.** Revision 1 (commit `e51b973`) was approved in direction; revision 2 resolves the two statistical issues raised in review (primary/secondary observables; bootstrap resolution) and clarifies the control references. No campaign code exists, no simulation was run, no number below is a result, and this protocol has **not** been frozen or hashed. Cost figures are planning estimates from B3Y timings. Arithmetic shown (sample-size tables, χ² factors, grid counts) is pure calculation, not data.
 
-## Changes with respect to revision 0 (every changed criterion)
+## Changes in revision 2 (with respect to revision 1)
+
+| # | item | revision 1 | revision 2 | reason |
+|---|---|---|---|---|
+| R2-1 | observable hierarchy | τ̄ and T̄1 used side by side; δ defined for τ̄ only, Holm family over both | **τ̄ primary, T̄1 secondary** (§4.1). Sample size, δ and the gating C7 check are designed for τ̄ only. The 68-test Holm family is kept, with its justification and cost stated; T̄1 achieved precision reported separately, with predeclared interpretation rules for low precision | inconsistency between §3.1 and §5 |
+| R2-2 | bootstrap count | 10⁴ resamples; claimed "adequate" for the smallest Holm threshold | **two-stage: B₁ = 10⁵ for every test and every CI; B₂ = 10⁶ for every test whose Holm decision is not Monte-Carlo stable at B₁**; Monte Carlo SE and a 99 % Clopper–Pearson interval reported for every p; MC-ambiguous decisions after B₂ are *not resolved* (§5.2) | at 10⁴ the threshold 7.35×10⁻⁴ corresponds to ≈ 7 exceedances (MC SE of p ≈ 37 % relative); the "adequate" statement was wrong |
+| R2-3 | control reference h | "h = 1.96 SE_main" without saying which estimate | **h is defined per control** (§6, table "reference estimate"): always the confirmatory estimate that is actually reported, at the reporting dx/basis/buffer, as 1.96 × its SE (not a bootstrap quantity, not a pilot quantity) | review item 6 |
+| R2-4 | wording of the equivalence interval | "90 % CI … (TOST)" and "with 95 % confidence" | **TOST equivalence test at α = 0.05** (each one-sided test at 0.05), equivalently the 1 − 2α = 90 % two-sided interval inside the margin; not called a 95 % confidence interval | review item 6 |
+| R2-5 | C1/C3/C4 for T̄1 | same gating as τ̄ | controls are evaluated for both observables; a failure on T̄1 blocks T̄1 claims for the affected cells **and** prevents overall PASS (fail-closed); it does not trigger new seeds | consistency with R2-1 and fail-closed design |
+
+## Changes in revision 1 (with respect to revision 0; kept for the record)
 
 | # | item | revision 0 | revision 1 | reason |
 |---|---|---|---|---|
@@ -18,7 +28,7 @@ Status: **revised proposal for review.** No campaign code exists, no simulation 
 | 10 | Holm family | "the contrast list" | explicit count: 34 contrasts × 2 observables = **68** | needed for Holm and for bootstrap p-value resolution |
 | 11 | scope | two-level | **three-level separation** stationary / asymptotic energy-integrated packet / time-resolved (§9) | decision |
 
-Unchanged: 10⁴ bootstrap resamples; Holm correction; paired resampling over common seeds; SD, SE and CIs reported separately; the exclusion of Anderson-localization and continuum claims.
+Unchanged in revision 1: 10⁴ bootstrap resamples (superseded by R2-2 in revision 2); Holm correction; paired resampling over common seeds; SD, SE and CIs reported separately; the exclusion of Anderson-localization and continuum claims.
 
 ## 0. Question and what B3Y provides
 
@@ -64,7 +74,7 @@ B3Y established, for **one** realization (seed 0), 16 predeclared points and dx 
 * **If N_req > 1000:** the target δ is **not** silently relaxed and N is not silently capped. The pre-registered outcome is: *PRECISION TARGET NOT MET*; the campaign is paused for a decision by the reviewer (options: raise N_max, relax δ explicitly, or run at N_max and report achieved half-widths). If run at N_max, every statement is made with the **achieved** CIs and no claim is attached to the unmet target.
 * **Pilot vs confirmatory.** Pilot: seeds 10001 … 10040, all 16 cells, 5 energies, dx = 1/512, same pipeline. Pilot data are used **only** to compute N_req; they are discarded from inference, never pooled with the confirmatory ensemble (seeds 1 … N), and reported separately. The computed N_req, N and the pilot s-values are recorded in an addendum to this protocol *before* it is frozen.
 * **Is a 40-seed pilot adequate? (and is 20?)** The relative standard error of an SD estimate is ≈ 1/√(2(n−1)): 16 % for n = 20, 11 % for n = 40 (normal theory; skewed/heavy-tailed τ̄ makes it worse). With 16 cells + 34 contrasts, the *maximum* of noisy estimates is biased upward, which is conservative but not a bound. 20 seeds would need the χ² inflation factor 1.87 (α = 0.001) instead of 1.50 and still be fragile; therefore the pilot is increased to 40. Residual risk, stated: if the true SD of the binding cell is above its σ_UCB, the achieved CI half-width will exceed δ; this is detected afterwards (achieved half-widths are always reported) and has the same consequence as the N_req > N_max case for the affected cells.
-* **Precision of the other observables** (T̄1, mode-resolved P_mn, per-energy values) is **not** targeted; their achieved intervals are reported, and no contrast on them is called resolved if its CI does not exclude 0.
+* **The rule is designed for the primary observable τ̄ only.** N is not increased to meet any precision target for the secondary observable T̄1 or for exploratory quantities (mode-resolved P_mn, per-energy values). The pilot also records the SDs of T̄1 cell means and contrasts and the T̄1 half-widths *forecast* for the chosen N; these appear in the addendum for information only and do not enter N_req.
 
 ## 4. Observables (per realization r and energy E_j; S from M1)
 
@@ -83,29 +93,59 @@ Probabilities only (independent of reference-plane convention).
 
 Energies of one realization are correlated: standard errors are always across realizations.
 
+### 4.1 Primary and secondary observables
+
+* **Primary: τ̄** — the within-realization 5-energy band average of τ = T_tot/N_open. It uses all open channels (the most information per realization), is bounded in [0, 1] and comparable across energies with different N_open. The sample-size rule (§3.1), δ = 0.02 and the gating precision check C7 refer to τ̄ only.
+* **Secondary: T̄1** — the band average of T1 (incident transverse mode n = 1, the mode of the experiment's initial packet). It is scientifically important for the wavepacket question but is a single-channel quantity and is expected to vary more between realizations; **it is not guaranteed to meet δ**.
+* **Exploratory:** per-energy values, P_mn, q_mix, ⟨m⟩₁, R, ln τ statistics.
+
+**Interpretation of T̄1 when its achieved uncertainty is larger** (predeclared):
+1. Achieved 95 % CI half-widths of every T̄1 cell mean and contrast are reported in their own columns and summarised separately from τ̄; the report never quotes δ for T̄1.
+2. A T̄1 cell or contrast with achieved half-width > 2δ = 0.04 is labelled **LOW PRECISION (secondary)**.
+3. A T̄1 contrast can still be *resolved* under the Holm rule of §5 (a large effect can be detected with a wide interval); for LOW PRECISION contrasts the report states the resolved sign and the interval, not a magnitude statement.
+4. A non-rejected T̄1 contrast is reported as "not resolved at the achieved precision" — never as "no effect" or "equal".
+5. No qualitative T̄1 trend statement ("T1 decreases with …") is made from unresolved or LOW PRECISION contrasts, and τ̄ conclusions are never extended to T̄1 (or vice versa) by analogy.
+6. T̄1 precision does not gate the campaign (C7 is τ̄-only); T̄1 resolution controls (C1, C3, C4) are gating (R2-5).
+
 ## 5. Statistics and analysis plan
 
-* Per (cell, E, observable): mean, sample SD (ddof = 1), **SE = SD/√N**, 95 % percentile-bootstrap CI over realizations (**10⁴ resamples**), median, IQR, min, max, skewness. SD (spread of the population of realizations), SE (uncertainty of the mean) and the CI are separate columns.
-* **Confirmatory family** (observables τ̄ and T̄1, 34 contrasts each ⇒ **68 tests**): C-W: τ̄(2W, ζ) − τ̄(W, ζ), 3 steps × 4 ζ = 12; C-ζ: τ̄(W, 2ζ) − τ̄(W, ζ), 12; C-int: difference of differences over adjacent (W, ζ) steps, 3 × 3 = 9; C-iso: least-squares slope of τ̄ against ln ζ along the W·ζ = 5 line, 1. Resampling is **paired over common seeds** (a seed is resampled jointly across all cells, energies and observables). Two-sided bootstrap p-values (+1 rule, resolution 1/(10⁴+1) ≈ 10⁻⁴, adequate for the smallest Holm threshold 0.05/68 ≈ 7×10⁻⁴), **Holm** correction at family-wise α = 0.05. CIs are unadjusted 95 % percentile intervals, labelled as such.
-* **A trend is called resolved** only if its Holm-adjusted p < 0.05 **and** the resolution controls of §6 are accepted for the cells involved (so the effect cannot be a lattice artefact within the demonstrated bound). Everything else — per-energy behaviour, mode-resolved structure, ln τ statistics — is exploratory and labelled so.
+### 5.1 Estimates and intervals
+
+* Per (cell, E, observable): mean, sample SD (ddof = 1), **SE = SD/√N**, 95 % percentile-bootstrap CI over realizations (B₁ = 10⁵ resamples), median, IQR, min, max, skewness. SD (spread of the population of realizations), SE (uncertainty of the mean) and the CI are separate columns. Primary (τ̄) and secondary (T̄1) results are in separate tables.
+### 5.2 Confirmatory tests, Holm correction and bootstrap resolution
+
+* **Contrasts** (defined identically for O = τ̄ and O = T̄1; definitions unchanged from revision 1): C-W: Ō(2W, ζ) − Ō(W, ζ), 3 steps × 4 ζ = 12; C-ζ: Ō(W, 2ζ) − Ō(W, ζ), 12; C-int: difference of differences over adjacent (W, ζ) steps, 3 × 3 = 9; C-iso: least-squares slope of Ō against ln ζ along the W·ζ = 5 line, 1. 34 per observable, **68 in total**.
+* **Why one 68-test Holm family.** Both τ̄ (primary) and T̄1 (secondary, the incident mode of the packet) are to support confirmatory statements, so the family-wise error rate is controlled over all of them at α = 0.05. Cost, stated: the primary tests face stricter thresholds than in a τ̄-only family (smallest 0.05/68 ≈ 7.35×10⁻⁴ instead of 0.05/34 ≈ 1.47×10⁻³). A gatekeeping order (τ̄ first, T̄1 only after) was considered and not chosen, because it would make secondary claims conditional on primary outcomes. If the reviewer prefers to protect the primary family's power, the alternative is a 34-test Holm family for τ̄ with T̄1 tests reported as exploratory; the choice must be fixed before freezing.
+* **Resampling:** paired over common seeds (a seed is resampled jointly across all cells, energies and observables); the bootstrap RNG seeds are fixed and recorded.
+* **p-value:** two-sided, null-centred bootstrap, p = (1 + #{b : |θ*_b − θ̂| ≥ |θ̂|}) / (B + 1).
+* **Monte Carlo resolution (why 10⁴ is not enough):** the MC standard error of an estimated p is √(p(1−p)/B). At the smallest Holm threshold p ≈ 7.35×10⁻⁴: B = 10⁴ → ≈ 7 expected exceedances, MC SE ≈ 2.7×10⁻⁴ (37 % relative); B = 10⁵ → ≈ 74, 8.6×10⁻⁵ (12 %); B = 10⁶ → ≈ 735, 2.7×10⁻⁵ (3.7 %).
+* **Two-stage procedure.** Stage 1: every one of the 68 tests (and every CI) with B₁ = 10⁵. For each test, the 99 % Clopper–Pearson interval [p_lo, p_hi] of its exceedance proportion is computed. Holm is applied twice, once to all p_hi and once to all p_lo; because Holm's step-down is monotone in the p-values, the rejection set at p_hi is contained in the one at p_lo. A test whose decision differs between the two is **MC-ambiguous**. Stage 2: every MC-ambiguous test is recomputed with an independent stream and B₂ = 10⁶; the two-sided Holm evaluation is repeated with the stage-2 p-values for those tests. A test that is still MC-ambiguous is reported as **not resolved (Monte Carlo ambiguous)** — the conservative decision (the p_hi set) is the one used for claims.
+* **Reported for every test:** θ̂, unadjusted 95 % percentile CI, exceedance count, B, p, MC SE of p, 99 % CP interval, Holm-adjusted p, decision, and the stage that fixed it.
+* **Cost:** B₂ = 10⁶ with N ≤ 1000 seeds and 32 cell means per replicate is a few × 10¹⁰ elementary operations, i.e. minutes, chunked (estimate). It involves no new simulation.
+* **A trend is called resolved** only if (i) its Holm decision is a rejection at the conservative (p_hi) end, (ii) it is not MC-ambiguous, and (iii) the resolution controls of §6 are accepted for the cells involved and the observable concerned. Everything else is exploratory and labelled so.
 * Descriptive reference only (no inference): τ = 1 (ballistic) and the diffusive-slab form ℓ/(L_d + ℓ) with ℓ from the Born rate of `disorder.py` (weak-disorder approximation), used to place cells.
 * No sentence of the form "transmission decreases with W/ζ" is written unless the corresponding contrasts are resolved over the range it covers.
 
 ## 6. Controls: acceptance and fail-closed consequence
 
-**Equivalence rule for resolution/basis/buffer controls (replaces the 0.25 × SE point-estimate rule).** For a control with n_k seeds (the first n_k seeds of the main ensemble, so the control is paired with the main data), observable O ∈ {τ̄, T̄1}, cell c: d_r = O_r(fine) − O_r(main), d̄ and SE_d = s_d/√n_k. Let h_c = 1.96·SE_main,c be the half-width of the main 95 % CI (SE_main,c measured in the confirmatory ensemble) and ε_c = 0.25 h_c. The control is **accepted** iff the 90 % CI of the mean difference, d̄ ± t_{0.95, n_k−1} SE_d (two one-sided 5 % tests, TOST), lies inside (−ε_c, +ε_c). Interpretation: the lattice bias of the reported mean is, with 95 % confidence, at most a quarter of its stated sampling uncertainty; its worst-case linear addition to the error bar is ≤ 25 %, in quadrature ≤ 3.1 %. Because ε_c shrinks as N grows, a larger ensemble demands a smaller lattice error — intended, since the lattice bias must stay below the statistical resolution actually achieved. **Power check:** if t·SE_d > ε_c/2, the control is *under-powered*; n_k is extended with the next seeds (cheap) up to 100; if still under-powered the control is NOT DEMONSTRATED, treated as a failure. The same rule is applied to each confirmatory contrast (paired control difference of the contrast, ε = 0.25 × half-width of the main contrast CI); for the 1/2048 control only contrasts whose cells are all in the corner set are tested.
+**Equivalence rule for resolution/basis/buffer controls.** For a control with n_k seeds, observable O ∈ {τ̄, T̄1} and cell c, let d_r = O_r(control setting) − O_r(reporting setting) for the same seed r, with mean d̄ and SE_d = s_d/√n_k. The equivalence margin is ε_c = 0.25 h_c, where **h_c is the half-width 1.96 × SE of the confirmatory estimate that is actually reported** for that cell and observable (computed from the confirmatory ensemble at the reporting dx, basis and buffer; not from the pilot, not from the control seeds, not a bootstrap quantity, so the margin carries no Monte Carlo noise). For each control the reference estimate is named in the table below.
+The control is **accepted** iff the **TOST equivalence test at α = 0.05** rejects both H₀⁺: E[d] ≥ +ε_c and H₀⁻: E[d] ≤ −ε_c, each with a one-sided t-test at level 0.05 (n_k − 1 degrees of freedom). Equivalently, the two-sided (1 − 2α) = 90 % interval d̄ ± t_{0.95, n_k−1} SE_d lies inside (−ε_c, +ε_c). (This 90 % interval is the TOST device; it is not a 95 % confidence interval.) Meaning: the hypothesis that the setting changes the reported mean by at least a quarter of its stated sampling half-width is rejected at α = 0.05; if the bias is at most ε_c, adding it linearly to the half-width inflates the error bar by at most 25 %, in quadrature by at most 3.1 %. Because ε_c shrinks as N grows, a larger ensemble demands a smaller lattice error — intended.
+**Under-powered controls:** if t_{0.95, n_k−1} SE_d > ε_c/2 the control is under-powered; n_k is extended with the next seeds (as listed per control) up to 100; if still under-powered the control is NOT DEMONSTRATED and treated as a failure.
+**Contrasts:** the same test is applied to the paired control difference of each confirmatory contrast whose cells are all covered by the control, with ε = 0.25 × 1.96 × SE of that reported contrast.
 
-| id | control | size | acceptance | consequence of failure (fail-closed) |
+| id | control | size | acceptance (reference estimate for h) | consequence of failure (fail-closed) |
 |---|---|---|---|---|
 | C0 | per-realization gates: unitarity ≤ 10⁻¹⁰ (both products), reciprocity ≤ 10⁻⁸, open-channel count = analytic, lead-tail ≤ 10⁻⁶, V-hash recorded, bitwise-reproducible rerun of a 1 % random subset | all | all pass | the stage stops; overall cannot be PASS; the realization is **kept** in the data table with its flag, never silently excluded; investigation reported |
-| C1 | dx = 1/1024 vs 1/512 | first 20 seeds, all 16 cells, 5 E | equivalence rule (above), cell means and contrasts | failing cell(s): main data for the affected cells (and every contrast containing them) are not accepted at 1/512; they are recomputed at 1/1024 with the full ensemble and the control is repeated with 1/2048; if that also fails, results for those cells are reported as lattice-dependent, no extrapolated or continuum statement is made |
-| C1b | dx = 1/2048 vs 1/1024 | first 5 seeds, 4 corner cells | equivalence rule against the 1/1024 data | same chain; overall PASS requires either C1b accepted for the corner cells or an explicit "lattice-dependent" label on the affected cells |
+| C1 | dx = 1/1024 vs 1/512 | first 20 seeds, all 16 cells, 5 E | TOST equivalence; d_r = O(1/1024) − O(1/512); **h = 1.96 SE of the confirmatory cell mean / contrast at dx = 1/512** (the reported estimate); extension seeds 21 … 100 | failing cell(s): main data for the affected cells (and every contrast containing them) are not accepted at 1/512; they are recomputed at 1/1024 with the full ensemble and the control is repeated with 1/2048; if that also fails, results for those cells are reported as lattice-dependent, no extrapolated or continuum statement is made |
+| C1b | dx = 1/2048 vs 1/1024 | first 5 seeds, 4 corner cells | TOST equivalence; d_r = O(1/2048) − O(1/1024) on the same seeds; **h = 1.96 SE of the confirmatory corner-cell estimate at the reporting dx** (1/512 normally; 1/1024 if C1 moved that cell); extension seeds 6 … 100. Tests whether the 1/1024 level used by C1 is itself converged relative to the reported precision | same chain; overall PASS requires either C1b accepted for the corner cells or an explicit "lattice-dependent" label on the affected cells |
 | C2 | M3 vs M1 | first 10 seeds, all cells, 5 E, dx = 1/512 | max \|ΔS\| ≤ 10⁻¹⁰ (B3Y criterion, unchanged) | the realization is flagged SOLVER-DISAGREEMENT, kept in the data; adjudicated with M4 (exact lattice) as in B3Y; overall cannot be PASS while any flag is unadjudicated, and an adjudicated exceedance yields at best "COMPLETED WITH ADJUDICATED EXCEEDANCES", not PASS |
-| C3 | N_y = 127, N_q = 254 vs 63/127 | ζ = 0.025 cells (W = 25, 200), 10 seeds | equivalence rule | refine the basis for **all** cells at ζ ≤ 0.05 and re-run those cells; repeat C3 |
-| C4 | buffer 410/512 vs 205/512 | 4 corner cells, 10 seeds with the largest realized amplitude, dx = 1/512 | equivalence rule | adopt the longer buffer for the whole ensemble and recompute |
+| C3 | N_y = 127, N_q = 254 vs 63/127 | ζ = 0.025 cells (W = 25, 200), first 10 seeds | TOST equivalence; d_r = O(N_y 127/N_q 254) − O(63/127); **h = 1.96 SE of the confirmatory estimate of that cell at the reporting basis**; extension seeds 11 … 100 | refine the basis for **all** cells at ζ ≤ 0.05 and re-run those cells; repeat C3 |
+| C4 | buffer 410/512 vs 205/512 | 4 corner cells, the 10 seeds of the main ensemble with the largest realized max \|V\| in that cell (an adverse, deliberately selected subset), dx = 1/512 | TOST equivalence; d_r = O(410/512) − O(205/512); **h = 1.96 SE of the confirmatory corner-cell estimate at buffer 205/512**. Because the subset is adverse, acceptance bounds the buffer effect for the largest-amplitude realizations (conservative for the ensemble mean); extension: next-largest seeds up to 100 | adopt the longer buffer for the whole ensemble and recompute |
 | C5 | B3Y reproduction: seed 0 in (W = 200; ζ = 0.05, 0.20) at the B3Y energies | 10 solves | \|ΔT1\| ≤ 10⁻⁶ (buffers differ; B3Y K1 showed ≤ 5×10⁻¹¹) | stop: pipeline differs from the validated one; no campaign data accepted until explained |
 | C6 | clean guide W = 0 | 5 solves | T_nn = 1 within 10⁻¹² | stop |
-| C7 | pilot-sufficiency check: achieved CI half-widths of the confirmatory τ̄ cell means and contrasts ≤ δ | all | every half-width ≤ δ | PRECISION TARGET NOT MET for the failing cells: they are reported with the achieved intervals and no resolved claim relies on the unmet target; overall cannot be PASS |
+| C7 | pilot-sufficiency check, **primary observable only**: achieved 95 % CI half-widths of the confirmatory τ̄ cell means and contrasts ≤ δ | all | every τ̄ half-width ≤ δ (T̄1 half-widths reported, not gating; §4.1) | PRECISION TARGET NOT MET for the failing cells: they are reported with the achieved intervals and no resolved claim relies on the unmet target; overall cannot be PASS |
+
+Controls C1, C1b, C3 and C4 are evaluated separately for τ̄ and T̄1. A failure for T̄1 blocks T̄1 claims for the affected cells and prevents overall PASS; it does not trigger additional seeds (N is fixed by τ̄). The τ̄ consequences in the table apply as written.
 
 The mode count M = 512 defines the ensemble (it is not a numerical control) and is stated, not tested.
 
@@ -146,10 +186,14 @@ Not claimed: Anderson localization from reduced transmission alone (reduced τ a
 
 Purpose: test whether level-2 (asymptotic energy-integrated) packet transmission can be reconstructed from stationary data and how it compares with the time-dependent solver. Corrected energy grid: ±3σ_k = ±10.6, i.e. a span of 6σ_k = 21.2; with Δk = 0.25 that is 21.2/0.25 = 84.9 ⇒ **85 intervals, 86 energy points** (not 29). A coarser Δk = 0.5 gives 43 points; the spacing must be justified from the measured structure of T1(E) (resonance widths), which the 5-energy campaign cannot provide — so the follow-up begins with a spacing test on a few realizations. Provisional size: 86 energies × 4 corner cells × 50 seeds = 17,200 solves ≈ 2.4 h (1 core, estimate); plus time-dependent comparisons on a few seeds (cost to be measured), with the limitations listed in §9 and the non-equivalence of the DST and finite-difference discretizations stated. Separate approval, separate protocol.
 
-## Decisions requested (revision 1)
+## Decisions requested (revision 2)
 
-1. Approve the revised sample-size rule (§3.1) including the 40-seed pilot, α = 0.05/50, N_max = 1000 and the "N_req > N_max ⇒ pause for decision" consequence; N = 200 stays provisional.
-2. Approve the equivalence-rule acceptance for controls (0.25 h, 90 % TOST CI, power check) and the consequence table (§6) — the 0.25 factor and 90 % level are new numbers flagged for review.
-3. Approve the control C4 redefinition (410/512 vs 205/512) and the new C7.
-4. Approve the fail-closed driver design (§8) as a prerequisite work item (code + mutation tests, no simulation).
-5. Confirm the 68-test Holm family.
+Approved in the review of revision 1 (recorded, not reopened): 4×4 grid with the W·ζ = 5 iso-line; 40-seed pilot and χ² upper-bound rule with disjoint pilot/confirmatory seeds, N_max = 1000 and pause-for-decision; buffer 205/512; C4 (410/512 vs 205/512) and C7; fail-closed driver as prerequisite (with mutation tests, before any campaign code or simulation; historical B3Y files untouched); the equivalence framework (0.25 h, TOST at α = 0.05, under-powered rule).
+
+Open for approval:
+1. τ̄ primary / T̄1 secondary and the interpretation rules of §4.1 (including the 2δ LOW PRECISION label).
+2. The single 68-test Holm family (or, alternatively, a 34-test τ̄ family with T̄1 exploratory) — §5.2.
+3. Two-stage bootstrap: B₁ = 10⁵ for all tests and CIs, B₂ = 10⁶ for MC-ambiguous tests, 99 % Clopper–Pearson MC intervals, conservative decision for remaining ambiguity.
+4. The per-control reference estimates for h (§6 table).
+
+After approval: the next implementation task is **only** the fail-closed driver and its mutation tests; the protocol is frozen and hashed after the pilot addendum, before any confirmatory run.
