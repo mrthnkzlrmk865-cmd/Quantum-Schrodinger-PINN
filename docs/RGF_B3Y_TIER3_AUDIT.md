@@ -1,5 +1,7 @@
 # B3Y Tier 3: mathematical and implementation audit
 
+> **[historical] Written before the B3Y numerical campaign.** Its statements that no B3Y comparison has been run, that the driver is not yet written, and that no B3Y result file exists were true at that time. The campaign has since been completed (see Part II of `RGF_B3Y_VALIDATION.md`, results in `results/rgf_b3y_validation/`). The audit text below is unchanged.
+
 Date: 2026-11-07. Base: `origin/main` = `fdbff81ee891f8194b5923703f99c01efc10bd69` (merge of PR #7). Branch: `claude/b3y-tier3-audit`.
 Files audited: `sparse_exact_lattice.py`, `tests/test_rgf_b3y.py`, `docs/RGF_B3Y_VALIDATION.md`, `docs/rgf_b3y_protocol.json`.
 

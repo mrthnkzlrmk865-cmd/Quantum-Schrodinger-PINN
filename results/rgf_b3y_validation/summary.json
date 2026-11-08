@@ -1,0 +1,487 @@
+{
+  "problem": "B3Y",
+  "n_comparison_rows": 37,
+  "n_not_evaluable": 0,
+  "protocol_status_at_predeclaration": "PREDECLARED protocol (revision 2: Tier 3 audit); the Tier 3 module is implemented and synthetically tested; no B3Y numerical comparison has been run",
+  "campaign_status": "COMPLETED real B3Y numerical campaign",
+  "criteria": {
+    "S1_M1_vs_M2": {
+      "limit": 1e-10,
+      "max": 9.091347729705511e-11,
+      "argmax": [
+        "W200_z0.2@E88.51",
+        2048
+      ],
+      "n": 37,
+      "n_exceed": 0,
+      "status": "PASS"
+    },
+    "S2_M1_vs_M3": {
+      "limit": 1e-10,
+      "max": 7.920675442553851e-11,
+      "argmax": [
+        "W200_z0.2@E88.51",
+        2048
+      ],
+      "n": 37,
+      "n_exceed": 0,
+      "status": "PASS"
+    },
+    "S3_M2_vs_M3": {
+      "limit": 1e-10,
+      "max": 1.9523820530951114e-11,
+      "argmax": [
+        "W200_z0.2@E88.51",
+        2048
+      ],
+      "n": 37,
+      "n_exceed": 0,
+      "status": "PASS"
+    },
+    "S4_TR_offdiag": {
+      "limit": 2e-10,
+      "max": 4.0044995097687774e-11,
+      "argmax": [
+        "W200_z0.2@E88.51",
+        2048
+      ],
+      "n": 37,
+      "n_exceed": 0,
+      "status": "PASS"
+    },
+    "S5_unitarity": {
+      "n": 37,
+      "n_fail": 0,
+      "status": "PASS",
+      "max": 1.3893815229205838e-11
+    },
+    "S6_reciprocity": {
+      "n": 37,
+      "n_fail": 0,
+      "status": "PASS",
+      "max": 1.4537885087834078e-11
+    },
+    "R1_backward_error": {
+      "n": 37,
+      "n_fail": 0,
+      "status": "PASS",
+      "max": 3.1597767942505017e-15
+    },
+    "N1_channels": {
+      "n": 37,
+      "n_fail": 0,
+      "status": "PASS"
+    },
+    "P1_potential_identity": {
+      "n": 37,
+      "status": "PASS"
+    },
+    "P2_cross_resolution": {
+      "n": 6,
+      "status": "PASS"
+    },
+    "P4_lead_guard": {
+      "n": 37,
+      "n_violating": 0,
+      "status": "PASS"
+    },
+    "G0_reproduces_B3X": {
+      "n": 16,
+      "status": "PASS"
+    },
+    "XP_gates": {
+      "G0": {
+        "n": 16,
+        "status": "PASS"
+      },
+      "X0": {
+        "n": 1,
+        "status": "PASS"
+      },
+      "X1": {
+        "n": 48,
+        "status": "PASS"
+      },
+      "X2": {
+        "n": 15,
+        "status": "PASS"
+      },
+      "X3": {
+        "n": 15,
+        "status": "PASS"
+      },
+      "X6": {
+        "n": 10,
+        "status": "PASS"
+      },
+      "X8": {
+        "n": 1,
+        "status": "PASS"
+      }
+    },
+    "V1_tier3_validated": {
+      "status": "PASS"
+    },
+    "K1_buffer_control": {
+      "n": 5,
+      "max_abs_dT1": 4.6543768839057975e-11,
+      "limit": 0.0002,
+      "status": "PASS"
+    },
+    "H1_solver_independence_T1_spread": {
+      "n": 15,
+      "max": 3.2670699479098175e-11,
+      "limit": 2e-06,
+      "status": "PASS"
+    },
+    "O1_convergence_orders": {
+      "status": "CLASSIFICATION ONLY",
+      "orders": {
+        "W200_z0.02@E281.90/M1": 1.9957045776349338,
+        "W200_z0.02@E281.90/M2": 1.995704598446204,
+        "W200_z0.02@E281.90/M3": 1.9957046059642622,
+        "W200_z0.02@E281.90/M4": 1.9957046018352762,
+        "W200_z0.05@E140.47/M1": 2.002505306529046,
+        "W200_z0.05@E140.47/M2": 2.0025052553613767,
+        "W200_z0.05@E140.47/M3": 2.002505272113154,
+        "W200_z0.05@E140.47/M4": 2.0025053418872796,
+        "W200_z0.05@E204.93/M1": 1.998153097991852,
+        "W200_z0.05@E204.93/M2": 1.9981530877501021,
+        "W200_z0.05@E204.93/M3": 1.9981530948064397,
+        "W200_z0.05@E204.93/M4": 1.9981530920638313,
+        "W200_z0.05@E371.36/M1": 2.005515253317819,
+        "W200_z0.05@E371.36/M2": 2.0055152002743553,
+        "W200_z0.05@E371.36/M3": 2.005515222503547,
+        "W200_z0.05@E371.36/M4": 2.0055152807860743,
+        "W200_z0.2@E88.51/M1": 2.0047981404366086,
+        "W200_z0.2@E88.51/M2": 2.0047979262634894,
+        "W200_z0.2@E88.51/M3": 2.004797955768488,
+        "W200_z0.2@E88.51/M4": 2.004798195843885
+      },
+      "in_window": {
+        "W200_z0.02@E281.90/M1": true,
+        "W200_z0.02@E281.90/M2": true,
+        "W200_z0.02@E281.90/M3": true,
+        "W200_z0.02@E281.90/M4": true,
+        "W200_z0.05@E140.47/M1": true,
+        "W200_z0.05@E140.47/M2": true,
+        "W200_z0.05@E140.47/M3": true,
+        "W200_z0.05@E140.47/M4": true,
+        "W200_z0.05@E204.93/M1": true,
+        "W200_z0.05@E204.93/M2": true,
+        "W200_z0.05@E204.93/M3": true,
+        "W200_z0.05@E204.93/M4": true,
+        "W200_z0.05@E371.36/M1": true,
+        "W200_z0.05@E371.36/M2": true,
+        "W200_z0.05@E371.36/M3": true,
+        "W200_z0.05@E371.36/M4": true,
+        "W200_z0.2@E88.51/M1": true,
+        "W200_z0.2@E88.51/M2": true,
+        "W200_z0.2@E88.51/M3": true,
+        "W200_z0.2@E88.51/M4": true
+      }
+    }
+  },
+  "tier3_adjudication": [
+    {
+      "point": "W200_z0.02@E281.90",
+      "method": "M1",
+      "eps_by_inv_dx": {
+        "512": 1.3732936777541292e-12,
+        "1024": 3.653275571260667e-12,
+        "2048": 1.7289614648756817e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          2.660228930227945,
+          4.732633580880005
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.02@E281.90",
+      "method": "M2",
+      "eps_by_inv_dx": {
+        "512": 1.4888389188105683e-12,
+        "1024": 4.119791152034904e-12,
+        "2048": 1.4560296556022118e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          2.7671167780368076,
+          3.5342317167777537
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.02@E281.90",
+      "method": "M3",
+      "eps_by_inv_dx": {
+        "512": 1.437597861057525e-12,
+        "1024": 4.154941605639153e-12,
+        "2048": 1.649502735498145e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          2.8901974037320124,
+          3.969978141833362
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E140.47",
+      "method": "M1",
+      "eps_by_inv_dx": {
+        "512": 1.5336335365212798e-12,
+        "1024": 4.21742691584637e-12,
+        "2048": 2.2393727300513585e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          2.749957415128455,
+          5.309808029244658
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E140.47",
+      "method": "M2",
+      "eps_by_inv_dx": {
+        "512": 1.0334933179386507e-12,
+        "1024": 2.6549487489060643e-12,
+        "2048": 1.901062396525262e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          2.56890751282406,
+          7.160448567259797
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E140.47",
+      "method": "M3",
+      "eps_by_inv_dx": {
+        "512": 1.030544632844033e-12,
+        "1024": 3.96822806841014e-12,
+        "2048": 1.458157268493206e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          3.8506125226802363,
+          3.674580299708966
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E204.93",
+      "method": "M1",
+      "eps_by_inv_dx": {
+        "512": 1.8699027598416462e-12,
+        "1024": 4.1008321970075615e-12,
+        "2048": 1.7738331023746624e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          2.1930724340739745,
+          4.325544224094453
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E204.93",
+      "method": "M2",
+      "eps_by_inv_dx": {
+        "512": 5.159177754322777e-13,
+        "1024": 1.7927286492349072e-12,
+        "2048": 7.95550122881441e-12
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          3.474834042561945,
+          4.437649407906559
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E204.93",
+      "method": "M3",
+      "eps_by_inv_dx": {
+        "512": 6.130542584562114e-13,
+        "1024": 1.5640707706620385e-12,
+        "2048": 1.0026436570327976e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          2.551276251796488,
+          6.410474997933753
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E371.36",
+      "method": "M1",
+      "eps_by_inv_dx": {
+        "512": 6.947937010934345e-13,
+        "1024": 5.6781809963421485e-12,
+        "2048": 1.0646562056692735e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          8.172470457642444,
+          1.8749951901059845
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E371.36",
+      "method": "M2",
+      "eps_by_inv_dx": {
+        "512": 8.336313651467782e-13,
+        "1024": 2.7346658866239404e-12,
+        "2048": 1.6442377800830663e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          3.2804258584277783,
+          6.012572826996964
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.05@E371.36",
+      "method": "M3",
+      "eps_by_inv_dx": {
+        "512": 8.010928834977157e-13,
+        "1024": 3.191179938176296e-12,
+        "2048": 1.535884349882046e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          3.9835330008712977,
+          4.812904253715562
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.2@E88.51",
+      "method": "M1",
+      "eps_by_inv_dx": {
+        "512": 1.5094743158031964e-12,
+        "1024": 1.8229358698860077e-11,
+        "2048": 2.1329443393359938e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          12.076627278788889,
+          1.1700599974860177
+        ],
+        "passed": false
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.2@E88.51",
+      "method": "M2",
+      "eps_by_inv_dx": {
+        "512": 5.4967191177483474e-12,
+        "1024": 2.5295127200868136e-11,
+        "2048": 8.851112954941583e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          4.601859156163309,
+          3.4991375550931445
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    },
+    {
+      "point": "W200_z0.2@E88.51",
+      "method": "M3",
+      "eps_by_inv_dx": {
+        "512": 5.815466650256529e-12,
+        "1024": 2.558055911417629e-11,
+        "2048": 7.696307596020858e-11
+      },
+      "exceeds_S_target_at": [],
+      "precision_consistency": {
+        "eps_512_within_target": true,
+        "growth_per_halving": [
+          4.398711342115235,
+          3.0086549561599307
+        ],
+        "passed": true
+      },
+      "classification": "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10 (all available resolutions)"
+    }
+  ],
+  "overall_status": "PASS",
+  "overall_status_rule": "B3Y is called PASS only if every criterion is met with no exceedance; any exceedance makes the overall status PRECISION-LIMITED/PRECISION-CONSISTENT (resolved by Tier 3), UNEXPLAINED or INCONCLUSIVE, never PASS",
+  "exceedances_1e-10": [],
+  "stopped_at": null,
+  "wall_time_s": 116.79516339302063,
+  "metadata_corrections": [
+    {
+      "field": "protocol_status",
+      "action": "renamed to protocol_status_at_predeclaration; campaign_status added",
+      "reason": "the field copied the historical text of docs/rgf_b3y_protocol.json ('no B3Y numerical comparison has been run'), which is true of the protocol at predeclaration but misdescribed this results file",
+      "numerical_values_changed": false,
+      "protocol_file_changed": false,
+      "applied_after_commit": "36055a7"
+    }
+  ]
+}
