@@ -1,13 +1,23 @@
-# Physical campaign: proposal, revision 2 (NOT frozen, NOT hashed, NOT run)
+# Physical campaign: proposal, revision 3 (NOT frozen, NOT hashed, NOT run)
 
 Status: **revised proposal for review.** Revision 1 (commit `e51b973`) was approved in direction; revision 2 resolves the two statistical issues raised in review (primary/secondary observables; bootstrap resolution) and clarifies the control references. No campaign code exists, no simulation was run, no number below is a result, and this protocol has **not** been frozen or hashed. Cost figures are planning estimates from B3Y timings. Arithmetic shown (sample-size tables, χ² factors, grid counts) is pure calculation, not data.
+
+## Changes in revision 3 (with respect to revision 2)
+
+Approved in the review of revision 2 and not reopened: τ̄ primary / T̄1 secondary with the LOW PRECISION rules; the single 68-test Holm family; the two-stage 10⁵ / 10⁶ bootstrap with an independent Stage-2 stream and conservative handling of residual ambiguity; the per-control h definitions and TOST wording; separate control evaluation for τ̄ and T̄1.
+
+| # | item | revision 2 | revision 3 | reason |
+|---|---|---|---|---|
+| R3-1 | Monte Carlo intervals used for the Holm decision | 99 % Clopper–Pearson interval **per test** (marginal) | **Bonferroni-adjusted Clopper–Pearson intervals with simultaneous coverage ≥ 99 % over everything used in the decision, across both stages**: per-test two-sided level α₁ = 0.005/68 in Stage 1 and α₂ = 0.005/68 in Stage 2 (total MC error budget 0.01) | marginal 99 % intervals give no 99 % coverage over 68 tests (review) |
+| R3-2 | definitions | p-value formula only | explicit definitions of the exceedance count K, the plus-one estimator, the probability parameter π covered by the interval, the comparison of interval endpoints with Holm (monotonicity argument), Stage-2 selection and use, and the conservative final rule (§5.3) | review |
+| R3-3 | Stage-2 counts | "recomputed with B₂ = 10⁶" | Stage-2 counts **replace** (are not pooled with) the Stage-1 counts for the selected tests; no Stage 3; the selection rule is fixed in advance | avoid data-dependent pooling/extension |
 
 ## Changes in revision 2 (with respect to revision 1)
 
 | # | item | revision 1 | revision 2 | reason |
 |---|---|---|---|---|
 | R2-1 | observable hierarchy | τ̄ and T̄1 used side by side; δ defined for τ̄ only, Holm family over both | **τ̄ primary, T̄1 secondary** (§4.1). Sample size, δ and the gating C7 check are designed for τ̄ only. The 68-test Holm family is kept, with its justification and cost stated; T̄1 achieved precision reported separately, with predeclared interpretation rules for low precision | inconsistency between §3.1 and §5 |
-| R2-2 | bootstrap count | 10⁴ resamples; claimed "adequate" for the smallest Holm threshold | **two-stage: B₁ = 10⁵ for every test and every CI; B₂ = 10⁶ for every test whose Holm decision is not Monte-Carlo stable at B₁**; Monte Carlo SE and a 99 % Clopper–Pearson interval reported for every p; MC-ambiguous decisions after B₂ are *not resolved* (§5.2) | at 10⁴ the threshold 7.35×10⁻⁴ corresponds to ≈ 7 exceedances (MC SE of p ≈ 37 % relative); the "adequate" statement was wrong |
+| R2-2 | bootstrap count | 10⁴ resamples; claimed "adequate" for the smallest Holm threshold | **two-stage: B₁ = 10⁵ for every test and every CI; B₂ = 10⁶ for every test whose Holm decision is not Monte-Carlo stable at B₁**; Monte Carlo SE and a 99 % Clopper–Pearson interval reported for every p (marginal; superseded by R3-1); MC-ambiguous decisions after B₂ are *not resolved* (§5.2) | at 10⁴ the threshold 7.35×10⁻⁴ corresponds to ≈ 7 exceedances (MC SE of p ≈ 37 % relative); the "adequate" statement was wrong |
 | R2-3 | control reference h | "h = 1.96 SE_main" without saying which estimate | **h is defined per control** (§6, table "reference estimate"): always the confirmatory estimate that is actually reported, at the reporting dx/basis/buffer, as 1.96 × its SE (not a bootstrap quantity, not a pilot quantity) | review item 6 |
 | R2-4 | wording of the equivalence interval | "90 % CI … (TOST)" and "with 95 % confidence" | **TOST equivalence test at α = 0.05** (each one-sided test at 0.05), equivalently the 1 − 2α = 90 % two-sided interval inside the margin; not called a 95 % confidence interval | review item 6 |
 | R2-5 | C1/C3/C4 for T̄1 | same gating as τ̄ | controls are evaluated for both observables; a failure on T̄1 blocks T̄1 claims for the affected cells **and** prevents overall PASS (fail-closed); it does not trigger new seeds | consistency with R2-1 and fail-closed design |
@@ -117,14 +127,49 @@ Energies of one realization are correlated: standard errors are always across re
 * **Contrasts** (defined identically for O = τ̄ and O = T̄1; definitions unchanged from revision 1): C-W: Ō(2W, ζ) − Ō(W, ζ), 3 steps × 4 ζ = 12; C-ζ: Ō(W, 2ζ) − Ō(W, ζ), 12; C-int: difference of differences over adjacent (W, ζ) steps, 3 × 3 = 9; C-iso: least-squares slope of Ō against ln ζ along the W·ζ = 5 line, 1. 34 per observable, **68 in total**.
 * **Why one 68-test Holm family.** Both τ̄ (primary) and T̄1 (secondary, the incident mode of the packet) are to support confirmatory statements, so the family-wise error rate is controlled over all of them at α = 0.05. Cost, stated: the primary tests face stricter thresholds than in a τ̄-only family (smallest 0.05/68 ≈ 7.35×10⁻⁴ instead of 0.05/34 ≈ 1.47×10⁻³). A gatekeeping order (τ̄ first, T̄1 only after) was considered and not chosen, because it would make secondary claims conditional on primary outcomes. If the reviewer prefers to protect the primary family's power, the alternative is a 34-test Holm family for τ̄ with T̄1 tests reported as exploratory; the choice must be fixed before freezing.
 * **Resampling:** paired over common seeds (a seed is resampled jointly across all cells, energies and observables); the bootstrap RNG seeds are fixed and recorded.
-* **p-value:** two-sided, null-centred bootstrap, p = (1 + #{b : |θ*_b − θ̂| ≥ |θ̂|}) / (B + 1).
 * **Monte Carlo resolution (why 10⁴ is not enough):** the MC standard error of an estimated p is √(p(1−p)/B). At the smallest Holm threshold p ≈ 7.35×10⁻⁴: B = 10⁴ → ≈ 7 expected exceedances, MC SE ≈ 2.7×10⁻⁴ (37 % relative); B = 10⁵ → ≈ 74, 8.6×10⁻⁵ (12 %); B = 10⁶ → ≈ 735, 2.7×10⁻⁵ (3.7 %).
-* **Two-stage procedure.** Stage 1: every one of the 68 tests (and every CI) with B₁ = 10⁵. For each test, the 99 % Clopper–Pearson interval [p_lo, p_hi] of its exceedance proportion is computed. Holm is applied twice, once to all p_hi and once to all p_lo; because Holm's step-down is monotone in the p-values, the rejection set at p_hi is contained in the one at p_lo. A test whose decision differs between the two is **MC-ambiguous**. Stage 2: every MC-ambiguous test is recomputed with an independent stream and B₂ = 10⁶; the two-sided Holm evaluation is repeated with the stage-2 p-values for those tests. A test that is still MC-ambiguous is reported as **not resolved (Monte Carlo ambiguous)** — the conservative decision (the p_hi set) is the one used for claims.
-* **Reported for every test:** θ̂, unadjusted 95 % percentile CI, exceedance count, B, p, MC SE of p, 99 % CP interval, Holm-adjusted p, decision, and the stage that fixed it.
+* The p-value definitions, the Monte Carlo intervals and the two-stage Holm procedure are specified in §5.3.
 * **Cost:** B₂ = 10⁶ with N ≤ 1000 seeds and 32 cell means per replicate is a few × 10¹⁰ elementary operations, i.e. minutes, chunked (estimate). It involves no new simulation.
-* **A trend is called resolved** only if (i) its Holm decision is a rejection at the conservative (p_hi) end, (ii) it is not MC-ambiguous, and (iii) the resolution controls of §6 are accepted for the cells involved and the observable concerned. Everything else is exploratory and labelled so.
+* **A trend is called resolved** only if (i) it belongs to the final conservative rejection set R_claim of §5.3, and (ii) the resolution controls of §6 are accepted for the cells involved and the observable concerned. Everything else is exploratory and labelled so.
 * Descriptive reference only (no inference): τ = 1 (ballistic) and the diffusive-slab form ℓ/(L_d + ℓ) with ℓ from the Born rate of `disorder.py` (weak-disorder approximation), used to place cells.
 * No sentence of the form "transmission decreases with W/ζ" is written unless the corresponding contrasts are resolved over the range it covers.
+
+### 5.3 Bootstrap p-values, simultaneous Monte Carlo intervals and the two-stage Holm decision
+
+All quantities in this subsection are computed separately for each of the m = 68 confirmatory tests, indexed i = 1 … 68.
+
+**(a) Bootstrap replicate and exceedance count.** A replicate b resamples N seeds with replacement from the confirmatory seeds; the same resampled seed list is applied to all 16 cells, all energies and both observables (paired design), and θ*_{i,b} is the contrast i recomputed from the resampled realizations. With θ̂_i the contrast on the original data, the **exceedance count** is
+K_i = #{ b = 1 … B : |θ*_{i,b} − θ̂_i| ≥ |θ̂_i| }  (null-centred, two-sided; ties count as exceedances, which is conservative).
+
+**(b) p-value estimator.** The reported p-value is the **plus-one** Monte Carlo estimator p̂_i = (K_i + 1)/(B + 1). It is never 0 (minimum 1/(B+1)) and is the standard valid Monte Carlo p-value (Davison & Hinkley 1997; Phipson & Smyth 2010). Its MC standard error is reported as √(p̂_i(1−p̂_i)/B).
+
+**(c) Parameter covered by the interval.** Conditional on the observed data, the B replicates are independent draws from the bootstrap distribution, so K_i ~ Binomial(B, π_i) exactly, with
+π_i = P*( |θ* − θ̂_i| ≥ |θ̂_i| ),
+the **ideal (B → ∞) bootstrap p-value** of test i. The Clopper–Pearson interval [π_i^lo, π_i^hi] covers π_i; it quantifies **Monte Carlo error only**, not the sampling uncertainty of the data (which is what the bootstrap test itself addresses) and not the asymptotic accuracy of the bootstrap.
+
+**(d) Simultaneous coverage.** Each interval is the exact two-sided Clopper–Pearson interval at per-test level α_MC (lower limit Beta(α_MC/2; K, B−K+1), upper limit Beta(1−α_MC/2; K+1, B−K); lower = 0 if K = 0, upper = 1 if K = B). Clopper–Pearson coverage is ≥ 1 − α_MC for every π (exact-conservative). By the Bonferroni inequality, the probability that *any* of a set of intervals misses its π is at most the sum of their α_MC, **whatever the dependence between them** — this matters because all 68 counts of one stage come from the same replicates and are strongly dependent. The total MC error budget is split equally between the stages:
+* Stage 1 (B₁ = 10⁵, all 68 tests): α₁ = 0.005/68 ≈ 7.35×10⁻⁵ per test;
+* Stage 2 (B₂ = 10⁶, only the selected tests, independent random stream): α₂ = 0.005/68 per test.
+Probability that any interval used in the final decision misses: ≤ 68·α₁ + |A|·α₂ ≤ 0.005 + 0.005 = 0.01. Hence **simultaneous coverage ≥ 99 % over the whole final box**, including the data-dependent selection of A (Stage-2 draws are independent of Stage 1, so the Stage-2 intervals have their stated coverage conditional on the selection; the Stage-1 term is bounded unconditionally). Planning arithmetic at the smallest Holm threshold (π ≈ 7.35×10⁻⁴): Stage 1 interval ≈ [4.5, 11.4]×10⁻⁴ (−39 %/+55 %), Stage 2 ≈ [6.3, 8.5]×10⁻⁴ (−14 %/+15 %); for K = 0 the upper limits are ≈ 1.0×10⁻⁴ (Stage 1) and 1.0×10⁻⁵ (Stage 2).
+
+**(e) Comparison with Holm.** Let H(p) denote the set of tests rejected by Holm's step-down procedure at family-wise α = 0.05 applied to a vector p of 68 p-values. H is **coordinate-wise monotone**: lowering any p-value can only enlarge the rejection set (Holm is a monotone step-down procedure). The endpoint vectors are compared with Holm directly on the p-value scale:
+* lower vector p^lo with p_i^lo = π_i^lo;
+* upper vector p^hi with p_i^hi = max(π_i^hi, p̂_i) (the max guarantees that the conservative decision is never more liberal than the plus-one point estimate).
+On the event that all intervals cover (probability ≥ 0.99), p^lo ≤ π ≤ p^hi componentwise, so by monotonicity
+H(p^hi) ⊆ H(π) ⊆ H(p^lo).
+Thus every test in H(p^hi) is rejected by the ideal bootstrap Holm procedure, and every test outside H(p^lo) is not, simultaneously for all 68 tests with MC confidence ≥ 99 %.
+
+**(f) Two stages.**
+1. Stage 1: compute K_i, p̂_i and the α₁-intervals for all 68 tests with B₁ = 10⁵. Form R₁ = H(p^hi) and the **MC-ambiguous set** A = H(p^lo) \ H(p^hi).
+2. If A is empty, Stage 1 is final.
+3. Stage 2: draw B₂ = 10⁶ new replicates from an **independent random stream** (a separate, recorded child of the bootstrap SeedSequence, never overlapping Stage 1). For every test in A, the Stage-2 count **replaces** its Stage-1 count (no pooling of the two stages); its p̂ and its α₂-interval are recomputed. Tests outside A keep their Stage-1 values. The selection rule for A is fixed here, before any data exist; no test outside A is re-evaluated and there is no Stage 3.
+4. Re-form the final vectors (Stage-1 values for tests outside A, Stage-2 values for tests in A) and compute R_claim = H(p^hi_final) and A_final = H(p^lo_final) \ H(p^hi_final).
+
+**(g) Conservative decision if Stage 2 remains ambiguous.** Only tests in **R_claim** may be reported as rejected (and only R_claim enters "resolved", together with the control conditions of §5.2). Tests in A_final are reported as **"NOT RESOLVED — Monte Carlo ambiguous"** with their counts, p̂, intervals and the Holm thresholds they straddle; they are never counted as rejections and never as "no effect". Because R_claim is computed from the upper vector of *all* 68 tests, a residual ambiguity in one test cannot make another test's claim more liberal. No further resamples are drawn after Stage 2.
+
+**(h) Reported per test:** θ̂_i; unadjusted 95 % percentile CI (Stage-1 replicates); K_i, B and the stage used; p̂_i and its MC SE; the simultaneous MC interval [π_i^lo, π_i^hi] with its per-test level; Holm rank and threshold; the decision (rejected / not rejected / MC-ambiguous). The bootstrap seeds of both stages and the total MC error budget (0.01) are recorded in the metadata.
+
+**(i) What the 99 % refers to.** It is the probability, over the Monte Carlo resampling only, that the reported Holm decisions agree with those of the ideal (B → ∞) bootstrap procedure in the conservative direction. The family-wise error control of the *scientific* conclusions is the Holm α = 0.05 (asymptotic validity of the paired bootstrap test assumed); the two are separate and both are stated.
 
 ## 6. Controls: acceptance and fail-closed consequence
 
@@ -186,14 +231,10 @@ Not claimed: Anderson localization from reduced transmission alone (reduced τ a
 
 Purpose: test whether level-2 (asymptotic energy-integrated) packet transmission can be reconstructed from stationary data and how it compares with the time-dependent solver. Corrected energy grid: ±3σ_k = ±10.6, i.e. a span of 6σ_k = 21.2; with Δk = 0.25 that is 21.2/0.25 = 84.9 ⇒ **85 intervals, 86 energy points** (not 29). A coarser Δk = 0.5 gives 43 points; the spacing must be justified from the measured structure of T1(E) (resonance widths), which the 5-energy campaign cannot provide — so the follow-up begins with a spacing test on a few realizations. Provisional size: 86 energies × 4 corner cells × 50 seeds = 17,200 solves ≈ 2.4 h (1 core, estimate); plus time-dependent comparisons on a few seeds (cost to be measured), with the limitations listed in §9 and the non-equivalence of the DST and finite-difference discretizations stated. Separate approval, separate protocol.
 
-## Decisions requested (revision 2)
+## Decisions requested (revision 3)
 
-Approved in the review of revision 1 (recorded, not reopened): 4×4 grid with the W·ζ = 5 iso-line; 40-seed pilot and χ² upper-bound rule with disjoint pilot/confirmatory seeds, N_max = 1000 and pause-for-decision; buffer 205/512; C4 (410/512 vs 205/512) and C7; fail-closed driver as prerequisite (with mutation tests, before any campaign code or simulation; historical B3Y files untouched); the equivalence framework (0.25 h, TOST at α = 0.05, under-powered rule).
+Approved in earlier reviews (recorded, not reopened): 4×4 grid with the W·ζ = 5 iso-line; 40-seed pilot and χ² upper-bound rule with disjoint pilot/confirmatory seeds, N_max = 1000 and pause-for-decision; buffer 205/512; C4 and C7; fail-closed driver as prerequisite; equivalence framework (0.25 h, TOST at α = 0.05, under-powered rule); τ̄ primary / T̄1 secondary with LOW PRECISION rules; the single 68-test Holm family; the 10⁵ / 10⁶ two-stage bootstrap with an independent Stage-2 stream; per-control h; separate τ̄/T̄1 control evaluation.
 
-Open for approval:
-1. τ̄ primary / T̄1 secondary and the interpretation rules of §4.1 (including the 2δ LOW PRECISION label).
-2. The single 68-test Holm family (or, alternatively, a 34-test τ̄ family with T̄1 exploratory) — §5.2.
-3. Two-stage bootstrap: B₁ = 10⁵ for all tests and CIs, B₂ = 10⁶ for MC-ambiguous tests, 99 % Clopper–Pearson MC intervals, conservative decision for remaining ambiguity.
-4. The per-control reference estimates for h (§6 table).
+Open for approval: the Monte Carlo procedure of §5.3 — Bonferroni-adjusted Clopper–Pearson intervals (α₁ = α₂ = 0.005/68, total budget 0.01, simultaneous coverage ≥ 99 % across both stages), the definitions (a)–(c), the endpoint rule p^hi = max(π^hi, p̂), the replacement (not pooling) of Stage-1 counts for the selected tests, and the conservative rule (g).
 
 After approval: the next implementation task is **only** the fail-closed driver and its mutation tests; the protocol is frozen and hashed after the pilot addendum, before any confirmatory run.
