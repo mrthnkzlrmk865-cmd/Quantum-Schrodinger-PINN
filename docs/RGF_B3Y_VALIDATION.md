@@ -4,10 +4,19 @@ Phase 2, follow-up of [B3X](RGF_B3X_VALIDATION.md) (unchanged). Date: 2026-11-07
 Machine-readable protocol: [rgf_b3y_protocol.json](rgf_b3y_protocol.json).
 Base commit: `5360a9f` (merge of PR #6).
 
-**Status: protocol (revision 2); the B3Y campaign has been run (Part II). Part I below is the protocol as written before any B3Y number existed.** Part I was written
-before any B3Y number exists; Part II (results) is appended only after the protocol is approved and the runs
-are done. The only numerical work done in this stage is the synthetic design-verification probe of §I.9
-(a single-channel chain; it uses no B3Y point and no output of the RGF or of any B3X reference).
+**Status (reconciled after the campaign; four layers, kept separate):**
+
+| layer | state | where |
+|---|---|---|
+| 1. Protocol definition (predeclared) | Frozen at revision 2 (commit `69c9539`); `docs/rgf_b3y_protocol.json` is **unchanged** and still carries its historical `status` text ("no B3Y numerical comparison has been run"), which was true when it was written. sha256 `489aea43f7d24aa913b59233d0f45ae78e4d347437ba0e405001f08a2ee8180a` (recorded in `run_metadata.json`; verified equal to the file). | Part I |
+| 2. Implementation and synthetic testing | `sparse_exact_lattice.py` (M4, audited), `validate_rgf_b3y.py` (driver), `tests/test_rgf_b3y.py` and `tests/test_rgf_b3y_driver.py` (synthetic problems only). | §I.12, `RGF_B3Y_TIER3_AUDIT.md` |
+| 3. Real B3Y numerical campaign | **Completed** (driver commit `1a5688b`, results commit `36055a7`); stopped_at = null. | `results/rgf_b3y_validation/`, Part II |
+| 4. Campaign outcome | Overall **PASS** under the predeclared criteria; no exceedance of 10⁻¹⁰, nothing adjudicated; see Part II (II.0, II.8) and the post-campaign audit II.11. | Part II |
+
+Statements in Part I, I-B and in `RGF_B3Y_TIER3_AUDIT.md` that say "no B3Y comparison has been run" describe the state **at the time they were written** and are marked *[historical]* where they occur. They are kept verbatim so the predeclared record is not rewritten.
+
+Part I was written before any B3Y number existed; Part II (results) was appended after the runs. The only numerical work done before the campaign was the synthetic design-verification probe of §I.9
+(a single-channel chain; it uses no B3Y point and no output of the RGF or of any B3X reference). *[historical]*
 
 ### Protocol revision 1 (clarifications; no existing criterion value changed)
 Revision 0 is commit `5d39721`. Revision 1 clarifies five points and adds the Tier 3 implementation (synthetic tests only).
@@ -319,7 +328,7 @@ run only in the numerical stage, after explicit authorization.
 The 34 tests cover: independence (AST) of the module, equality of every constant with the protocol, the revision-1 clarifications, protected-file and prior-artifact hashes, gate X0 including the simulated 53-bit
 longdouble, X1 (six cases), the extended potential blocks, the unmerged-vs-merged operator, the exact extended product with a rounded matrix, X2 (four cases), X3 (three cases), X6, dense mixing
 (mpmath dense solve and the three existing solvers on a toy), the error decomposition with a stand-in double method, gate X4 logic at its boundaries, e_ind, and the classification rules including their boundaries.
-Audit results: no import of, or reference to, an existing solver module in the implementation; the 18 protected file hashes and the four prior result trees (B1, B2, B3, B3X) are unchanged; no B3Y result directory exists.
+Audit results: no import of, or reference to, an existing solver module in the implementation; the 18 protected file hashes and the four prior result trees (B1, B2, B3, B3X) are unchanged; no B3Y result directory exists. *[historical: true at protocol revision 2; the directory `results/rgf_b3y_validation/` was created by the campaign, Part II]*
 
 ---
 
@@ -375,7 +384,7 @@ separated (representation dominant, solver smaller).
 
 ### I-B.5 Items I ask you to approve or change before any run
 A2 and A3 were settled in revision 1. Still open from the first review: A4 (buffer control methods), A8, A9 (H1 spread limit), A10 (gate tolerances), plus the two new numbers of revision 1 (`dominance_factor` = 2, `term_resolution_factor` = 10).
-`sparse_exact_lattice.py` is implemented with synthetic tests only; `validate_rgf_b3y.py` is not written, and nothing is run on B3Y points until the numerical stage is authorized.
+`sparse_exact_lattice.py` is implemented with synthetic tests only; `validate_rgf_b3y.py` is not written, and nothing is run on B3Y points until the numerical stage is authorized. *[historical: the driver was written and the campaign authorized and run afterwards; see Part II]*
 
 ## Part II: Results
 
@@ -598,3 +607,33 @@ python validate_rgf_b3y.py --synthetic --out <scratch> --cache <scratch>   # syn
 python validate_rgf_b3y.py --out results/rgf_b3y_validation --cache <cache dir>
 python validate_rgf_b3y.py --record-tests --out results/rgf_b3y_validation
 ```
+
+### II.11 Post-campaign documentation and provenance audit
+
+Performed after the campaign (no new numerical result was computed; every number below is recomputed from the existing CSV files). Scope: documentation, metadata, consistency of the PASS with the criteria, and one precision-consistency observation.
+
+**(a) Statements that implied "no B3Y comparison has been run", and their disposition**
+
+| location | statement | disposition |
+|---|---|---|
+| `docs/RGF_B3Y_VALIDATION.md` header (lines 7–10) | status line and "only numerical work … synthetic probe" | replaced by the four-layer status table; remaining sentence marked *[historical]* |
+| `docs/RGF_B3Y_VALIDATION.md` I-B.4/I.12 area | "no B3Y result directory exists" | kept, marked *[historical]* |
+| `docs/RGF_B3Y_VALIDATION.md` I-B.5 | "`validate_rgf_b3y.py` is not written …" | kept, marked *[historical]* |
+| `docs/RGF_B3Y_TIER3_AUDIT.md` | "no B3Y comparison was run", "driver not yet written", "no B3Y result file exists" | banner added at the top; text unchanged |
+| `docs/rgf_b3y_protocol.json` `status`, `implementation_status` | "no B3Y numerical comparison has been run", "NO B3Y point has been computed" | **deliberately not edited** (predeclared record; its sha256 is recorded in `run_metadata.json` and is unchanged). Its historical meaning is stated in the status table |
+| `results/rgf_b3y_validation/summary.json` `protocol_status` | copy of the protocol's historical text | the only metadata inconsistency in the results; corrected narrowly: key renamed `protocol_status_at_predeclaration`, new `campaign_status = "COMPLETED real B3Y numerical campaign"`, and a `metadata_corrections` entry. No numerical value changed; no other result file was touched |
+| `validate_rgf_b3y.py` | wrote `protocol_status` | now writes `protocol_status_at_predeclaration` and `campaign_status` (so a re-run reproduces the corrected summary). `run_metadata.json` keeps the code fingerprint of the driver that generated the numbers (`1a5688b`); the later edit changes only these two summary keys |
+| code docstrings / tests | "no B3Y point is used" | accurate (they describe the synthetic mode and tests); unchanged |
+
+No other file (README, other reports) mentions B3Y as un-run.
+
+**(b) Is the PASS consistent with the criteria and the adjudication logic?** Recomputed independently from `per_energy_comparison.csv`, `tier3_exact_lattice.csv`, `buffer_control.csv`, `solver_spread.csv`, `xp_gates.csv`, `potential_identity.csv` (not from `summary.json`):
+S1–S3 ≤ 10⁻¹⁰ in 37/37 rows; S4 ≤ 2×10⁻¹⁰; unitarity ≤ 10⁻¹⁰ and reciprocity ≤ 10⁻⁸ for M1–M3; backward error ≤ 10⁻¹⁴; lead-tail ≤ 10⁻⁶; N1 in 37/37; all 26 M4 solves passed X4, X5, X7; every ε(Mk, M4) ≤ 10⁻¹⁰ (26 × 3); K1 5/5; H1 15/15; 16 points at 1/512 and 1/1024, 5 at 1/2048, as predeclared. Per the protocol's overall rule ("PASS only if every criterion is met with no exceedance") the PASS is consistent. Because there was **no exceedance**, the exceedance classification of §I.8.3 (PRECISION-CONSISTENT / -LIMITED / UNEXPLAINED) was never invoked; the `tier3_adjudication` entries say "CONSISTENT WITH THE EXACT LATTICE SOLUTION AT 1e-10", which is a statement about ε ≤ 10⁻¹⁰, not a precision classification.
+Latent weaknesses of the driver's *overall-status logic* found during this audit (none of them was triggered in this campaign, because every gate row passed, all 26 M4 rows had `gates_passed = True` and all 30 decomposition rows were evaluable): (i) the hard-fail scan reads only the top-level `status` of each criterion, so a failed XP gate would propagate to the overall status only through V1/G0, not through the nested `XP_gates` entry; (ii) an M4 solve at 1/1024 or 1/2048 whose X4/X5/X7 failed would be dropped from the adjudication without turning the overall status into FAIL; (iii) `NOT EVALUABLE` decomposition rows do not enter the overall status. These should be fixed in any future campaign that reuses the driver; they do not affect this one and were not changed here (no retroactive change of the run logic).
+
+**(c) The M1 growth factor ≈ 12.08 at `W200_z0.2@E88.51`.**
+ε(M1, M4) = 1.509×10⁻¹², 1.823×10⁻¹¹, 2.133×10⁻¹¹ at 1/512, 1/1024, 1/2048: growth 12.08, then 1.17 (geometric mean over the two halvings 3.76).
+* **Rule status.** The operational factor-10 rule (§I.8.3 steps 4–6) is a classification of a value that *exceeds* 10⁻¹⁰. M1 never exceeds 10⁻¹⁰ (maximum 2.13×10⁻¹¹), so the rule was not applicable and no classification depends on it. For completeness: if it had been applied, `precision_consistency` would return not-passed (12.08 > 10) and an exceedance would have been labelled UNEXPLAINED. It is the only growth factor > 10 among the 30 (point, method) factors (range 1.17 – 12.08, median 3.8).
+* **What the data suggest (not prove).** Normalised by the B1-type scale (N−1)ε_mach/sin(k dx) used for the ρ diagnostic, M1's error is 0.081, 0.244, 0.071 at the three resolutions, whereas M2 gives 0.294, 0.339, 0.296 and M3 0.312, 0.343, 0.258. The B3X calibration range at 1/512 was 0.081 – 0.357, so M1's 1/512 value sits exactly at the **lower end** of the calibration range (and 1/2048 slightly below it), while the 1/1024 value is mid-range. The large factor therefore comes from an unusually *small* baseline at 1/512 for a statistic that is a maximum over matrix elements of accumulated round-off, not from a systematic growth of M1's error. M1's error at this point is the *smallest* of the three double methods at 1/2048 (2.1×10⁻¹¹ vs 8.9×10⁻¹¹, 7.7×10⁻¹¹).
+* **Limits.** M1 has no explicit matrix, so no decomposition and no mechanism claim is available for it (protocol). The reading above is a statistical consistency argument based on the normalised scale; it is not a measured separation of error sources. Nothing in the data indicates an implementation defect: M1 agrees with M4 to 2.1×10⁻¹¹, with M2/M3 to ≤ 9.1×10⁻¹¹, and T1 agrees to 10⁻¹¹.
+* **Recommendation (for a future protocol revision, not retroactive).** A growth-factor test between only two small, noisy numbers is fragile; a test on the normalised error or on a fit over ≥ 3 levels would be more robust. The predeclared rule and thresholds are left unchanged here.

@@ -314,3 +314,32 @@ def test_synthetic_problem_uses_no_b3y_point():
     prob = drv.SyntheticProblem()
     real = {p["E"] for p in drv.PROTOCOL["points"]}
     assert not (real & {p["E"] for p in prob.points.values()}) and all(p["config"] == "SYN" for p in prob.points.values())
+
+
+# ----------------------------------------------------------------------
+# post-campaign provenance: historical protocol record preserved, status reconciled
+# ----------------------------------------------------------------------
+def test_protocol_hash_in_results_equals_the_unchanged_protocol_file_and_keeps_its_historical_status():
+    m = json.load(open(os.path.join(HERE, "results", "rgf_b3y_validation", "run_metadata.json")))
+    assert m["protocol"]["sha256"] == drv.sha_file(drv.PROTOCOL_PATH)
+    assert "no B3Y numerical comparison has been run" in drv.PROTOCOL["status"]            # historical text deliberately preserved
+
+
+def test_campaign_summary_separates_historical_protocol_status_from_campaign_status():
+    s = json.load(open(os.path.join(HERE, "results", "rgf_b3y_validation", "summary.json")))
+    assert "protocol_status" not in s and "no B3Y numerical comparison" in s["protocol_status_at_predeclaration"]
+    assert s["campaign_status"].startswith("COMPLETED") and s["stopped_at"] is None and s["overall_status"] == "PASS"
+    assert s["metadata_corrections"][0]["numerical_values_changed"] is False
+
+
+def test_synthetic_driver_summary_states_it_is_synthetic(run_twice):
+    s = json.load(open(os.path.join(run_twice[0], "summary.json")))
+    assert s["campaign_status"].startswith("SYNTHETIC") and "protocol_status_at_predeclaration" in s
+
+
+def test_stale_no_comparison_statements_in_the_report_are_marked_historical():
+    lines = open(os.path.join(HERE, "docs", "RGF_B3Y_VALIDATION.md")).read().splitlines()
+    for i, l in enumerate(lines):
+        low = l.lower()
+        if ("no b3y result directory exists" in low or "is not written" in low or "no b3y numerical comparison has been run" in low):
+            assert "[historical" in low or "historical" in low, (i + 1, l[:120])

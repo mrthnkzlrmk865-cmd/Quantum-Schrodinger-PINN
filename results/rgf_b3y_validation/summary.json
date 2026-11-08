@@ -2,7 +2,8 @@
   "problem": "B3Y",
   "n_comparison_rows": 37,
   "n_not_evaluable": 0,
-  "protocol_status": "PREDECLARED protocol (revision 2: Tier 3 audit); the Tier 3 module is implemented and synthetically tested; no B3Y numerical comparison has been run",
+  "protocol_status_at_predeclaration": "PREDECLARED protocol (revision 2: Tier 3 audit); the Tier 3 module is implemented and synthetically tested; no B3Y numerical comparison has been run",
+  "campaign_status": "COMPLETED real B3Y numerical campaign",
   "criteria": {
     "S1_M1_vs_M2": {
       "limit": 1e-10,
@@ -472,5 +473,15 @@
   "overall_status_rule": "B3Y is called PASS only if every criterion is met with no exceedance; any exceedance makes the overall status PRECISION-LIMITED/PRECISION-CONSISTENT (resolved by Tier 3), UNEXPLAINED or INCONCLUSIVE, never PASS",
   "exceedances_1e-10": [],
   "stopped_at": null,
-  "wall_time_s": 116.79516339302063
+  "wall_time_s": 116.79516339302063,
+  "metadata_corrections": [
+    {
+      "field": "protocol_status",
+      "action": "renamed to protocol_status_at_predeclaration; campaign_status added",
+      "reason": "the field copied the historical text of docs/rgf_b3y_protocol.json ('no B3Y numerical comparison has been run'), which is true of the protocol at predeclaration but misdescribed this results file",
+      "numerical_values_changed": false,
+      "protocol_file_changed": false,
+      "applied_after_commit": "36055a7"
+    }
+  ]
 }

@@ -873,6 +873,8 @@ def finish(prob, out, R, rows, t_start, cache_dir, log, xp_rows=None):
     write_csv(os.path.join(out, "solver_spread.csv"), spread)
     summ = summarize(prob, R, comp, conv, spread, adj, xp_rows)
     summ["stopped_at"] = R["stopped_at"]
+    summ["campaign_status"] = (("COMPLETED real B3Y numerical campaign" if prob.name == "B3Y" else "SYNTHETIC driver check (no B3Y point)")
+                               if not R["stopped_at"] else f"STOPPED at {R['stopped_at']['stage']}: {R['stopped_at']['reason']}")
     summ["wall_time_s"] = time.time() - t_start
     with open(os.path.join(out, "summary.json"), "w") as f:
         json.dump(summ, f, indent=2, default=_json_default)
@@ -895,7 +897,7 @@ def _json_default(o):
 
 def summarize(prob, R, comp, conv, spread, adj, xp_rows):
     ok = [r for r in comp if r.get("status") == "OK"]
-    s = dict(problem=prob.name, n_comparison_rows=len(comp), n_not_evaluable=len(comp) - len(ok), protocol_status=PROTOCOL["status"], criteria={})
+    s = dict(problem=prob.name, n_comparison_rows=len(comp), n_not_evaluable=len(comp) - len(ok), protocol_status_at_predeclaration=PROTOCOL["status"], criteria={})
     crit = {}
     for tag, key, lim in (("S1_M1_vs_M2", "S1_dS", LIMITS["S_abs"]), ("S2_M1_vs_M3", "S2_dS", LIMITS["S_abs"]), ("S3_M2_vs_M3", "S3_dS", LIMITS["S_abs"]),
                           ("S4_TR_offdiag", None, LIMITS["TR_offdiag_abs"])):
