@@ -866,7 +866,7 @@
   "algorithm": "SEEDSEQ-PCG64-PERMUTATION-C0",
   "decision": "selection procedure specified in R7; seed NOT YET SUPPLIED: the C0 gate stays NOT EVALUABLE until it is recorded",
   "seed": null,
-  "seed_representation": "one non-negative integer in decimal digits, dedicated to C0 (must differ from bootstrap_rng.root_entropy); recorded as text in selection_seed",
+  "seed_representation": "one non-negative integer in ASCII decimal digits 0-9 only, dedicated to C0 (must differ from bootstrap_rng.root_entropy); recorded as text in selection_seed",
   "seed_sequence": "numpy.random.SeedSequence(entropy=seed) (no spawn key; separate from the bootstrap SeedSequence)",
   "bit_generator": "PCG64",
   "numpy_version": "2.5.3",
@@ -879,7 +879,7 @@
   "rule": "SEEDSEQ-PCG64-SPAWN-A",
   "decision": "APPROVED in R7 (option A of docs/CAMPAIGN_STATUS_CONTRACT.md section 1). root_entropy NOT YET SUPPLIED: the RNG gate stays NOT EVALUABLE until it is recorded, before any physical campaign data are generated.",
   "root_entropy": null,
-  "root_entropy_representation": "one non-negative integer written in decimal digits (no sign, no exponent, no decimal point); recorded as text in bootstrap_seed_stage1 / bootstrap_seed_stage2",
+  "root_entropy_representation": "one non-negative integer written in ASCII decimal digits 0-9 only (no sign, exponent, decimal point or non-ASCII digits; surrounding whitespace is ignored); recorded as text in bootstrap_seed_stage1 / bootstrap_seed_stage2",
   "seed_sequence": "root = numpy.random.SeedSequence(entropy=root_entropy)",
   "spawn_procedure": "children = root.spawn(2); stage1 = children[0] (spawn_key == (0,)); stage2 = children[1] (spawn_key == (1,)). Equivalent construction used for validation: numpy.random.SeedSequence(entropy=root_entropy, spawn_key=(i,)). The root's own stream is not used.",
   "bit_generator": "PCG64",
@@ -888,7 +888,13 @@
   "resampling_order": "replicates b = 0, 1, ..., B-1 of a stage are drawn in this order, one call per replicate, N = number of confirmatory seeds; replicate b gives the resampled seed list applied to every cell, energy and observable, i.e. to all 68 tests (paired). A batched implementation is admissible only if it reproduces exactly this index sequence.",
   "numpy_version": "2.5.3",
   "numpy_version_source": "requirements-lock.txt (numpy==2.5.3)",
-  "stream_id_format": "SEEDSEQ-PCG64-SPAWN-A|entropy=<root_entropy>|spawn_key=(<i>,)|bitgen=PCG64|numpy=<numpy_version>  (i = 0 for Stage 1, 1 for Stage 2)",
+  "stream_id_template": "SEEDSEQ-PCG64-SPAWN-A|entropy={root_entropy}|spawn_key=({spawn_index},)|bitgen=PCG64|numpy={numpy_version}",
+  "stream_id_template_fields": {
+   "root_entropy": "the recorded root entropy (decimal integer)",
+   "spawn_index": "0 for Stage 1, 1 for Stage 2",
+   "numpy_version": "the pinned numpy version"
+  },
+  "stream_id_description": "Machine-readable template in stream_id_template (placeholders in braces). Example for Stage 1: SEEDSEQ-PCG64-SPAWN-A|entropy=<E>|spawn_key=(0,)|bitgen=PCG64|numpy=2.5.3. Validators render stream_id_template; this prose is never parsed.",
   "probe": "bootstrap_probe_stage<s> = sha256 hex digest of the first replicate's indices of stage s: Generator(PCG64(SeedSequence(entropy=root_entropy, spawn_key=(s-1,)))).integers(low=0, high=N, size=N, dtype=int64, endpoint=False) as little-endian int64 bytes",
   "independent_validation": "aggregator and independent verifier each (separately coded) check: rule name, PCG64, numpy version and API strings equal the protocol; seeds equal root_entropy; stream identifiers equal the declared format with spawn keys (0,) and (1,); one Stage-1 stream for all 68 tests and one Stage-2 stream for all Stage-2 tests; the probes are recomputed with the pinned numpy (NOT EVALUABLE if the installed numpy differs from the pin)",
   "independence_statement": "Stage-1 and Stage-2 streams are independent by design under the declared RNG mechanism (distinct SeedSequence spawn keys of one root); this is not a mathematical proof of statistical independence"

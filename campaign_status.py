@@ -149,6 +149,7 @@ class GateSpec:
     expected_multiplicity: Optional[dict] = None       # protocol-derived key -> exact number of rows (tables that repeat a record)
     expected_keys_fn: Optional[Callable] = None        # (load) -> required keys, for protocol rules that depend on another table
     allowed_keys_fn: Optional[Callable] = None         # (load) -> optional keys whose permission depends on another table
+    expected_distinct_count: Optional[int] = None      # protocol-derived exact number of distinct keys, all drawn from allowed_keys
     row_filter: dict = field(default_factory=dict)     # column -> value; selects the rows owned by this gate
     row_select: Optional[Callable] = None              # additional ownership predicate
     checks: list = field(default_factory=list)
@@ -217,6 +218,8 @@ def evaluate_gate(spec: GateSpec, out_dir: str, cache: dict) -> dict:
         else:
             load = lambda t: _load(out_dir, t, cache)
             req = spec.expected_keys_fn(load) if spec.expected_keys_fn is not None else spec.expected_keys
+            if req is None and spec.expected_distinct_count is not None:
+                req = []                                                 # membership from allowed_keys, size from expected_distinct_count
             if req is None:
                 reasons.append("gate has no protocol-derived key set")
                 req = []
@@ -232,6 +235,10 @@ def evaluate_gate(spec: GateSpec, out_dir: str, cache: dict) -> dict:
             dup = [k for k, n in counts.items() if n > 1]
             extra = [k for k in counts if k not in allowed]
         rec.update(n_missing=len(missing), n_duplicate_keys=len(dup), n_extra_rows=sum(counts[k] for k in extra))
+        if spec.expected_distinct_count is not None:
+            rec["n_expected"] = spec.expected_distinct_count
+            if len(counts) != spec.expected_distinct_count:
+                reasons.append(f"{len(counts)} distinct keys, protocol requires exactly {spec.expected_distinct_count}")
         if missing:
             reasons.append(f"{len(missing)} expected rows missing (e.g. {missing[0]})")
         if dup:
@@ -557,7 +564,10 @@ STAGE_INVARIANT = ("bootstrap_rng_rule", "bootstrap_bit_generator", "bootstrap_n
 
 def _seed_ok(v) -> bool:
     """A recorded seed / entropy must be a non-negative integer written in decimal digits (no sign, no decimal point, not blank)."""
-    return isinstance(v, str) and v.strip().isdigit()
+    if not isinstance(v, str):
+        return False
+    t = v.strip()
+    return t != "" and all(ch in "0123456789" for ch in t)              # ASCII 0-9 only: str.isdigit() would accept e.g. Arabic-Indic digits
 
 
 def numpy_version() -> str:
@@ -646,8 +656,9 @@ def bootstrap_rng_gate(D: dict, order: list, N: int) -> GateSpec:
 RULE_A = "SEEDSEQ-PCG64-SPAWN-A"
 
 
-def rule_a_stream_id(E: int, stage: int, numpy_ver: str) -> str:
-    return f"{RULE_A}|entropy={int(E)}|spawn_key=({stage - 1},)|bitgen=PCG64|numpy={numpy_ver}"
+def rule_a_stream_id(spec: dict, E: int, stage: int) -> str:
+    """Render the protocol's machine-readable template `stream_id_template` (never parsed out of explanatory prose)."""
+    return spec["stream_id_template"].format(root_entropy=int(E), spawn_index=stage - 1, numpy_version=spec["numpy_version"])
 
 
 def rule_a_probe(E: int, stage: int, N: int) -> str:
@@ -674,7 +685,7 @@ def _rule_a_validator(meta, spec, N):
         sid, seed, probe = rec
         if seed != E:
             bad.append(f"Stage-{stage} seed {seed} is not the recorded root entropy")
-        if sid != rule_a_stream_id(E, stage, spec["numpy_version"]):
+        if sid != rule_a_stream_id(spec, E, stage):
             bad.append(f"Stage-{stage} stream identifier does not follow the approved format/spawn key")
         if numpy_version() == spec["numpy_version"] and probe != rule_a_probe(E, stage, N):
             bad.append(f"Stage-{stage} stream probe does not reproduce from the recorded metadata")
@@ -847,21 +858,15 @@ def physical_gate_spec(D: dict, n_seeds: int) -> list:
         if boot.get("root_entropy") is not None and int(seed) == int(boot["root_entropy"]):
             raise ValueError("the C0 selection seed must be dedicated (different from the bootstrap root entropy)")
     if alg is None or seed is None:
-        ens_set = {tuple(norm(x) for x in k) for k in ens}
-
-        def subset_rule(load):
-            rows = [r for r in (load("reproducibility.csv") or [])]
-            keys = [_row_key(r, ("W", "zeta", "seed")) for r in rows]
-            inside = [k for k in dict.fromkeys(keys) if k in ens_set]
-            return inside if len(inside) == n_sub else inside + [("__protocol_count__", n_sub, len(inside))]     # forces 'missing' if count wrong
-        rep.expected_keys_fn = subset_rule
+        # structural checks only (protocol-derived, independent of the observed table): units from the ensemble, exactly n_sub distinct
+        rep.allowed_keys, rep.expected_distinct_count = ens, n_sub
         rep.not_evaluable_reason = ("PROTOCOL DECISION REQUIRED: C0 selection algorithm not specified" if sel is None else
                                     f"no implementation for C0 selection algorithm {sel.get('algorithm')!r}" if alg is None else
                                     "PROTOCOL DECISION REQUIRED: the dedicated C0 selection seed has not been recorded")
     else:
         if numpy_version() != sel.get("numpy_version"):
-            rep.expected_keys = [tuple(k) for k in ens][:0]
-            rep.expected_keys_fn = lambda load: [_row_key(r, ("W", "zeta", "seed")) for r in (load("reproducibility.csv") or [])]
+            # the pinned permutation cannot be reproduced here: structural checks still apply (FAIL), the exact subset is NOT EVALUABLE
+            rep.allowed_keys, rep.expected_distinct_count = ens, n_sub
             rep.not_evaluable_reason = f"installed numpy {numpy_version()} differs from the pinned {sel.get('numpy_version')}: subset not reproducible here"
         else:
             rep.expected_keys = list(alg(ens, n_sub, int(seed), sel))

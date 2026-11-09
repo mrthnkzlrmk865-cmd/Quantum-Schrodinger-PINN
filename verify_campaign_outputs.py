@@ -108,13 +108,16 @@ def _keyset(observed, required, optional=(), multiplicity=None):
     return probs
 
 
-def _gate(rows, keyfun, required, row_ok, optional=(), multiplicity=None, status_col=None, ok=(), ne=(), open_decision=None):
-    """(state, failures) for one gate."""
+def _gate(rows, keyfun, required, row_ok, optional=(), multiplicity=None, status_col=None, ok=(), ne=(), open_decision=None, exact_distinct=None):
+    """(state, failures) for one gate. exact_distinct: protocol-derived number of distinct keys (all within `optional`)."""
     if rows is None:
         return "NOT RUN", ["table missing"]
     fails, n_ne = [], 0
     try:
-        fails += _keyset([keyfun(r) for r in rows], required, optional, multiplicity)
+        keys = [keyfun(r) for r in rows]
+        fails += _keyset(keys, required, optional, multiplicity)
+        if exact_distinct is not None and len(set(keys)) != exact_distinct:
+            fails.append(f"{len(set(keys))} distinct keys, protocol {exact_distinct}")
     except (KeyError, TypeError) as e:
         fails.append(f"key extraction failed: {e!r}")
     for r in rows:
@@ -407,8 +410,8 @@ def _rule_a_v(meta, spec, n_seeds):
         if rec is None:
             continue
         sid, seed, probe = rec
-        want = (spec["stream_id_format"].split("  ")[0].replace("<root_entropy>", str(E)).replace("<i>", str(children[st - 1].spawn_key[0]))
-                .replace("<numpy_version>", spec["numpy_version"]))
+        want = (spec["stream_id_template"].replace("{root_entropy}", str(E)).replace("{spawn_index}", str(children[st - 1].spawn_key[0]))
+                .replace("{numpy_version}", spec["numpy_version"]))
         if seed != E:
             bad.append(f"Stage-{st} seed is not the root entropy")
         if sid != want:
@@ -481,7 +484,10 @@ def _rng_gate(rows, D, order, n_seeds):
     if spec.get("root_entropy") is None:
         return "NOT EVALUABLE", ["protocol decision required: root entropy not recorded"]
     meta = dict(bitgen=invs[0][1], numpy=invs[0][2], api=invs[0][3], one=one[0], two=two[0] if two else None)
-    msgs = fn(meta, spec, n_seeds)
+    try:
+        msgs = fn(meta, spec, n_seeds)
+    except (KeyError, TypeError, ValueError) as e:                            # incomplete rule specification in the protocol: fail closed
+        return "FAIL", [f"approved rule specification incomplete: {type(e).__name__}: {e}"]
     if msgs:
         return "FAIL", msgs
     if _np_version() != spec.get("numpy_version"):
@@ -535,20 +541,18 @@ def recompute_physical(out, n_seeds, D):
                                 and _filled(r.get("selection_numpy_version"))) else "repro row fails"
     alg = None if sel is None else SELECTION_ALGORITHMS_V.get(sel.get("algorithm"))
     rkey = lambda r: _k(r["W"], r["zeta"], r["seed"])
+    sel_ok = lambda r: None if (str(r.get("selection_algorithm")).strip() == sel["algorithm"] and _digits(r.get("selection_seed"))
+                                and int(r["selection_seed"].strip()) == int(sel["seed"])
+                                and str(r.get("selection_numpy_version")).strip() == sel["numpy_version"]) else "selection not the protocol's"
     if alg is None or sel.get("seed") is None:
-        obs = [] if rp is None else [_k(r.get("W"), r.get("zeta"), r.get("seed")) for r in rp]
-        inside = [k for k in dict.fromkeys(obs) if k in ens]
-        req = inside if len(inside) == n_sub else inside + [("count", n_sub)]
-        R["PHYS.C0.reproducibility"] = _gate(rp, rkey, req, rep_ok, open_decision="protocol decision required: C0 selection rule or seed")
+        R["PHYS.C0.reproducibility"] = _gate(rp, rkey, [], rep_ok, optional=sorted(ens), exact_distinct=n_sub,
+                                             open_decision="protocol decision required: C0 selection rule or seed")
     elif _np_version() != sel.get("numpy_version"):
-        obs = [] if rp is None else [rkey(r) for r in rp]
-        R["PHYS.C0.reproducibility"] = _gate(rp, rkey, list(dict.fromkeys(obs)), rep_ok, open_decision="installed numpy differs from the pin")
+        R["PHYS.C0.reproducibility"] = _gate(rp, rkey, [], lambda r: rep_ok(r) or sel_ok(r), optional=sorted(ens), exact_distinct=n_sub,
+                                             open_decision="installed numpy differs from the pin: the exact subset cannot be reproduced here")
     else:
         req = [_k(*k) for k in alg(G, seeds, n_sub, int(sel["seed"]))]
-        R["PHYS.C0.reproducibility"] = _gate(rp, rkey, req, lambda r: rep_ok(r) or (
-            None if (str(r.get("selection_algorithm")).strip() == sel["algorithm"] and _digits(r.get("selection_seed"))
-                     and int(r["selection_seed"].strip()) == int(sel["seed"]) and str(r.get("selection_numpy_version")).strip() == sel["numpy_version"])
-            else "selection not the protocol's"))
+        R["PHYS.C0.reproducibility"] = _gate(rp, rkey, req, lambda r: rep_ok(r) or sel_ok(r))
     c2 = C["C2"]
     R["PHYS.C2.solver_cross_check"] = _gate(tb["solver_cross_check"], lambda r: _k(r["W"], r["zeta"], r["seed"], r["energy_index"]),
                                             [_k(w, z, s, e) for (w, z) in pick(c2["cells"]) for s in seeds[:c2["n_seeds"]] for e in E],

@@ -12,19 +12,19 @@ the driver), `docs/physical_campaign_gates_draft.json` (DRAFT machine-readable t
 
 | item | specification |
 |---|---|
-| root entropy | one non-negative integer in decimal digits (no sign / exponent / decimal point), recorded **before any physical campaign data are generated**. **Not supplied: `root_entropy = null`.** |
+| root entropy | one non-negative integer in **ASCII** decimal digits 0–9 only (no sign / exponent / decimal point / non-ASCII digits such as Arabic-Indic numerals; surrounding whitespace ignored; same rule in both implementations), recorded **before any physical campaign data are generated**. **Not supplied: `root_entropy = null`.** |
 | SeedSequence | `root = numpy.random.SeedSequence(entropy=root_entropy)` |
 | spawn procedure | `children = root.spawn(2)`; Stage 1 = `children[0]` (`spawn_key == (0,)`), Stage 2 = `children[1]` (`spawn_key == (1,)`); equivalently `SeedSequence(entropy=root_entropy, spawn_key=(i,))` (verified identical by test). The root's own stream is not used. |
 | bit generator / initialisation | PCG64: `rng_i = numpy.random.Generator(numpy.random.PCG64(children[i]))` |
 | resampling API | `rng_i.integers(low=0, high=N, size=N, dtype=numpy.int64, endpoint=False)`, one call per replicate, replicates b = 0 … B−1 in order (B₁ = 10⁵, B₂ = 10⁶); replicate b of a stage is applied to all cells, energies and observables, i.e. to all 68 tests (paired). A batched implementation is admissible only if it reproduces exactly this index sequence. |
 | numpy pin | `numpy==2.5.3` (from `requirements-lock.txt`) |
-| stream identifier | `SEEDSEQ-PCG64-SPAWN-A\|entropy=<root_entropy>\|spawn_key=(<i>,)\|bitgen=PCG64\|numpy=2.5.3`, i = 0 (Stage 1), 1 (Stage 2) |
+| stream identifier | machine-readable template in the dedicated draft field `stream_id_template`: `SEEDSEQ-PCG64-SPAWN-A\|entropy={root_entropy}\|spawn_key=({spawn_index},)\|bitgen=PCG64\|numpy={numpy_version}`, spawn_index = 0 (Stage 1), 1 (Stage 2). Explanatory prose lives separately in `stream_id_description` and is never parsed. |
 | recorded per test (`tests.csv`) | rule, bit generator, numpy version, resampling API (identical in all 68 rows); Stage-1 identifier, seed (= root entropy) and probe; for Stage-2 tests also the Stage-2 identifier, seed (= root entropy) and probe; Stage-2 fields empty for Stage-1 tests |
 | probe | sha256 of the first replicate's index array of the stage (`<i8` bytes) — allows anyone with the pinned numpy to confirm that the recorded identifiers really produce the streams |
 
 **Independent validation.** The aggregator (`_rule_a_validator`, child via `SeedSequence(entropy, spawn_key=(i,))`, identifier by
-f-string) and the verifier (`_rule_a_v`, child via `SeedSequence(E).spawn(2)[i]`, identifier from the draft's `stream_id_format`
-template) are separately coded. Each checks: rule, PCG64, numpy version and API strings equal the protocol; both seeds equal the root
+`str.format` of `stream_id_template`) and the verifier (`_rule_a_v`, child via `SeedSequence(E).spawn(2)[i]`, identifier by placeholder
+substitution in the same `stream_id_template`) are separately coded. Each checks: rule, PCG64, numpy version and API strings equal the protocol; both seeds equal the root
 entropy; identifiers carry spawn keys (0,) and (1,) in the declared format; one Stage-1 stream for all 68 tests and one Stage-2 stream for
 all Stage-2 tests, different identifiers; probes recomputed with numpy. If the installed numpy differs from the pin the probes cannot be
 reproduced and the gate is NOT EVALUABLE. A malformed protocol root entropy makes the registry unbuildable (overall FAIL).
@@ -99,7 +99,7 @@ finite terms) like the required rows and are supported by a validated Tier-3 sol
 | item | specification (`reproducibility_selection` of the draft) |
 |---|---|
 | algorithm | `SEEDSEQ-PCG64-PERMUTATION-C0` |
-| seed | one non-negative decimal integer **dedicated to C0** (must differ from the bootstrap root entropy; a separate SeedSequence, no spawn key). **Not supplied: `seed = null`.** |
+| seed | one non-negative integer in ASCII decimal digits 0–9 only, **dedicated to C0** (must differ from the bootstrap root entropy; a separate SeedSequence, no spawn key). **Not supplied: `seed = null`.** |
 | generator | `numpy.random.Generator(numpy.random.PCG64(numpy.random.SeedSequence(entropy=seed)))`, numpy 2.5.3 |
 | units and ordering | all (W, ζ, seed) units of the confirmatory ensemble (16 cells × N), sorted ascending by W, then ζ, then seed (numeric); the keys are unique, so there are no ties |
 | size | n = ⌈0.01 · 16 · N⌉ in exact rational arithmetic, i.e. (16N + 99) // 100 (aggregator: `Fraction`; verifier: `Decimal` ceiling; checked equal for every N in [100, 1000]) |
@@ -108,8 +108,11 @@ finite terms) like the required rows and are supported by a validated Tier-3 sol
 
 The aggregator and the verifier compute the subset independently (sorted tuples vs nested ascending loops) and require the observed rows to
 equal it exactly; a third implementation in the tests agrees. A malformed or non-dedicated protocol seed makes the registry unbuildable
-(overall FAIL); a different installed numpy gives NOT EVALUABLE. **Gate state now:** `PHYS.C0.reproducibility` = NOT EVALUABLE (seed not
-recorded); structural errors (duplicates, units outside the ensemble, wrong count) still FAIL.
+(overall FAIL). **Structural checks never depend on the observed table and never on numpy:** the admissible units (the confirmatory
+ensemble) and the exact number of distinct units n are derived from the protocol, so duplicates, units outside the ensemble and a wrong
+count FAIL in every case — with the seed unrecorded, and with an installed numpy different from the pin. Only the comparison with the exact
+pinned permutation needs the pinned numpy; when it differs (and the structure is valid) the gate is NOT EVALUABLE. **Gate state now:**
+`PHYS.C0.reproducibility` = NOT EVALUABLE (seed not recorded).
 
 ## 6. Gates that are NOT EVALUABLE under the real draft (by design, until a protocol decision is made)
 

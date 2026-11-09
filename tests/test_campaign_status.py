@@ -1373,7 +1373,7 @@ def test_r7_spawn_procedure_equivalence_used_by_the_two_validators():
         assert (ch[0].generate_state(8) != ch[1].generate_state(8)).any()
     for st in (1, 2):
         assert cs.rule_a_probe(TEST_ENTROPY, st, N_TEST) == _probe(TEST_ENTROPY, st, N_TEST)
-        assert cs.rule_a_stream_id(TEST_ENTROPY, st, NPV) == _sid(TEST_ENTROPY, st)
+        assert cs.rule_a_stream_id(DRAFT["bootstrap_rng"], TEST_ENTROPY, st) == _sid(TEST_ENTROPY, st)
     assert _probe(TEST_ENTROPY, 1, N_TEST) != _probe(TEST_ENTROPY, 2, N_TEST)
 
 
@@ -1535,3 +1535,150 @@ def test_r7_c2_open_decisions_documented_and_states(tmp_path):
     assert "no numerical C2 adjudication" in s["registry"]["PHYS.C2.adjudication_resolved"]["reason"]
     out, s, v = _run_r6(tmp_path, mutate=_c2([], flag=True), name="missing")
     assert _c2_states(s) == ("FAIL", "FAIL", "FAIL") and s["overall_status"] == "FAIL"
+
+
+# ======================================================================
+# R7 audit fixes (R7a)
+# ======================================================================
+NON_ASCII_DIGITS = ["\u0669\u0668\u0667",        # Arabic-Indic 987
+                    "\u06f1\u06f2\u06f3",        # Extended Arabic-Indic (Persian) 123
+                    "\u0967\u0968\u0969",        # Devanagari 123
+                    "\uff11\uff12\uff13",        # fullwidth 123
+                    "1\u00b2",                    # superscript two (str.isdigit() is True)
+                    "\u0661" + "2"]               # mixed Arabic-Indic and ASCII
+
+
+@pytest.mark.parametrize("v", NON_ASCII_DIGITS)
+def test_r7a_non_ascii_digits_rejected_identically(v):
+    assert v.strip().isdigit() or not v.strip().isdigit()           # (documentation: several of these ARE str.isdigit())
+    assert cs._seed_ok(v) is False and ver._digits(v) is False
+
+
+@pytest.mark.parametrize("v,ok", [("0", True), ("123", True), (" 987654321 ", True), ("00042", True), (str(2**80), True),
+                                  ("", False), ("  ", False), ("-1", False), ("+1", False), ("1.0", False), ("1e3", False), ("12a", False)])
+def test_r7a_ascii_seed_rule_matches_in_both(v, ok):
+    assert cs._seed_ok(v) is ok and ver._digits(v) is ok
+
+
+def test_r7a_arabic_indic_seeds_in_rows_fail_in_both(tmp_path):
+    ar = "".join(chr(0x660 + int(c)) for c in str(TEST_ENTROPY))
+    assert int(ar) == TEST_ENTROPY                                    # Python int() would silently convert it
+
+    def f(rows):
+        for r in rows:
+            r["bootstrap_seed_stage1"] = ar
+            if r["stage"] == 2:
+                r["bootstrap_seed_stage2"] = ar
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_stats(f), name="rng")
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+    arc0 = "".join(chr(0x660 + int(c)) for c in str(TEST_C0_SEED))
+    out, s, v = _run_r6(tmp_path, mutate=_c0(lambda rows: [dict(r, selection_seed=arc0) for r in rows]), name="c0")
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+
+
+@pytest.mark.parametrize("field", ["bootstrap_rng.root_entropy", "reproducibility_selection.seed"])
+@pytest.mark.parametrize("v", NON_ASCII_DIGITS[:4])
+def test_r7a_non_ascii_protocol_values_fail_closed_in_both(tmp_path, field, v):
+    d = copy.deepcopy(TEST_DRAFT)
+    sec, key = field.split(".")
+    d[sec][key] = v
+    out, s, v_ = _run_r6(tmp_path, draft=d)
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v_["recomputed"] == "FAIL"
+
+
+def test_r7a_ascii_baseline_still_passes(tmp_path):
+    out, s, v = _run_r6(tmp_path)
+    assert s["overall_status"] == "PASS" and v["agree"]
+
+
+# ---- C0 structural validation independent of the observed table and of numpy ----
+def _mismatch(monkeypatch):
+    monkeypatch.setattr(cs, "numpy_version", lambda: "0.0.0")
+    monkeypatch.setattr(ver, "_np_version", lambda: "0.0.0")
+
+
+def test_r7a_c0_spec_does_not_derive_keys_from_observed_rows(monkeypatch):
+    ens = {(w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N_TEST + 1)}
+    for draft, mism in ((DRAFT, False), (TEST_DRAFT, True)):
+        if mism:
+            _mismatch(monkeypatch)
+        g = [x for x in cs.physical_gate_spec(draft, N_TEST) if x.gate_id == "PHYS.C0.reproducibility"][0]
+        assert g.expected_keys_fn is None and g.expected_keys is None
+        assert set(map(tuple, g.allowed_keys)) == ens and g.expected_distinct_count == (16 * N_TEST + 99) // 100
+
+
+@pytest.mark.parametrize("case,expect", [("valid", "NOT EVALUABLE"), ("out_of_ensemble", "FAIL"), ("too_few", "FAIL"),
+                                         ("too_many", "FAIL"), ("duplicate", "FAIL"), ("wrong_row_seed", "FAIL")])
+def test_r7a_c0_structure_under_numpy_mismatch(tmp_path, monkeypatch, case, expect):
+    _mismatch(monkeypatch)
+    chosen = set(c0_subset_t(N_TEST, TEST_C0_SEED))
+    spare = [u for u in sorted((w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N_TEST + 1)) if u not in chosen][0]
+
+    def f(rows):
+        if case == "out_of_ensemble":
+            rows[-1]["seed"] = N_TEST + 7
+        elif case == "too_few":
+            rows = rows[:-1]
+        elif case == "too_many":
+            rows = rows + [dict(rows[0], W=spare[0], zeta=spare[1], seed=spare[2])]
+        elif case == "duplicate":
+            rows = rows[:-1] + [rows[0]]
+        elif case == "wrong_row_seed":
+            rows[0]["selection_seed"] = TEST_C0_SEED + 1
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_c0(f))
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == expect == v["gate_states"]["PHYS.C0.reproducibility"]
+    assert s["overall_status"] != "PASS"
+
+
+@pytest.mark.parametrize("case", ["out_of_ensemble", "too_few", "too_many"])
+def test_r7a_c0_structure_with_unrecorded_seed(tmp_path, case):
+    chosen = set(c0_subset_t(N_TEST, TEST_C0_SEED))
+    spare = [u for u in sorted((w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N_TEST + 1)) if u not in chosen][0]
+
+    def f(rows):
+        if case == "out_of_ensemble":
+            rows[-1]["seed"] = N_TEST + 7
+        elif case == "too_few":
+            rows = rows[:-1]
+        else:
+            rows = rows + [dict(rows[0], W=spare[0], zeta=spare[1], seed=spare[2])]
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_c0(f), draft=DRAFT)
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "FAIL" == v["gate_states"]["PHYS.C0.reproducibility"]
+
+
+# ---- identifier template separated from explanatory prose ----
+def test_r7a_template_field_is_dedicated_and_prose_is_separate():
+    b = DRAFT["bootstrap_rng"]
+    assert "stream_id_format" not in b and b["stream_id_template"].count("{") == 3 and "stream_id_description" in b
+    assert b["stream_id_template"].format(root_entropy=5, spawn_index=1, numpy_version=NPV) == _sid(5, 2)
+    src = open(os.path.join(HERE, "verify_campaign_outputs.py")).read() + open(os.path.join(HERE, "campaign_status.py")).read()
+    assert "stream_id_description" not in src and 'split("  ")' not in src
+
+
+def test_r7a_editing_the_prose_does_not_change_validation(tmp_path):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["bootstrap_rng"]["stream_id_description"] = "Edited  prose  with  double  spaces  |entropy=<x>| and {braces}."
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "PASS" and s["overall_status"] == "PASS"
+
+
+def test_r7a_validators_consume_the_template_field(tmp_path):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["bootstrap_rng"]["stream_id_template"] = d["bootstrap_rng"]["stream_id_template"].replace("bitgen=PCG64", "bitgen=PCG-64")
+    out, s, v = _run_r6(tmp_path, draft=d, name="changed")
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL"           # recorded ids no longer match the protocol template
+    d2 = copy.deepcopy(TEST_DRAFT)
+    del d2["bootstrap_rng"]["stream_id_template"]
+    out, s, v = _run_r6(tmp_path, draft=d2, name="missing")
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+
+
+# ---- plan wording ----
+def test_r7a_plan_independence_wording():
+    plan = open(os.path.join(HERE, "docs", "PHYSICAL_CAMPAIGN_PLAN.md")).read()
+    assert "integer seeds are statistically independent" not in plan
+    assert "independent by design under the declared deterministic seed-derivation scheme" in plan
+    assert "not a proven mathematical independence" in plan

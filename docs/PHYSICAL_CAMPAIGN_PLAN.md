@@ -60,7 +60,7 @@ B3Y established, for **one** realization (seed 0), 16 predeclared points and dx 
 ## 2. Disorder-model facts used (from `disorder.py`)
 
 * V = W √(2/M) Σ_j cos(q_j·r + φ_j) S(x), q_j ~ N(0, I/ζ²), φ_j ~ U[0, 2π), M = 512; **no per-realization renormalisation** (sample variance fluctuates around W²). Fewer independent correlation cells fit in the slab at larger ζ, so realization-to-realization variability is expected to grow with ζ (an expectation to be checked by the pilot, not a result).
-* `SeedSequence([seed, 20241105])`: integer seeds are statistically independent.
+* `SeedSequence([seed, 20241105])`: realizations from different integer seeds are independent by design under the declared deterministic seed-derivation scheme (NumPy SeedSequence hashing); this is a property of the generator design, not a proven mathematical independence.
 * For one seed V is exactly linear in W and the ζ-change is a coordinate dilation of the same draws: **common seeds in every cell give exactly paired W-contrasts and draw-paired ζ-contrasts.**
 * Window tails at the lead slices scale with the realized amplitude (B3Y seed 0: 9.57×10⁻⁷ vs the 10⁻⁶ guard at buffer 103/512). **Buffer 205/512 is used for the entire main ensemble.** No realization is dropped or replaced because of amplitude or lead-tail value (selection on large amplitude would bias the means toward weak disorder). The lead-tail guard (≤ 10⁻⁶) is still a mandatory gate: a violation is **not** filtered; it stops the affected stage (§8) and is reported.
 
