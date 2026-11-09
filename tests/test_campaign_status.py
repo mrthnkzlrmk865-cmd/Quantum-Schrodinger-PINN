@@ -67,6 +67,18 @@ DRAFT = cs.load_draft()                          # the real (unfrozen) draft: re
 TEST_ALG = "TEST-ONLY-lowest-keys"               # test-only selection rule; NOT a protocol decision
 TEST_DRAFT = copy.deepcopy(DRAFT)
 TEST_DRAFT["reproducibility_selection"] = {"algorithm": TEST_ALG, "seed": 0}
+TEST_RNG = "TEST-ONLY-rng"                       # test-only stream rule; NOT a protocol decision
+TEST_DRAFT["bootstrap_rng"] = {"rule": TEST_RNG}
+RNG1, RNG2 = (f"{TEST_RNG}:stage1:101", 101), (f"{TEST_RNG}:stage2:202", 202)
+
+
+def _test_rng_rule(s1, seed1, s2, seed2, spec):
+    """Test-only validator: a stream identifier must encode its stage and its seed."""
+    if s1 != f"{TEST_RNG}:stage1:{seed1}":
+        return "Stage-1 identifier does not derive from its seed"
+    if s2 is not None and s2 != f"{TEST_RNG}:stage2:{seed2}":
+        return "Stage-2 identifier does not derive from its seed"
+    return None
 
 
 def _lowest_keys(ens, n, seed):
@@ -77,6 +89,8 @@ def _lowest_keys(ens, n, seed):
 def _register_test_selection(monkeypatch):
     monkeypatch.setitem(cs.SELECTION_ALGORITHMS, TEST_ALG, _lowest_keys)
     monkeypatch.setitem(ver.SELECTION_ALGORITHMS_V, TEST_ALG, _lowest_keys)
+    monkeypatch.setitem(cs.RNG_RULES, TEST_RNG, _test_rng_rule)
+    monkeypatch.setitem(ver.RNG_RULES_V, TEST_RNG, _test_rng_rule)
 
 
 @pytest.fixture
@@ -126,7 +140,9 @@ def make_tests_rows(D, K1_over=None, K2_over=None):
         ph = (K + 1) / (B + 1)
         lo, hi = _cp(K, B, a)
         rows[k] = dict(observable=k[0], contrast_id=k[1], theta_hat=0.01, ci95_sampling_lo=-0.005, ci95_sampling_hi=0.025, K_stage1=K1[k], K=K, B=B,
-                       stage=stage, p_hat=ph, mc_se=math.sqrt(ph * (1 - ph) / B), mc_ci_sim99_lo=lo, mc_ci_sim99_hi=hi, p_lo_final=lo, p_hi_final=max(hi, ph))
+                       stage=stage, p_hat=ph, mc_se=math.sqrt(ph * (1 - ph) / B), mc_ci_sim99_lo=lo, mc_ci_sim99_hi=hi, p_lo_final=lo, p_hi_final=max(hi, ph),
+                       bootstrap_rng_rule=TEST_RNG, bootstrap_rng_stream_stage1=RNG1[0], bootstrap_seed_stage1=RNG1[1],
+                       bootstrap_rng_stream_stage2=RNG2[0] if stage == 2 else "", bootstrap_seed_stage2=RNG2[1] if stage == 2 else "")
     phi = {k: rows[k]["p_hi_final"] for k in order}
     R = _holm_t(phi, al)
     A = _holm_t({k: rows[k]["p_lo_final"] for k in order}, al) - R
@@ -370,21 +386,21 @@ def test_m3_not_evaluable_adjudication_row_in_physical_campaign(tmp_path, draft_
         def new(ctx):
             r = inner(ctx)
             r["solver_cross_check"] = [dict(r["solver_cross_check"][0], max_abs_dS=3e-10)] + r["solver_cross_check"][1:]
-            r["adjudication"] = [dict(W=25.0, zeta=0.025, seed=1, energy_index=0, status="NOT EVALUABLE")]
+            r["adjudication"] = [dict(W=25.0, zeta=0.025, seed=1, energy_index=0, status="NOT EVALUABLE", eps_M1="", eps_M3="")]
             return r
         st["C2_solver_cross_check"] = new
     out, s = run_phys(tmp_path, mutate=m)
-    assert s["registry"]["PHYS.C2.adjudication_evaluable"]["state"] == "NOT EVALUABLE" and s["overall_status"] == "FAIL"
+    assert s["registry"]["PHYS.C2.adjudication_recorded"]["state"] == "NOT EVALUABLE" and s["overall_status"] == "FAIL"
     v = vphys(out, draft_path)
-    assert v["gate_states"]["PHYS.C2.adjudication_evaluable"] == "NOT EVALUABLE" and v["agree"]
+    assert v["gate_states"]["PHYS.C2.adjudication_recorded"] == "NOT EVALUABLE" and v["agree"]
 
 
 def test_m3_adjudication_row_without_a_flagged_c2_row_is_unexpected(tmp_path, draft_path):
     def m(st):
         inner = st["C2_solver_cross_check"]
-        st["C2_solver_cross_check"] = lambda ctx: dict(inner(ctx), adjudication=[dict(W=25.0, zeta=0.025, seed=1, energy_index=0, status="ADJUDICATED")])
+        st["C2_solver_cross_check"] = lambda ctx: dict(inner(ctx), adjudication=[dict(W=25.0, zeta=0.025, seed=1, energy_index=0, status="ADJUDICATED", eps_M1=1e-12, eps_M3=1e-12)])
     out, s = run_phys(tmp_path, mutate=m)
-    assert s["registry"]["PHYS.C2.adjudication_evaluable"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+    assert s["registry"]["PHYS.C2.adjudication_recorded"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
     assert vphys(out, draft_path)["agree"]
 
 
@@ -947,3 +963,382 @@ def test_i5_verifier_four_state_outcomes_match_aggregator_on_every_mutation_clas
     assert v["agree"], v["failures"][:5]
     assert {g: e["state"] for g, e in s["registry"].items()} == v["gate_states"]
     assert s["overall_status"] == v["recomputed"] == "FAIL"
+
+
+# ======================================================================
+# R6 helpers
+# ======================================================================
+def _agree_all(out, s, draft_file):
+    """The independent verifier reaches the same state for EVERY gate and agrees with summary.json."""
+    v = ver.verify_physical(out, N_TEST, draft_file)
+    assert {g: e["state"] for g, e in s["registry"].items()} == v["gate_states"], (
+        {g: (e["state"], v["gate_states"].get(g)) for g, e in s["registry"].items() if e["state"] != v["gate_states"].get(g)})
+    assert v["agree"] and v["recomputed"] == s["overall_status"], v["failures"][:3]
+    return v
+
+
+def _draft_file(tmp_path, draft, name="d.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps(draft))
+    return str(p)
+
+
+def _stats(fn):
+    return lambda st: wrap(st, "statistics", "tests", lambda rows: fn([dict(r) for r in rows]))
+
+
+def _run_r6(tmp_path, mutate=None, draft=None, name="r6"):
+    draft = draft or TEST_DRAFT
+    out, s = run_phys(tmp_path, mutate=mutate, draft=draft, name=name)
+    v = _agree_all(out, s, _draft_file(tmp_path, draft, name + ".json"))
+    return out, s, v
+
+
+def _stage2_index():
+    return [i for i, r in enumerate(STATS_ROWS) if r["stage"] == 2][0]
+
+
+# ======================================================================
+# R6 TASK 1: bootstrap RNG stream metadata
+# ======================================================================
+def test_r6_rng_real_draft_is_not_evaluable_not_pass(tmp_path):
+    out, s, v = _run_r6(tmp_path, draft=DRAFT)
+    assert DRAFT["bootstrap_rng"] is None and "PROTOCOL DECISION REQUIRED" in DRAFT["bootstrap_rng_note"]
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "NOT EVALUABLE" and s["overall_status"] != "PASS"
+    assert "independence not established" in s["registry"]["PHYS.statistics.bootstrap_rng"]["reason"]
+    assert len(DRAFT["bootstrap_rng_alternatives_for_review"]) >= 3                    # alternatives listed, none selected
+
+
+def test_r6_rng_test_rule_baseline_passes(tmp_path):
+    out, s, v = _run_r6(tmp_path)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "PASS" and s["overall_status"] == "PASS"
+
+
+@pytest.mark.parametrize("case", ["missing_stage1_seed", "missing_stage2_seed", "identical_streams", "inconsistent_stage1", "stage1_with_stage2_fields",
+                                  "two_stage2_streams", "missing_stage1_stream", "missing_rule"])
+def test_r6_rng_metadata_mutations(tmp_path, case):
+    j = _stage2_index()
+
+    def f(rows):
+        if case == "missing_stage1_seed":
+            rows[3]["bootstrap_seed_stage1"] = ""
+        elif case == "missing_stage2_seed":
+            rows[j]["bootstrap_seed_stage2"] = ""
+        elif case == "identical_streams":
+            for r in rows:
+                if r["stage"] == 2:
+                    r["bootstrap_rng_stream_stage2"] = r["bootstrap_rng_stream_stage1"]            # different seeds, same stream identifier
+        elif case == "inconsistent_stage1":
+            rows[5]["bootstrap_rng_stream_stage1"], rows[5]["bootstrap_seed_stage1"] = f"{TEST_RNG}:stage1:999", 999   # well-formed but different
+        elif case == "stage1_with_stage2_fields":
+            i = [k for k, r in enumerate(rows) if r["stage"] == 1][0]
+            rows[i]["bootstrap_rng_stream_stage2"], rows[i]["bootstrap_seed_stage2"] = RNG2
+        elif case == "two_stage2_streams":
+            k2 = [k for k, r in enumerate(rows) if r["stage"] == 2]
+            assert len(k2) >= 2
+            rows[k2[-1]]["bootstrap_rng_stream_stage2"], rows[k2[-1]]["bootstrap_seed_stage2"] = f"{TEST_RNG}:stage2:303", 303
+        elif case == "missing_stage1_stream":
+            rows[0]["bootstrap_rng_stream_stage1"] = " "
+        elif case == "missing_rule":
+            rows[0]["bootstrap_rng_rule"] = ""
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_stats(f))
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+
+
+@pytest.mark.parametrize("seed", ["-5", "1.5", "abc", " ", "1e3", "+7"])
+def test_r6_rng_malformed_seed(tmp_path, seed):
+    def f(rows):
+        rows[2]["bootstrap_seed_stage1"] = seed
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_stats(f))
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL"
+    assert not cs._seed_ok(seed) and not ver._digits(seed)
+
+
+def test_r6_rng_unapproved_rule_fails(tmp_path):
+    def f(rows):
+        for r in rows:
+            r["bootstrap_rng_rule"] = "SOME-OTHER-RULE"
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_stats(f))
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL"
+
+
+def test_r6_rng_stream_not_derived_from_recorded_seed_fails_under_the_rule_validator(tmp_path):
+    def f(rows):
+        for r in rows:
+            r["bootstrap_seed_stage1"] = 102                     # identifier still says ...:101
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_stats(f))
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL"
+
+
+def test_r6_rng_approved_rule_without_validator_is_not_evaluable(tmp_path):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["bootstrap_rng"] = {"rule": "APPROVED-BUT-UNIMPLEMENTED"}
+
+    def f(rows):
+        for r in rows:
+            r["bootstrap_rng_rule"] = "APPROVED-BUT-UNIMPLEMENTED"
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_stats(f), draft=d)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "NOT EVALUABLE" and s["overall_status"] != "PASS"
+
+
+# ======================================================================
+# R6 TASK 2: numerical verification tolerance
+# ======================================================================
+CMP = [cs.approx_equal, ver._same]
+
+
+@pytest.mark.parametrize("eq", CMP)
+def test_r6_tolerance_rule(eq):
+    a = 7.3529411764705885e-4
+    assert eq(a, a) and eq(0.0, 0.0) and eq(1.0, 1.0)                                  # exact equality
+    assert eq(a, a * (1 + 0.9e-9)) and not eq(a, a * (1 + 1.1e-9))                     # just inside / just outside rtol = 1e-9
+    tiny = 3.6765e-11                                                                   # smallest nonzero CP lower endpoint (K = 1, B = 1e6)
+    assert eq(tiny, tiny * (1 + 0.5e-9)) and not eq(tiny, tiny + 1e-15)                 # no absolute floor hides a 2.7e-5 relative error
+    assert not eq(0.0, 1e-300) and not eq(0.0, 5e-324)                                  # zero is exact (atol = 0)
+    assert eq(1.0, 1.0 - 5e-10) and not eq(1.0, 1.0 - 2e-9)                             # near one: relative = absolute
+    for bad in (float("nan"), float("inf"), None, "x"):
+        assert not eq(bad, 1.0) and not eq(1.0, bad)
+    assert cs.VERIFY_RTOL == ver.V_RTOL == DRAFT["verification_tolerance"]["rtol"] == 1e-9
+    assert cs.VERIFY_ATOL == ver.V_ATOL == DRAFT["verification_tolerance"]["atol"] == 0.0
+
+
+def _with_K(tmp_path, name, K1_over=None, K2_over=None, mutate_rows=None):
+    rows, info = make_tests_rows(DRAFT, K1_over, K2_over)
+
+    def stage(st):
+        st["statistics"] = lambda ctx: {"tests": (mutate_rows or (lambda rr: rr))([dict(r) for r in rows])}
+    return _run_r6(tmp_path, mutate=stage, name=name), rows, info
+
+
+def test_r6_tolerance_inside_passes_outside_fails_on_reported_p_hi(tmp_path):
+    i = [k for k, r in enumerate(STATS_ROWS) if r["decision"] == "REJECTED"][0]
+
+    def inside(rows):
+        rows[i]["p_hi_final"] = rows[i]["p_hi_final"] * (1 + 0.5e-9)
+        return rows
+
+    def outside(rows):
+        rows[i]["p_hi_final"] = rows[i]["p_hi_final"] * (1 + 2e-9)
+        return rows
+    (_, s1, _), _, _ = _with_K(tmp_path, "in", mutate_rows=inside)
+    (_, s2, _), _, _ = _with_K(tmp_path, "out", mutate_rows=outside)
+    assert s1["registry"]["PHYS.statistics.tests_complete"]["state"] == "PASS"
+    assert s2["registry"]["PHYS.statistics.tests_complete"]["state"] == "FAIL"
+
+
+def test_r6_boundary_K0_and_KB_exactness(tmp_path):
+    order = STATS_INFO["order"]
+    k_full = order[-1]                                                                   # make one test K = B at Stage 1
+    (_, s, _), rows, _ = _with_K(tmp_path, "base", K1_over={k_full: DRAFT["statistics"]["B_stage1"]})
+    assert s["registry"]["PHYS.statistics.tests_complete"]["state"] == "PASS"
+    r_full = [r for r in rows if (r["observable"], r["contrast_id"]) == k_full][0]
+    assert r_full["p_hat"] == 1.0 and r_full["mc_se"] == 0.0 and r_full["mc_ci_sim99_hi"] == 1.0
+    i0 = [k for k, r in enumerate(rows) if r["K"] == 0][0]
+    iB = rows.index(r_full)
+
+    def lo_not_zero(rr):
+        rr[i0]["mc_ci_sim99_lo"] = rr[i0]["p_lo_final"] = 1e-300
+        return rr
+
+    def hi_not_one(rr):
+        rr[iB]["mc_ci_sim99_hi"] = rr[iB]["p_hi_final"] = 1.0 - 1e-12                  # inside rtol, but not structurally exact
+        return rr
+    for n, fn in (("k0", lo_not_zero), ("kb", hi_not_one)):
+        (_, s, _), _, _ = _with_K(tmp_path, n, K1_over={k_full: DRAFT["statistics"]["B_stage1"]}, mutate_rows=fn)
+        assert s["registry"]["PHYS.statistics.tests_complete"]["state"] == "FAIL", n
+
+
+def test_r6_very_small_cp_endpoint(tmp_path):
+    k7 = STATS_INFO["order"][6]                                                          # Stage-2 test: give it K = 1 at B2 = 1e6
+    (_, s, _), rows, _ = _with_K(tmp_path, "base", K2_over={k7: 1})
+    r7 = [r for r in rows if (r["observable"], r["contrast_id"]) == k7][0]
+    assert r7["stage"] == 2 and 3e-11 < r7["mc_ci_sim99_lo"] < 4e-11
+    assert s["registry"]["PHYS.statistics.tests_complete"]["state"] == "PASS"
+    i = rows.index(r7)
+
+    def shift(rr):
+        rr[i]["mc_ci_sim99_lo"] = rr[i]["p_lo_final"] = rr[i]["mc_ci_sim99_lo"] + 1e-15
+        return rr
+    (_, s2, _), _, _ = _with_K(tmp_path, "shift", K2_over={k7: 1}, mutate_rows=shift)
+    assert s2["registry"]["PHYS.statistics.tests_complete"]["state"] == "FAIL"
+
+
+def test_r6_holm_threshold_boundary_in_both_implementations():
+    al, m = 0.05, 68
+    thr = al / m
+    for holm in (cs.holm_set, ver._holm):
+        p = {f"t{i}": 0.5 for i in range(m)}
+        p["t0"] = thr                                                  # exactly at the first threshold: rejected (<=)
+        assert holm(p, al) == {"t0"}
+        p["t0"] = thr * (1 + 1e-12)                                    # just above: nothing rejected (step-down stops)
+        assert holm(p, al) == set()
+        p["t0"], p["t1"] = thr, al / (m - 1)                           # second exactly at its threshold
+        assert holm(p, al) == {"t0", "t1"}
+
+
+def test_r6_reported_holm_threshold_and_adjusted_p_outside_tolerance_fail(tmp_path):
+    def thr(rows):
+        rows[0]["holm_threshold"] = rows[0]["holm_threshold"] * (1 + 2e-9)
+        return rows
+
+    def adj(rows):
+        rows[0]["p_holm_adj_from_phi"] = rows[0]["p_holm_adj_from_phi"] * (1 + 2e-9) if rows[0]["p_holm_adj_from_phi"] < 1 else 0.999999
+        return rows
+    for n, fn in (("thr", thr), ("adj", adj)):
+        (_, s, _), _, _ = _with_K(tmp_path, n, mutate_rows=fn)
+        assert s["registry"]["PHYS.statistics.tests_complete"]["state"] == "FAIL", n
+
+
+def test_r6_decisions_follow_integer_counts_not_reported_floats(tmp_path):
+    """Moving a reported p_hi_final within tolerance cannot move a test across a Holm threshold: sets come from K."""
+    i = [k for k, r in enumerate(STATS_ROWS) if r["decision"] == "NOT RESOLVED — Monte Carlo ambiguous"][0]
+
+    def nudge(rows):
+        rows[i]["p_hi_final"] = rows[i]["p_hi_final"] * (1 - 0.9e-9)
+        return rows
+    (_, s, _), _, _ = _with_K(tmp_path, "nudge", mutate_rows=nudge)
+    assert s["registry"]["PHYS.statistics.tests_complete"]["state"] == "PASS"
+
+
+# ======================================================================
+# R6 TASK 3: B3Y 1/512 decomposition compatibility rows
+# ======================================================================
+def _b3y_pair(d):
+    r, v = b3y_status(d), ver.verify_b3y(d, B3Y_PROTOCOL)
+    return r, v
+
+
+def test_r6_b3y_permitted_512_row_with_matching_tier3_record(tmp_path):
+    d = make_b3y_like(str(tmp_path / "b"))
+    p0 = json.load(open(B3Y_PROTOCOL))["point_sets"]["tier3_xp_1024_2048"][0]
+    edit_csv(os.path.join(d, "error_decomposition.csv"), lambda rows: rows + [dict(rows[0], point=p0, inv_dx=512, method="M2")])
+    r, v = _b3y_pair(d)
+    assert r["overall_status"] == "PASS" and v["recomputed"] == "PASS"
+
+
+@pytest.mark.parametrize("case", ["no_tier3_record", "tier3_gates_failed", "duplicate_512", "dx_256", "dx_4096", "method_M1", "point_not_tier3_fine"])
+def test_r6_b3y_unsupported_decomposition_rows_are_rejected(tmp_path, case):
+    d = make_b3y_like(str(tmp_path / "b"))
+    P = json.load(open(B3Y_PROTOCOL))["point_sets"]
+    p0 = P["tier3_xp_1024_2048"][0]
+    extra = lambda rows, **kw: rows + [dict(rows[0], **kw)]
+    if case == "no_tier3_record":
+        edit_csv(os.path.join(d, "tier3_exact_lattice.csv"), lambda rows: [r for r in rows if not (r["point"] == p0 and r["inv_dx"] == "512")])
+        edit_csv(os.path.join(d, "error_decomposition.csv"), lambda rows: extra(rows, point=p0, inv_dx=512, method="M2"))
+    elif case == "tier3_gates_failed":
+        edit_csv(os.path.join(d, "tier3_exact_lattice.csv"), lambda rows: [dict(r, gates_passed=False) if (r["point"] == p0 and r["inv_dx"] == "512") else r for r in rows])
+        edit_csv(os.path.join(d, "error_decomposition.csv"), lambda rows: extra(rows, point=p0, inv_dx=512, method="M2"))
+    elif case == "duplicate_512":
+        edit_csv(os.path.join(d, "error_decomposition.csv"), lambda rows: extra(extra(rows, point=p0, inv_dx=512, method="M3"), point=p0, inv_dx=512, method="M3"))
+    elif case in ("dx_256", "dx_4096"):
+        edit_csv(os.path.join(d, "error_decomposition.csv"), lambda rows: extra(rows, point=p0, inv_dx=int(case[3:]), method="M2"))
+    elif case == "method_M1":
+        edit_csv(os.path.join(d, "error_decomposition.csv"), lambda rows: extra(rows, point=p0, inv_dx=1024, method="M1"))
+    elif case == "point_not_tier3_fine":
+        q = [p for p in P["tier3_xp_512_validation"] if p not in P["tier3_xp_1024_2048"]][0]   # has a Tier-3 record at 1/512, but no decomposition role
+        edit_csv(os.path.join(d, "error_decomposition.csv"), lambda rows: extra(rows, point=q, inv_dx=512, method="M2"))
+    r, v = _b3y_pair(d)
+    assert gate_state(r, "B3Y.decomposition.evaluable") == "FAIL" and r["overall_status"] == "FAIL"
+    assert v["recomputed"] != "PASS" and any("decomposition" in f for f in v["failures"])
+
+
+def test_r6_b3y_real_results_use_exactly_the_documented_compatibility_rows():
+    r = cs.aggregate_b3y(B3Y_DIR, B3Y_PROTOCOL)
+    g = [x for x in r["registry"] if x["gate_id"] == "B3Y.decomposition.evaluable"][0]
+    assert g["state"] == "PASS" and g["n_expected"] == 20 and g["n_rows"] == 30 and g["n_extra_rows"] == 0   # 20 required + 10 compatibility rows
+    rows, _ = rows_of(os.path.join(B3Y_DIR, "error_decomposition.csv"))
+    assert sorted({r["inv_dx"] for r in rows}) == ["1024", "2048", "512"] and sum(r["inv_dx"] == "512" for r in rows) == 10
+
+
+# ======================================================================
+# R6 TASK 4: C2 adjudication (administrative completion vs scientific resolution)
+# ======================================================================
+FLAG = dict(W=25.0, zeta=0.025, seed=1, energy_index=0)
+
+
+def _c2(adj_rows, flag=True):
+    def m(st):
+        inner = st["C2_solver_cross_check"]
+
+        def new(ctx):
+            r = inner(ctx)
+            if flag:
+                r["solver_cross_check"] = [dict(r["solver_cross_check"][0], max_abs_dS=3e-10)] + r["solver_cross_check"][1:]
+            r["adjudication"] = adj_rows
+            return r
+        st["C2_solver_cross_check"] = new
+    return m
+
+
+GOOD_ADJ = dict(FLAG, status="ADJUDICATED", eps_M1=2e-11, eps_M3=3e-11)
+
+
+def _c2_states(s):
+    return (s["registry"]["PHYS.C2.solver_cross_check"]["state"], s["registry"]["PHYS.C2.adjudication_recorded"]["state"],
+            s["registry"]["PHYS.C2.adjudication_resolved"]["state"])
+
+
+def test_r6_c2_flag_definition_and_no_flag_baseline(tmp_path):
+    out, s, v = _run_r6(tmp_path)
+    assert _c2_states(s) == ("PASS", "PASS", "PASS")                                  # nothing flagged: nothing to adjudicate or resolve
+
+
+@pytest.mark.parametrize("case,expect", [
+    ("missing", ("FAIL", "FAIL", "FAIL")),
+    ("duplicate", ("FAIL", "FAIL", "FAIL")),
+    ("wrong_association", ("FAIL", "FAIL", "FAIL")),
+    ("adjudicated_no_criterion", ("FAIL", "PASS", "NOT EVALUABLE")),
+    ("not_evaluable_status", ("FAIL", "NOT EVALUABLE", "NOT EVALUABLE")),
+    ("adjudicated_without_numbers", ("FAIL", "FAIL", "FAIL")),
+    ("unknown_status", ("FAIL", "FAIL", "FAIL")),
+])
+def test_r6_c2_adjudication_mutations(tmp_path, case, expect):
+    adj = {"missing": [], "duplicate": [GOOD_ADJ, GOOD_ADJ], "wrong_association": [dict(GOOD_ADJ, energy_index=1)],
+           "adjudicated_no_criterion": [GOOD_ADJ], "not_evaluable_status": [dict(GOOD_ADJ, status="NOT EVALUABLE", eps_M1="", eps_M3="")],
+           "adjudicated_without_numbers": [dict(GOOD_ADJ, eps_M1="")], "unknown_status": [dict(GOOD_ADJ, status="RESOLVED")]}[case]
+    out, s, v = _run_r6(tmp_path, mutate=_c2(adj))
+    assert _c2_states(s) == expect and s["overall_status"] == "FAIL"
+
+
+def test_r6_c2_unexpected_adjudication_without_flag(tmp_path):
+    out, s, v = _run_r6(tmp_path, mutate=_c2([GOOD_ADJ], flag=False))
+    assert _c2_states(s) == ("PASS", "FAIL", "FAIL") and s["overall_status"] == "FAIL"
+
+
+def test_r6_c2_test_only_criterion_resolution_never_converts_to_pass(tmp_path, monkeypatch):
+    """With a (test-only) approved criterion, a resolved discrepancy makes only the resolution gate PASS; the C2 gate stays FAIL."""
+    crit = lambda row, spec: None if float(row["eps_M1"]) <= 1e-10 and float(row["eps_M3"]) <= 1e-10 else "TEST-ONLY criterion not met"
+    monkeypatch.setitem(cs.C2_ADJUDICATION_CRITERIA, "TEST-ONLY-c2", crit)
+    monkeypatch.setitem(ver.C2_CRITERIA_V, "TEST-ONLY-c2", crit)
+    d = copy.deepcopy(TEST_DRAFT)
+    d["C2_adjudication_criteria"] = {"criterion": "TEST-ONLY-c2"}
+    out, s, v = _run_r6(tmp_path, mutate=_c2([GOOD_ADJ]), draft=d, name="ok")
+    assert _c2_states(s) == ("FAIL", "PASS", "PASS") and s["overall_status"] == "FAIL"
+    out, s, v = _run_r6(tmp_path, mutate=_c2([dict(GOOD_ADJ, eps_M1=5e-10)]), draft=d, name="bad")
+    assert _c2_states(s) == ("FAIL", "PASS", "FAIL") and s["overall_status"] == "FAIL"
+
+
+def test_r6_c2_real_draft_has_no_criterion_and_documents_the_decision():
+    assert DRAFT["C2_adjudication_criteria"] is None and "PROTOCOL DECISION REQUIRED" in DRAFT["C2_adjudication_note"]
+    assert not cs.C2_ADJUDICATION_CRITERIA and not ver.C2_CRITERIA_V                     # (RNG registries hold only the autouse test rule here)
+
+
+# ======================================================================
+# R6: registries empty in production, independence preserved
+# ======================================================================
+def test_r6_production_registries_are_empty_and_verifier_independent():
+    """The modules DEFINE every decision registry empty (the test-only rules are injected per test and removed afterwards)."""
+    want = {"campaign_status.py": ("SELECTION_ALGORITHMS", "RNG_RULES", "C2_ADJUDICATION_CRITERIA"),
+            "verify_campaign_outputs.py": ("SELECTION_ALGORITHMS_V", "RNG_RULES_V", "C2_CRITERIA_V")}
+    for f, names in want.items():
+        tree = ast.parse(open(os.path.join(HERE, f)).read())
+        found = {n.target.id: n.value for n in tree.body if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)}
+        for nm in names:
+            assert nm in found and isinstance(found[nm], ast.Dict) and not found[nm].keys, (f, nm)
+    im = _imports(os.path.join(HERE, "verify_campaign_outputs.py"))
+    assert "campaign_status" not in im and "physical_campaign_driver" not in im

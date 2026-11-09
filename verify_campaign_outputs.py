@@ -27,6 +27,17 @@ from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SELECTION_ALGORITHMS_V: dict = {}          # independent registry; empty while the protocol leaves the selection rule open
+RNG_RULES_V: dict = {}                     # independent registry of bootstrap stream-rule validators; empty: no rule approved
+C2_CRITERIA_V: dict = {}                   # independent registry of C2 resolution criteria; empty: none approved
+V_RTOL, V_ATOL = 1e-9, 0.0                 # |a-b| <= V_ATOL + V_RTOL*max(|a|,|b|), finite only (docs/CAMPAIGN_STATUS_CONTRACT.md section 2)
+
+
+def _same(a, b):
+    """Independent implementation of the reported-vs-recomputed float agreement rule."""
+    x, y = _f(a), _f(b)
+    if not (math.isfinite(x) and math.isfinite(y)):
+        return False
+    return abs(x - y) <= V_ATOL + V_RTOL * max(abs(x), abs(y))
 PHYS_OVERALL = ("PASS", "FAIL", "NOT EVALUABLE", "INCOMPLETE")
 
 
@@ -192,12 +203,14 @@ def verify_b3y(out, protocol_path=None):
                            and _le(r.get("X7_error_indicator"), X["error_indicator_max"])
                            and _le(r.get("X5_fl_vs_state_max_abs"), X["fisher_lee_vs_wavefunction_forms_abs"])
                            and all(_le(r.get(f"eps_{m}"), L["S_abs"]) for m in ("M1", "M2", "M3"))) else "tier3 row fails")
+    t3rows = _rows(out, "tier3_exact_lattice.csv") or []
+    t3ok = Counter(str(r.get("point")).strip() for r in t3rows if _f(r.get("inv_dx")) == float(i1) and _true(r.get("gates_passed")))
     run("decomposition", _rows(out, "error_decomposition.csv"), lambda r: _k(r["point"], r["inv_dx"], r["method"]),
         [_k(p, i, m) for p in S["tier3_xp_1024_2048"] for i in (i2, i3) for m in ("M2", "M3")],
         lambda r: None if (all(math.isfinite(_f(r.get(c))) for c in ("total", "bulk_rounding", "lead_data", "solver", "identity_residual_three_term", "e_ind_combined"))
                            and all(_true(r.get(c)) for c in ("gate_fl_passed", "gate_hybrid_passed", "mirror_source_bitwise", "mirror_extraction_bitwise",
                                                              "M2_recomputed_bitwise", "M3_recomputed_bitwise"))) else "decomposition row not evaluable/failing",
-        optional=[_k(p, i1, m) for p in S["tier3_xp_1024_2048"] if p in S["tier3_xp_512_validation"] for m in ("M2", "M3")],
+        optional=[_k(p, i1, m) for p in S["tier3_xp_1024_2048"] if p in S["tier3_xp_512_validation"] and t3ok.get(p, 0) == 1 for m in ("M2", "M3")],
         status_col="status", ok=("", "OK"), ne=("NOT EVALUABLE",))
     xr = _rows(out, "xp_gates.csv")
     allpts = list(dict.fromkeys(S["tier3_xp_512_validation"] + S["tier3_xp_1024_2048"]))
@@ -280,7 +293,7 @@ def _stats_ok(rows, D, order):
     st = D["statistics"]
     al, B1, B2, a1, a2 = st["holm_alpha"], st["B_stage1"], st["B_stage2"], st["mc_alpha_per_test_stage1"], st["mc_alpha_per_test_stage2"]
     REJ, NREJ, AMB = st["decisions"]
-    close = lambda a, b: math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-300)
+    close = _same
     T, out = {}, []
     for r in rows:
         key = (str(r.get("observable")).strip(), str(r.get("contrast_id")).strip())
@@ -306,17 +319,27 @@ def _stats_ok(rows, D, order):
         if not all(checks):
             out.append(f"{key}: MC quantities inconsistent")
             continue
+        if K == 0 and not (g["mc_ci_sim99_lo"] == 0.0 and g["p_lo_final"] == 0.0):
+            out.append(f"{key}: K = 0 requires exact zero lower endpoint")
+            continue
+        if K == B and not (g["mc_ci_sim99_hi"] == 1.0 and g["p_hi_final"] == 1.0):
+            out.append(f"{key}: K = B requires exact unit upper endpoint")
+            continue
+        if not (0.0 <= g["p_lo_final"] and g["p_lo_final"] <= g["p_hat"] and g["p_hat"] <= g["p_hi_final"] and g["p_hi_final"] <= 1.0):
+            out.append(f"{key}: endpoint ordering violated")
+            continue
         l1, h1 = _cp(K1, B1, a1)
-        T[key] = (stg, l1, max(h1, (K1 + 1) / (B1 + 1)), g, r.get("decision"))
+        # decision quantities from the integer counts (never from the reported floats)
+        T[key] = (stg, l1, max(h1, (K1 + 1) / (B1 + 1)), g, r.get("decision"), lo, max(hi, ph))
     if out:
         return out
     if set(T) != set(order):
         return ["test set differs from the 68-test family"]
     A1 = _holm({k: v[1] for k, v in T.items()}, al) - _holm({k: v[2] for k, v in T.items()}, al)
     out += [f"{k}: Stage-2 selection violated" for k, v in T.items() if (v[0] == 2) != (k in A1)]
-    phi = {k: v[3]["p_hi_final"] for k, v in T.items()}
+    phi = {k: v[6] for k, v in T.items()}
     R = _holm(phi, al)
-    A = _holm({k: v[3]["p_lo_final"] for k, v in T.items()}, al) - R
+    A = _holm({k: v[5] for k, v in T.items()}, al) - R
     pos = {k: i for i, k in enumerate(order)}
     ranked = sorted(T, key=lambda k: (phi[k], pos[k]))
     m = len(ranked)
@@ -337,6 +360,61 @@ def _stats_ok(rows, D, order):
         elif label != NREJ:
             out.append(f"{k}: outside R_claim and A_final but labelled {label!r}")
     return out
+
+
+def _digits(x):
+    return isinstance(x, str) and len(x.strip()) > 0 and all(ch in "0123456789" for ch in x.strip())
+
+
+def _rng_gate(rows, D, order):
+    """Independent check of the bootstrap stream metadata (stage-specific streams, consistency, distinctness, approved rule)."""
+    cols = ("bootstrap_rng_rule", "bootstrap_rng_stream_stage1", "bootstrap_seed_stage1", "bootstrap_rng_stream_stage2", "bootstrap_seed_stage2")
+    st, why = _gate(rows, lambda r: _k(r["observable"], r["contrast_id"]), [_k(*k) for k in order], lambda r: None)
+    if st != "PASS":
+        return st, why
+    bad, one, two, rules = [], [], [], []
+    for r in rows:
+        if not all(c in r for c in cols):
+            bad.append("RNG columns missing")
+            break
+        stage = _f(r.get("stage"))
+        if not (_filled(r["bootstrap_rng_rule"]) and _filled(r["bootstrap_rng_stream_stage1"]) and _digits(r["bootstrap_seed_stage1"])):
+            bad.append("Stage-1 stream/seed missing or malformed")
+            continue
+        rules.append(r["bootstrap_rng_rule"].strip())
+        one.append((r["bootstrap_rng_stream_stage1"].strip(), int(r["bootstrap_seed_stage1"].strip())))
+        any2 = _filled(r["bootstrap_rng_stream_stage2"]) or _filled(r["bootstrap_seed_stage2"])
+        if stage == 1:
+            if any2:
+                bad.append("Stage-1 test with Stage-2 stream metadata")
+        elif stage == 2:
+            if not (_filled(r["bootstrap_rng_stream_stage2"]) and _digits(r["bootstrap_seed_stage2"])):
+                bad.append("Stage-2 stream/seed missing or malformed")
+                continue
+            two.append((r["bootstrap_rng_stream_stage2"].strip(), int(r["bootstrap_seed_stage2"].strip())))
+        else:
+            bad.append("invalid stage")
+    if not bad:
+        if len(set(rules)) != 1:
+            bad.append("stream rule not unique")
+        if len(set(one)) != 1:
+            bad.append("Stage-1 stream not shared by all tests")
+        if len(set(two)) > 1:
+            bad.append("Stage-2 stream not shared by all Stage-2 tests")
+        if one and two and one[0][0] == two[0][0]:
+            bad.append("Stage-2 stream identifier identical to Stage 1")
+    if bad:
+        return "FAIL", bad
+    rule = D.get("bootstrap_rng")
+    if rule is None:
+        return "NOT EVALUABLE", ["protocol decision required: bootstrap RNG rule and seeds; independence not established"]
+    if set(rules) != {str(rule.get("rule"))}:
+        return "FAIL", ["unapproved stream rule"]
+    fn = RNG_RULES_V.get(rule.get("rule"))
+    if fn is None:
+        return "NOT EVALUABLE", ["no validator for the approved stream rule"]
+    msg = fn(one[0][0], one[0][1], two[0][0] if two else None, two[0][1] if two else None, rule)
+    return ("FAIL", [msg]) if msg else ("PASS", [])
 
 
 PHYS_TABLES = ("stages", "realizations", "reproducibility", "solver_cross_check", "adjudication", "b3y_reproduction", "clean_guide", "controls",
@@ -388,8 +466,18 @@ def recompute_physical(out, n_seeds, D):
                                             lambda r: None if _le(r.get("max_abs_dS"), L["solver_cross_check_S_abs"]) else "C2 exceedance")
     flagged = list(dict.fromkeys(_k(r.get("W"), r.get("zeta"), r.get("seed"), r.get("energy_index")) for r in (tb["solver_cross_check"] or [])
                                  if not _le(r.get("max_abs_dS"), L["solver_cross_check_S_abs"])))
-    R["PHYS.C2.adjudication_evaluable"] = _gate(tb["adjudication"], lambda r: _k(r["W"], r["zeta"], r["seed"], r["energy_index"]), flagged,
-                                                lambda r: None, status_col="status", ok=("ADJUDICATED",), ne=("NOT EVALUABLE",))
+    adj_numbers = lambda r: None if (math.isfinite(_f(r.get("eps_M1"))) and math.isfinite(_f(r.get("eps_M3")))) else "adjudication numbers missing"
+    akey = lambda r: _k(r["W"], r["zeta"], r["seed"], r["energy_index"])
+    R["PHYS.C2.adjudication_recorded"] = _gate(tb["adjudication"], akey, flagged, adj_numbers, status_col="status", ok=("ADJUDICATED",), ne=("NOT EVALUABLE",))
+    crit = D.get("C2_adjudication_criteria")
+    cfun = None if crit is None else C2_CRITERIA_V.get(crit.get("criterion"))
+    open_res = None
+    if flagged:
+        open_res = ("protocol decision required: no C2 resolution criterion" if crit is None
+                    else None if cfun is not None else "C2 resolution criterion not implemented")
+    R["PHYS.C2.adjudication_resolved"] = _gate(tb["adjudication"], akey, flagged,
+                                               (lambda r: adj_numbers(r) or cfun(r, crit)) if cfun is not None else adj_numbers,
+                                               status_col="status", ok=("ADJUDICATED",), ne=("NOT EVALUABLE",), open_decision=open_res)
     R["PHYS.C5.b3y_reproduction"] = _gate(tb["b3y_reproduction"], lambda r: _k(r["zeta"], r["energy_index"]), [_k(z, e) for z in C["C5"]["zeta"] for e in E],
                                           lambda r: None if _le(r.get("abs_dT1"), L["b3y_reproduction_abs_dT1"]) else "C5 exceeds")
     R["PHYS.C6.clean_guide"] = _gate(tb["clean_guide"], lambda r: _k(r["energy_index"]), [_k(e) for e in E],
@@ -426,6 +514,7 @@ def recompute_physical(out, n_seeds, D):
         if bad:
             st, why = "FAIL", bad
     R["PHYS.statistics.tests_complete"] = (st, why)
+    R["PHYS.statistics.bootstrap_rng"] = _rng_gate(tb["tests"], D, order)
     # per-table coverage: every row owned by some gate
     for t in PHYS_TABLES:
         rows = tb[t]
