@@ -1,54 +1,42 @@
-# Fail-closed campaign status: validation contract notes (R6)
+# Fail-closed campaign status: validation contract notes (R6, R7)
 
-Status: **validation-contract documentation, not a protocol.** Nothing here changes the approved statistical procedure of
+Status: **validation-contract documentation, not a frozen protocol.** R7 records the reviewer's decisions (bootstrap RNG option A, tolerance, C0 selection procedure); the two numbers they require (root entropy, C0 seed) are still unrecorded. Nothing here changes the approved statistical procedure of
 `docs/PHYSICAL_CAMPAIGN_PLAN.md` (68-test Holm family, B₁ = 10⁵, B₂ = 10⁶, Bonferroni Monte Carlo budget 0.01, Holm α = 0.05, sampling and
 Monte Carlo interval definitions). The physical protocol is not frozen or hashed. No simulation, pilot or confirmatory run was made.
 Implementation: `campaign_status.py` (aggregator), `verify_campaign_outputs.py` (independent verifier; imports neither the aggregator nor
 the driver), `docs/physical_campaign_gates_draft.json` (DRAFT machine-readable transcription), tests in `tests/test_campaign_status.py`.
 
-## 1. Bootstrap random-number streams
+## 1. Bootstrap random-number streams — R7: option A APPROVED, root entropy not yet recorded
 
-**Already specified by the plan** (section 5.2/5.3):
-* one bootstrap replicate resamples the confirmatory seeds jointly for all cells, energies and both observables, so all 68 tests share the
-  Stage-1 replicates — **one Stage-1 stream**;
-* Stage 2 draws B₂ = 10⁶ new replicates "from an independent random stream (a separate, recorded child of the bootstrap SeedSequence, never
-  overlapping Stage 1)" — **one Stage-2 stream, shared by all Stage-2 tests, derived as a child of the bootstrap SeedSequence**;
-* "the bootstrap RNG seeds are fixed and recorded".
+**Approved mechanism (rule `SEEDSEQ-PCG64-SPAWN-A`; machine-readable in `bootstrap_rng` of the draft):**
 
-**Not specified (protocol decisions required; none is made here):**
-1. the root entropy (seed) of the bootstrap SeedSequence and how it is fixed before data exist;
-2. the bit generator (e.g. PCG64, Philox);
-3. which SeedSequence node is the Stage-1 stream (the root, or a spawned child) and which spawn key is Stage 2;
-4. the identifier format recording rule, entropy and spawn key;
-5. the resampling call and the numpy version pin required for bit-for-bit reproducibility of the streams.
+| item | specification |
+|---|---|
+| root entropy | one non-negative integer in decimal digits (no sign / exponent / decimal point), recorded **before any physical campaign data are generated**. **Not supplied: `root_entropy = null`.** |
+| SeedSequence | `root = numpy.random.SeedSequence(entropy=root_entropy)` |
+| spawn procedure | `children = root.spawn(2)`; Stage 1 = `children[0]` (`spawn_key == (0,)`), Stage 2 = `children[1]` (`spawn_key == (1,)`); equivalently `SeedSequence(entropy=root_entropy, spawn_key=(i,))` (verified identical by test). The root's own stream is not used. |
+| bit generator / initialisation | PCG64: `rng_i = numpy.random.Generator(numpy.random.PCG64(children[i]))` |
+| resampling API | `rng_i.integers(low=0, high=N, size=N, dtype=numpy.int64, endpoint=False)`, one call per replicate, replicates b = 0 … B−1 in order (B₁ = 10⁵, B₂ = 10⁶); replicate b of a stage is applied to all cells, energies and observables, i.e. to all 68 tests (paired). A batched implementation is admissible only if it reproduces exactly this index sequence. |
+| numpy pin | `numpy==2.5.3` (from `requirements-lock.txt`) |
+| stream identifier | `SEEDSEQ-PCG64-SPAWN-A\|entropy=<root_entropy>\|spawn_key=(<i>,)\|bitgen=PCG64\|numpy=2.5.3`, i = 0 (Stage 1), 1 (Stage 2) |
+| recorded per test (`tests.csv`) | rule, bit generator, numpy version, resampling API (identical in all 68 rows); Stage-1 identifier, seed (= root entropy) and probe; for Stage-2 tests also the Stage-2 identifier, seed (= root entropy) and probe; Stage-2 fields empty for Stage-1 tests |
+| probe | sha256 of the first replicate's index array of the stage (`<i8` bytes) — allows anyone with the pinned numpy to confirm that the recorded identifiers really produce the streams |
 
-**Reporting contract (added schema; values are recorded, not prescribed).** Every row of `tests.csv` carries `bootstrap_rng_rule`,
-`bootstrap_rng_stream_stage1`, `bootstrap_seed_stage1`, `bootstrap_rng_stream_stage2`, `bootstrap_seed_stage2`. Stage-1 tests carry
-the Stage-1 stream and seed and **empty** Stage-2 fields; Stage-2 tests also carry the Stage-2 stream and seed. Gate
-`PHYS.statistics.bootstrap_rng` (both implementations) requires: every field present and non-empty where required; seeds written as
-non-negative decimal integers; exactly one rule, one Stage-1 (stream, seed) pair across all 68 rows, at most one Stage-2 pair across the
-Stage-2 rows; Stage-2 stream identifier different from the Stage-1 identifier; if a rule is approved, the recorded rule must be it and the
-rule's validator (if implemented) must confirm that the identifiers derive from the recorded seeds. Any violation is FAIL.
-**While `bootstrap_rng` is null in the protocol the gate is NOT EVALUABLE** even when the metadata are structurally perfect, and an
-approved rule without an implemented validator is also NOT EVALUABLE. The production registries of rule validators are empty.
+**Independent validation.** The aggregator (`_rule_a_validator`, child via `SeedSequence(entropy, spawn_key=(i,))`, identifier by
+f-string) and the verifier (`_rule_a_v`, child via `SeedSequence(E).spawn(2)[i]`, identifier from the draft's `stream_id_format`
+template) are separately coded. Each checks: rule, PCG64, numpy version and API strings equal the protocol; both seeds equal the root
+entropy; identifiers carry spawn keys (0,) and (1,) in the declared format; one Stage-1 stream for all 68 tests and one Stage-2 stream for
+all Stage-2 tests, different identifiers; probes recomputed with numpy. If the installed numpy differs from the pin the probes cannot be
+reproduced and the gate is NOT EVALUABLE. A malformed protocol root entropy makes the registry unbuildable (overall FAIL).
 
-**Seeds, streams, independence — three different claims.**
-1. *Different recorded integer seeds* only say that two generator states were initialised from different numbers. Nothing follows about
-   overlap or correlation of the sequences.
-2. *Distinct streams* require a declared mechanism that guarantees distinct (ideally non-overlapping) subsequences: SeedSequence spawn keys,
-   jump-ahead of a long-period generator, or disjoint counter/key spaces of a counter-based generator. The verifier can check only that
-   the recorded identifiers are distinct and, once a rule and its validator exist, that they follow the rule.
-3. *Statistical independence* of pseudo-random streams cannot be proved. The defensible statement is "independent by design of the
-   declared mechanism" (plus, optionally, empirical test batteries). The gate therefore never reports independence as established;
-   its PASS (only possible under an approved and implemented rule) means "metadata recorded, consistent and derived by the approved rule".
+**Wording.** The Stage-1 and Stage-2 streams are *independent by design under the declared RNG mechanism* (distinct SeedSequence spawn keys
+of one root). This is not a mathematical proof of statistical independence; different integer seeds alone would prove nothing, and
+distinct identifiers prove only that distinct spawn keys were declared.
 
-**Alternatives for review (none selected):** (A) root `SeedSequence(E)`; Stage 1 = child spawn key (0,), Stage 2 = child (1,); PCG64.
-(B) root used directly for Stage 1; Stage 2 = `root.spawn(1)[0]`; PCG64 (literal reading of "child of the bootstrap SeedSequence").
-(C) PCG64 for Stage 1 and the same generator `.jumped(1)` for Stage 2 (non-overlap by jump distance). (D) Philox with distinct key words
-or counter blocks. For all: E fixed in the frozen protocol before data exist, as a recorded integer or derived from the frozen protocol
-hash. The draft lists them in `bootstrap_rng_alternatives_for_review`.
+**Gate state now:** `PHYS.statistics.bootstrap_rng` = NOT EVALUABLE ("root SeedSequence entropy … has not been recorded"), even for
+structurally perfect metadata. Superseded R6 text: the RNG rule is no longer undecided; the R6 alternatives B–D were not adopted.
 
-## 2. Numerical verification tolerance
+## 2. Numerical verification tolerance — R7: accepted as stated (rtol = 1e-9, atol = 0)
 
 **Where.** Before R6: `campaign_status.statistics_table_evaluator` used `|a−b| ≤ 1e-9·max(|a|, |b|, 1e-300)` with an extra `+1e-300` on
 lower endpoints; `verify_campaign_outputs._stats_ok` used `math.isclose(rel_tol=1e-9, abs_tol=1e-300)`. Both compare the *reported*
@@ -71,7 +59,7 @@ Added **structural exactness**: K = 0 ⇒ lower endpoint and p_lo_final exactly 
 ordering 0 ≤ p_lo_final ≤ p̂ ≤ p_hi_final ≤ 1. **The tolerance never affects a decision:** the Stage-2 selection, both Holm sets, the ranks
 and the expected labels are recomputed from the integer counts (R6 change; previously the sets were formed from the reported floats).
 
-## 3. B3Y decomposition rows at dx = 1/512 (compatibility)
+## 3. B3Y decomposition rows at dx = 1/512 (compatibility) — R7: retained unchanged
 
 The historical protocol `docs/rgf_b3y_protocol.json` (not modified) requires the M2/M3 Tier-3 error decomposition for the five
 `tier3_xp_1024_2048` points at dx = 1/1024 and 1/2048 (20 rows). The B3Y driver additionally wrote the decomposition at dx = 1/512 for the
@@ -100,16 +88,35 @@ finite terms) like the required rows and are supported by a validated Tier-3 sol
   (`C2_adjudication_criteria = null`), so this gate is NOT EVALUABLE whenever anything is flagged (PASS if nothing is flagged).
 * **Never a PASS by adjudication:** even with an approved criterion that is satisfied, `PHYS.C2.solver_cross_check` remains FAIL, in line
   with the plan ("at best COMPLETED WITH ADJUDICATED EXCEEDANCES, not PASS").
-* **Decisions a reviewer must specify:** (1) the resolving comparison (which ε against M4, which limit); (2) the M4 gates the adjudicating
-  solve must pass (X4/X5/X7, e_ind) and the columns that record them; (3) the outcome vocabulary; (4) how an adjudicated exceedance is
-  reported in the campaign status beyond "not PASS".
+* **R7: no criterion approved; `C2_adjudication_criteria = null` retained.** Decisions still required from a reviewer (also in
+  `C2_adjudication_open_decisions` of the draft): (1) the exact M4 comparison (which of ε_M1 / ε_M3 against the exact-lattice S, which
+  norm); (2) the numerical acceptance limit; (3) the M4 validation gates the adjudicating solve must pass (X4 / X5 / X7, e_ind limit);
+  (4) the recorded columns for those gates and comparisons; (5) the outcome vocabulary; (6) the reporting of adjudicated exceedances
+  (the plan already fixes: never PASS, at best "COMPLETED WITH ADJUDICATED EXCEEDANCES").
 
-## 5. Gates that are NOT EVALUABLE under the real draft (by design, until a protocol decision is made)
+## 5. C0 reproducibility subset — R7: selection procedure specified, seed not yet recorded
+
+| item | specification (`reproducibility_selection` of the draft) |
+|---|---|
+| algorithm | `SEEDSEQ-PCG64-PERMUTATION-C0` |
+| seed | one non-negative decimal integer **dedicated to C0** (must differ from the bootstrap root entropy; a separate SeedSequence, no spawn key). **Not supplied: `seed = null`.** |
+| generator | `numpy.random.Generator(numpy.random.PCG64(numpy.random.SeedSequence(entropy=seed)))`, numpy 2.5.3 |
+| units and ordering | all (W, ζ, seed) units of the confirmatory ensemble (16 cells × N), sorted ascending by W, then ζ, then seed (numeric); the keys are unique, so there are no ties |
+| size | n = ⌈0.01 · 16 · N⌉ in exact rational arithmetic, i.e. (16N + 99) // 100 (aggregator: `Fraction`; verifier: `Decimal` ceiling; checked equal for every N in [100, 1000]) |
+| API | `perm = rng.permutation(M)`, M = 16N; `selected = sorted(perm[:n])`; subset = `[units[i] for i in selected]` |
+| recorded per subset row | `selection_algorithm`, `selection_seed`, `selection_numpy_version` (must equal the protocol values) |
+
+The aggregator and the verifier compute the subset independently (sorted tuples vs nested ascending loops) and require the observed rows to
+equal it exactly; a third implementation in the tests agrees. A malformed or non-dedicated protocol seed makes the registry unbuildable
+(overall FAIL); a different installed numpy gives NOT EVALUABLE. **Gate state now:** `PHYS.C0.reproducibility` = NOT EVALUABLE (seed not
+recorded); structural errors (duplicates, units outside the ensemble, wrong count) still FAIL.
+
+## 6. Gates that are NOT EVALUABLE under the real draft (by design, until a protocol decision is made)
 
 | gate | missing decision |
 |---|---|
-| `PHYS.C0.reproducibility` | selection algorithm and seed of the 1 % reproducibility subset |
-| `PHYS.statistics.bootstrap_rng` | bootstrap RNG rule, root entropy, Stage-1/Stage-2 stream derivation, identifier format, numpy pin |
+| `PHYS.C0.reproducibility` | the dedicated C0 selection seed (procedure approved in R7) |
+| `PHYS.statistics.bootstrap_rng` | the bootstrap root SeedSequence entropy (option A approved in R7) |
 | `PHYS.C2.adjudication_resolved` | numerical C2 resolution criterion (NOT EVALUABLE only if a C2 row is flagged) |
 
 Consequently no run under the current draft can reach overall PASS.
