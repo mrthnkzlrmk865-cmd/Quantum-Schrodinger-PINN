@@ -1,0 +1,417 @@
+{
+  "experiment": "W/Z RGF worst-point diagnostic (single point; experimental; not a production change)",
+  "generated_utc": "2026-11-09T20:33:14+00:00",
+  "git_head": "ca07ab661fedcdb238999f6659447b2ce22d9bf1",
+  "git_dirty": true,
+  "python": "3.13.18",
+  "numpy": "2.5.3",
+  "mpmath": "1.3.0",
+  "dps": 110,
+  "predictions_file": "PREDICTIONS.md",
+  "predictions_sha256": "sha256:95d090700bf3dd9add6ce450ffbe280943f5d1bb89a86f7e076f175a09522157",
+  "point": {
+    "config": "F",
+    "N_y": 63,
+    "dx": 0.0009765625,
+    "L_d": 3.0,
+    "N": 3483,
+    "E": 125.69231487269683,
+    "E_repr": "125.69231487269683",
+    "channel": 5,
+    "E_perp": 123.37005501361698,
+    "t": 524288.0,
+    "delta_fl": 2.21467958362565e-06,
+    "delta_exact": 2.21467958362565e-06,
+    "delta_fl_is_exact": true,
+    "sterbenz_condition": true,
+    "theta": 0.0021046046664842987,
+    "sin_theta": 0.0021046031128090737,
+    "a_dev": -1048573.6777401408,
+    "production_offdiag_max": 0.0,
+    "production_min_rcond": 0.010873566692812088
+  },
+  "lattices": {
+    "L": {
+      "name": "L",
+      "device_diagonal": "-1048573.6777401409201502247015",
+      "c_device": "0.999997785320416374349808408262",
+      "lead_root": "(0.999997785320416374349808408262 + 0.00210460311280907361840049779309j)",
+      "sigma": "(-524286.838870070460075112350751 - 1103.41815680844358924396018694j)",
+      "gamma": "2206.83631361688717848792037389",
+      "c_lead_effective": "(0.999997785320416374349808408262 + 0.0j)",
+      "c_mismatch": 0.0,
+      "gamma_minus_2tImlam": 0.0,
+      "mutually_consistent": true,
+      "note": "exact lattice; double E, E_perp taken as exact"
+    },
+    "R_dev": {
+      "name": "R_dev",
+      "device_diagonal": "-1048573.67774014081805944442749",
+      "c_device": "0.999997785320416276988453319063",
+      "lead_root": "(0.999997785320416276988453319063 + 0.00210460311285533466347420397983j)",
+      "sigma": "(-524286.838870070409029722213745 - 1103.41815683269770004356345618j)",
+      "gamma": "2206.83631366539540008712691235",
+      "c_lead_effective": "(0.999997785320416276988453319063 + 0.0j)",
+      "c_mismatch": 0.0,
+      "gamma_minus_2tImlam": 0.0,
+      "mutually_consistent": true,
+      "note": "stored device diagonal a_dev; exact leads consistent with c_dev"
+    },
+    "R_code": {
+      "name": "R_code",
+      "device_diagonal": "-1048573.67774014081805944442749",
+      "c_device": "0.999997785320416276988453319063",
+      "lead_root": "(0.999997785320416388010755781579 + 0.00210460311280258240834717398116j)",
+      "sigma": "(-524286.838870070467237383127213 - 1103.41815680504032570752315223j)",
+      "gamma": "2206.83631361008065141504630446",
+      "c_lead_effective": "(0.999997785320416388011259545869 - 1.06022624088302939358451644024e-24j)",
+      "c_mismatch": 1.1102280622680566e-16,
+      "gamma_minus_2tImlam": 0.0,
+      "mutually_consistent": false,
+      "note": "stored device diagonal a_dev; production double lead data (sigma, Gamma from smatrix_spec.lead_modes)"
+    },
+    "R_W": {
+      "name": "R_W",
+      "device_diagonal": "-1048573.6777401409201502247015",
+      "c_device": "0.999997785320416374349808408262",
+      "lead_root": "(0.999997785320416374349808408262 + 0.00210460311280907361840049779309j)",
+      "sigma": "(-524286.838870070460075112350751 - 1103.41815680844358924396018694j)",
+      "gamma": "2206.83631361688717848792037389",
+      "c_lead_effective": "(0.999997785320416374349808408262 + 0.0j)",
+      "c_mismatch": 0.0,
+      "gamma_minus_2tImlam": 0.0,
+      "mutually_consistent": true,
+      "note": "W/Z device Delta_fl = fl(E - E_perp) dx^2; exact leads consistent with c_W"
+    },
+    "R_W_code_lead": {
+      "name": "R_W_code_lead",
+      "device_diagonal": "-1048573.6777401409201502247015",
+      "c_device": "0.999997785320416374349808408262",
+      "lead_root": "(0.999997785320416388010755781579 + 0.00210460311280258240834717398116j)",
+      "sigma": "(-524286.838870070467237383127213 - 1103.41815680504032570752315223j)",
+      "gamma": "2206.83631361008065141504630446",
+      "c_lead_effective": "(0.999997785320416388011259545869 - 1.06022624088302939358451644024e-24j)",
+      "c_mismatch": 1.3661451137607382e-17,
+      "gamma_minus_2tImlam": 0.0,
+      "mutually_consistent": false,
+      "note": "W/Z device Delta_fl; production double lead data"
+    }
+  },
+  "R_W_identical_to_L": true,
+  "reference_closed_form_vs_recursion": {
+    "L": 7.656160215777393e-106,
+    "R_dev": 7.940287178407175e-107,
+    "R_code": 2.511626286221529e-106,
+    "R_W": 7.656160215777393e-106,
+    "R_W_code_lead": 6.999115799067261e-106
+  },
+  "reference_vs_lambda_power": {
+    "L": 7.656045225587768e-106,
+    "R_dev": 7.939489042178109e-107,
+    "R_W": 7.656045225587768e-106
+  },
+  "reproduction_gate": {
+    "prod_eps_phi_tRL": 1.5424928446831018e-10,
+    "committed_LR": 1.5424928001550615e-10,
+    "diff_LR": 4.452804020445176e-18,
+    "prod_eps_phi_tLR": 1.5424700363120138e-10,
+    "committed_RL": 1.542470040583065e-10,
+    "diff_RL": 4.2710511916652905e-19,
+    "passed": true
+  },
+  "replica_vs_production_max_abs": 3.8177978806894596e-11,
+  "comparisons": [
+    {
+      "id": "C1",
+      "solver": "original_production",
+      "reference": "L",
+      "what": "total error of the original formulation",
+      "eps_phi_tRL": 1.5424928446831018e-10,
+      "eps_phi_tLR": 1.5424700363120138e-10,
+      "eps_A_tRL": -1.0845649591582682e-15,
+      "eps_A_tLR": -6.564104345090037e-15,
+      "abs_q_tRL": 1.54249284472123e-10,
+      "q_re_tRL": -1.0845768555791475e-15,
+      "q_im_tRL": 1.5424928446831e-10,
+      "abs_r_solver": 2.4049711214879795e-11,
+      "abs_r_reference": 7.65610554504655e-106,
+      "abs_dr_L": 2.4049711214879795e-11,
+      "unitarity_defect_solver": 1.1355346160548007e-13,
+      "reciprocity_defect_solver": 5.935281779222938e-15
+    },
+    {
+      "id": "C2",
+      "solver": "original_production",
+      "reference": "R_code",
+      "what": "recurrence rounding of the original (same represented lattice)",
+      "eps_phi_tRL": -6.8847833545644674e-12,
+      "eps_phi_tLR": -6.887064191673249e-12,
+      "eps_A_tRL": -1.0845647235707049e-15,
+      "eps_A_tLR": -6.564104109502474e-15,
+      "abs_q_tRL": 6.8847834399905815e-12,
+      "q_re_tRL": -1.0845647472708258e-15,
+      "q_im_tRL": -6.884783354564459e-12,
+      "abs_r_solver": 2.4049711214879795e-11,
+      "abs_r_reference": 2.170656874263717e-11,
+      "abs_dr_L": 1.0395432623723161e-11,
+      "unitarity_defect_solver": 1.1355346160548007e-13,
+      "reciprocity_defect_solver": 5.935281779222938e-15
+    },
+    {
+      "id": "C3",
+      "solver": "WZ_delta_lead",
+      "reference": "L",
+      "what": "total error of W/Z with delta-based leads",
+      "eps_phi_tRL": -1.1858556028071737e-15,
+      "eps_phi_tLR": -1.1858556028071737e-15,
+      "eps_A_tRL": 4.820169139447784e-14,
+      "eps_A_tLR": 4.820169139447784e-14,
+      "abs_q_tRL": 4.8216276368039745e-14,
+      "q_re_tRL": 4.820169139447784e-14,
+      "q_im_tRL": -1.1858556028072309e-15,
+      "abs_r_solver": 1.8665694285382013e-14,
+      "abs_r_reference": 7.65610554504655e-106,
+      "abs_dr_L": 1.8665694285382013e-14,
+      "unitarity_defect_solver": 9.636735984510483e-14,
+      "reciprocity_defect_solver": 0.0
+    },
+    {
+      "id": "C4",
+      "solver": "WZ_delta_lead",
+      "reference": "R_W",
+      "what": "W/Z rounding (recurrence + double delta-based lead data) on its represented lattice",
+      "eps_phi_tRL": -1.1858556028071737e-15,
+      "eps_phi_tLR": -1.1858556028071737e-15,
+      "eps_A_tRL": 4.820169139447784e-14,
+      "eps_A_tLR": 4.820169139447784e-14,
+      "abs_q_tRL": 4.8216276368039745e-14,
+      "q_re_tRL": 4.820169139447784e-14,
+      "q_im_tRL": -1.1858556028072309e-15,
+      "abs_r_solver": 1.8665694285382013e-14,
+      "abs_r_reference": 7.65610554504655e-106,
+      "abs_dr_L": 1.8665694285382013e-14,
+      "unitarity_defect_solver": 9.636735984510483e-14,
+      "reciprocity_defect_solver": 0.0
+    },
+    {
+      "id": "C5",
+      "solver": "WZ_code_lead",
+      "reference": "L",
+      "what": "total error of W/Z with the production lead data",
+      "eps_phi_tRL": 3.184390341684467e-15,
+      "eps_phi_tLR": 3.184390341684467e-15,
+      "eps_A_tRL": 1.448860230665861e-13,
+      "eps_A_tLR": 1.448860230665861e-13,
+      "abs_q_tRL": 1.449210130446911e-13,
+      "q_re_tRL": 1.4488602306658606e-13,
+      "q_im_tRL": 3.184390341684928e-15,
+      "abs_r_solver": 2.722519580158121e-12,
+      "abs_r_reference": 7.65610554504655e-106,
+      "abs_dr_L": 2.7225195801581215e-12,
+      "unitarity_defect_solver": 2.897682099402595e-13,
+      "reciprocity_defect_solver": 0.0
+    },
+    {
+      "id": "C6",
+      "solver": "WZ_code_lead",
+      "reference": "R_W_code_lead",
+      "what": "W/Z recurrence rounding on its represented lattice",
+      "eps_phi_tRL": -3.3065947255378464e-15,
+      "eps_phi_tLR": -3.3065947255378464e-15,
+      "eps_A_tRL": 1.4488602307015323e-13,
+      "eps_A_tLR": 1.4488602307015323e-13,
+      "abs_q_tRL": 1.4492374977816413e-13,
+      "q_re_tRL": 1.4488602307015323e-13,
+      "q_im_tRL": -3.3065947255383253e-15,
+      "abs_r_solver": 2.722519580158121e-12,
+      "abs_r_reference": 2.671011719542503e-12,
+      "abs_dr_L": 5.1510748893095006e-14,
+      "unitarity_defect_solver": 2.897682099402595e-13,
+      "reciprocity_defect_solver": 0.0
+    },
+    {
+      "id": "X1",
+      "solver": "original_scalar_replica",
+      "reference": "R_code",
+      "what": "scalar replica of the original recurrence (trajectory source)",
+      "eps_phi_tRL": 3.12907364178905e-11,
+      "eps_phi_tLR": 3.12907364178905e-11,
+      "eps_A_tRL": 1.1008235291286773e-13,
+      "eps_A_tLR": 1.1008235291286773e-13,
+      "abs_q_tRL": 3.129093005486461e-11,
+      "q_re_tRL": 1.1008235242331265e-13,
+      "q_im_tRL": 3.129073641789395e-11,
+      "abs_r_solver": 2.4192182933946018e-11,
+      "abs_r_reference": 2.170656874263717e-11,
+      "abs_dr_L": 3.7872331963995886e-12,
+      "unitarity_defect_solver": 2.200462034885432e-13,
+      "reciprocity_defect_solver": 0.0
+    }
+  ],
+  "reference_differences": [
+    {
+      "lattice": "R_dev",
+      "minus": "L",
+      "what": "device representation (original)",
+      "eps_phi_tRL": 1.6108131569014612e-10,
+      "eps_A_tRL": 7.82583079813373e-107,
+      "abs_q_tRL": 1.6108131569014612e-10,
+      "abs_dr_L": 7.000609623102907e-106,
+      "abs_r_lattice": 7.929311697747431e-107,
+      "unitarity_defect_lattice": 1.0859128204470787e-106
+    },
+    {
+      "lattice": "R_code",
+      "minus": "R_dev",
+      "what": "lead mismatch (original)",
+      "eps_phi_tRL": 5.275213272851836e-14,
+      "eps_A_tRL": -2.355875632894165e-22,
+      "abs_q_tRL": 5.275213272851836e-14,
+      "abs_dr_L": 2.170656874263717e-11,
+      "abs_r_lattice": 2.170656874263717e-11,
+      "unitarity_defect_lattice": 4.094510733180963e-106
+    },
+    {
+      "lattice": "R_W",
+      "minus": "L",
+      "what": "device representation (W/Z)",
+      "eps_phi_tRL": 0.0,
+      "eps_A_tRL": 0.0,
+      "abs_q_tRL": 0.0,
+      "abs_dr_L": 0.0,
+      "abs_r_lattice": 7.65610554504655e-106,
+      "unitarity_defect_lattice": 1.1730522227563946e-105
+    },
+    {
+      "lattice": "R_W_code_lead",
+      "minus": "R_W",
+      "what": "lead mismatch (W/Z with production leads)",
+      "eps_phi_tRL": 6.490985067222313e-15,
+      "eps_A_tRL": -3.5671518029667e-24,
+      "abs_q_tRL": 6.490985067222313e-15,
+      "abs_dr_L": 2.671011719542503e-12,
+      "abs_r_lattice": 2.671011719542503e-12,
+      "unitarity_defect_lattice": 1.1732680407849197e-105
+    }
+  ],
+  "telescoping": {
+    "original_t_RL": {
+      "terms_abs": [
+        1.6108131569014612e-10,
+        5.275213272851836e-14,
+        6.8847834399905815e-12
+      ],
+      "residual": 0.0
+    },
+    "WZ_delta_t_RL": {
+      "terms_abs": [
+        0.0,
+        4.8216276368039745e-14
+      ],
+      "residual": 0.0
+    },
+    "WZ_code_t_RL": {
+      "terms_abs": [
+        0.0,
+        6.490985067222313e-15,
+        1.4492374977816413e-13
+      ],
+      "residual": 0.0
+    },
+    "original_r_L": {
+      "terms_abs": [
+        7.000609623102907e-106,
+        2.170656874263717e-11,
+        1.0395432623723161e-11
+      ],
+      "residual": 0.0
+    },
+    "WZ_delta_r_L": {
+      "terms_abs": [
+        0.0,
+        1.8665694285382013e-14
+      ],
+      "residual": 0.0
+    },
+    "WZ_code_r_L": {
+      "terms_abs": [
+        0.0,
+        2.671011719542503e-12,
+        5.1510748893095006e-14
+      ],
+      "residual": 0.0
+    }
+  },
+  "signed_phase_terms": {
+    "original": {
+      "device": 1.6108131569014612e-10,
+      "lead": 5.275213272851836e-14,
+      "rounding": -6.8847833545644674e-12,
+      "total": 1.5424928446831018e-10
+    },
+    "WZ_code_lead": {
+      "device": 0.0,
+      "lead": 6.490985067222313e-15,
+      "rounding": -3.3065947255378464e-15,
+      "total": 3.184390341684467e-15
+    },
+    "WZ_delta_lead": {
+      "device": 0.0,
+      "rounding_and_lead_data": -1.1858556028071737e-15,
+      "total": -1.1858556028071737e-15
+    }
+  },
+  "trajectories": {
+    "original": {
+      "n": 3482,
+      "w_star_re": 2.2146795837230115e-06,
+      "w_star_im": 0.0021046031128553345,
+      "abs_e_first": 5.2752371955570935e-14,
+      "abs_e_last": 6.7671009522728e-14,
+      "max_abs_e": 7.129313659613484e-14,
+      "mean_e_re": 5.530326340470539e-15,
+      "mean_e_im": 4.778476170702884e-15,
+      "rel_max_abs_e": 3.387484162110564e-11
+    },
+    "WZ_delta_lead": {
+      "n": 3482,
+      "w_star_re": 2.21467958362565e-06,
+      "w_star_im": 0.0021046031128090737,
+      "abs_e_first": 1.2519378140021259e-19,
+      "abs_e_last": 1.2519378140021259e-19,
+      "max_abs_e": 1.2519378140021259e-19,
+      "mean_e_re": 0.0,
+      "mean_e_im": 1.2519378140021259e-19,
+      "rel_max_abs_e": 5.948566326934007e-17
+    },
+    "WZ_code_lead": {
+      "n": 3482,
+      "w_star_re": 2.21467958362565e-06,
+      "w_star_im": 0.0021046031128090737,
+      "abs_e_first": 6.491224428245819e-15,
+      "abs_e_last": 6.556011250915164e-15,
+      "max_abs_e": 6.6097179760337975e-15,
+      "mean_e_re": 6.260370136346354e-16,
+      "mean_e_im": -3.867202587005354e-16,
+      "rel_max_abs_e": 3.1405989453321422e-12
+    }
+  },
+  "W_max": {
+    "WZ_delta_lead": 0.002104604278065428,
+    "WZ_code_lead": 0.002104604278071983
+  },
+  "Z_N": {
+    "WZ_delta_lead": [
+      0.0,
+      0.0042092062256181475
+    ],
+    "WZ_code_lead": [
+      5.675283376929685e-15,
+      0.0042092062256149625
+    ],
+    "abs_delta_lead": 0.0042092062256181475,
+    "abs_code_lead": 0.0042092062256149625
+  },
+  "b1_criterion_unchanged": 1e-10,
+  "wall_time_s": 3.8633413314819336
+}
