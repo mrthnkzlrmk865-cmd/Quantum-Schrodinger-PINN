@@ -23,10 +23,12 @@ Command line (read-only):  python campaign_status.py --b3y results/rgf_b3y_valid
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import os
 from collections import Counter
+from fractions import Fraction
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -36,11 +38,11 @@ OVERALL_INCOMPLETE = "INCOMPLETE"
 OVERALL_STATES = (PASS, FAIL, NOT_EVALUABLE, OVERALL_INCOMPLETE)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# Selection algorithms for the C0 reproducibility subset. EMPTY on purpose: the protocol has not fixed the algorithm or its seed
-# (docs/physical_campaign_gates_draft.json, reproducibility_selection = null). Name -> function(ensemble_keys, n, seed) -> list of keys.
+# Decision registries. Each maps an APPROVED rule name to this module's own validator; the independent verifier keeps separate ones.
+#   SELECTION_ALGORITHMS: C0 subset selection, name -> function(ensemble_units, n, seed, spec) -> list of selected units
+#   RNG_RULES:            bootstrap stream rule, name -> function(meta, spec, N) -> list of failure reasons
+# They are filled at the end of this module with the rules approved in R7 (docs/CAMPAIGN_STATUS_CONTRACT.md section 1 and 5).
 SELECTION_ALGORITHMS: dict = {}
-# Bootstrap RNG stream rules. EMPTY on purpose: the protocol has not fixed the stream-generation rule or the seeds
-# (draft: bootstrap_rng = null). Name -> function(stage1_stream, stage1_seed, stage2_stream, stage2_seed, rule_spec) -> None | reason.
 RNG_RULES: dict = {}
 # C2 adjudication criteria. EMPTY on purpose: no numerical resolution criterion is approved (draft: C2_adjudication_criteria = null).
 # Name -> function(adjudication_row, criteria_spec) -> None | reason.
@@ -147,6 +149,7 @@ class GateSpec:
     expected_multiplicity: Optional[dict] = None       # protocol-derived key -> exact number of rows (tables that repeat a record)
     expected_keys_fn: Optional[Callable] = None        # (load) -> required keys, for protocol rules that depend on another table
     allowed_keys_fn: Optional[Callable] = None         # (load) -> optional keys whose permission depends on another table
+    expected_distinct_count: Optional[int] = None      # protocol-derived exact number of distinct keys, all drawn from allowed_keys
     row_filter: dict = field(default_factory=dict)     # column -> value; selects the rows owned by this gate
     row_select: Optional[Callable] = None              # additional ownership predicate
     checks: list = field(default_factory=list)
@@ -215,6 +218,8 @@ def evaluate_gate(spec: GateSpec, out_dir: str, cache: dict) -> dict:
         else:
             load = lambda t: _load(out_dir, t, cache)
             req = spec.expected_keys_fn(load) if spec.expected_keys_fn is not None else spec.expected_keys
+            if req is None and spec.expected_distinct_count is not None:
+                req = []                                                 # membership from allowed_keys, size from expected_distinct_count
             if req is None:
                 reasons.append("gate has no protocol-derived key set")
                 req = []
@@ -230,6 +235,10 @@ def evaluate_gate(spec: GateSpec, out_dir: str, cache: dict) -> dict:
             dup = [k for k, n in counts.items() if n > 1]
             extra = [k for k in counts if k not in allowed]
         rec.update(n_missing=len(missing), n_duplicate_keys=len(dup), n_extra_rows=sum(counts[k] for k in extra))
+        if spec.expected_distinct_count is not None:
+            rec["n_expected"] = spec.expected_distinct_count
+            if len(counts) != spec.expected_distinct_count:
+                reasons.append(f"{len(counts)} distinct keys, protocol requires exactly {spec.expected_distinct_count}")
         if missing:
             reasons.append(f"{len(missing)} expected rows missing (e.g. {missing[0]})")
         if dup:
@@ -548,82 +557,200 @@ def statistics_table_evaluator(D: dict, test_order: list):
 # ----------------------------------------------------------------------
 # bootstrap RNG stream metadata (section 5.3 (a), (f) step 3; docs/CAMPAIGN_STATUS_CONTRACT.md section 1)
 # ----------------------------------------------------------------------
-RNG_COLUMNS = ("bootstrap_rng_rule", "bootstrap_rng_stream_stage1", "bootstrap_seed_stage1", "bootstrap_rng_stream_stage2", "bootstrap_seed_stage2")
+RNG_COLUMNS = ("bootstrap_rng_rule", "bootstrap_rng_stream_stage1", "bootstrap_seed_stage1", "bootstrap_rng_stream_stage2", "bootstrap_seed_stage2",
+               "bootstrap_bit_generator", "bootstrap_numpy_version", "bootstrap_resampling_api", "bootstrap_probe_stage1", "bootstrap_probe_stage2")
+STAGE_INVARIANT = ("bootstrap_rng_rule", "bootstrap_bit_generator", "bootstrap_numpy_version", "bootstrap_resampling_api")
 
 
 def _seed_ok(v) -> bool:
-    """A recorded seed must be a non-negative integer written in decimal digits (no sign, no decimal point, no whitespace-only)."""
-    return isinstance(v, str) and v.strip().isdigit()
+    """A recorded seed / entropy must be a non-negative integer written in decimal digits (no sign, no decimal point, not blank)."""
+    if not isinstance(v, str):
+        return False
+    t = v.strip()
+    return t != "" and all(ch in "0123456789" for ch in t)              # ASCII 0-9 only: str.isdigit() would accept e.g. Arabic-Indic digits
 
 
-def bootstrap_rng_evaluator(D: dict):
-    """Structural checks that hold for ANY admissible stream rule (one shared Stage-1 stream for the paired replicates of all 68 tests;
-    one shared Stage-2 stream for all Stage-2 tests; distinct stream identifiers; stage-2 fields empty exactly for Stage-1 rows;
-    the recorded rule equals the protocol rule if one is approved, and passes that rule's validator if one is implemented)."""
-    rule = D.get("bootstrap_rng")
+def numpy_version() -> str:
+    import numpy
+    return numpy.__version__
+
+
+def bootstrap_rng_evaluator(D: dict, N: int):
+    """Checks that hold for ANY stream rule (one shared Stage-1 stream for the paired replicates of all 68 tests; one shared Stage-2 stream for
+    all Stage-2 tests; distinct stream identifiers; Stage-2 fields empty exactly for Stage-1 rows; stage-invariant metadata identical in
+    every row), then the approved rule's own validator."""
+    spec = D.get("bootstrap_rng")
 
     def ev(rows):
         bad = []
-        s1, s2, rules = set(), set(), set()
+        inv, s1, s2 = set(), set(), set()
         for r in rows:
             key = (r.get("observable"), r.get("contrast_id"))
             if any(c not in r for c in RNG_COLUMNS):
                 bad.append(f"{key}: RNG metadata columns missing")
                 continue
             stage = norm(r.get("stage"))
-            if not is_nonempty(r["bootstrap_rng_rule"]) or not is_nonempty(r["bootstrap_rng_stream_stage1"]) or not _seed_ok(r["bootstrap_seed_stage1"]):
+            if not (all(is_nonempty(r[c]) for c in STAGE_INVARIANT) and is_nonempty(r["bootstrap_rng_stream_stage1"])
+                    and _seed_ok(r["bootstrap_seed_stage1"]) and is_nonempty(r["bootstrap_probe_stage1"])):
                 bad.append(f"{key}: Stage-1 RNG metadata missing or malformed")
                 continue
-            rules.add(r["bootstrap_rng_rule"].strip())
-            s1.add((r["bootstrap_rng_stream_stage1"].strip(), int(r["bootstrap_seed_stage1"])))
-            has2 = is_nonempty(r["bootstrap_rng_stream_stage2"]) or is_nonempty(r["bootstrap_seed_stage2"])
+            inv.add(tuple(r[c].strip() for c in STAGE_INVARIANT))
+            s1.add((r["bootstrap_rng_stream_stage1"].strip(), int(r["bootstrap_seed_stage1"]), r["bootstrap_probe_stage1"].strip()))
+            has2 = any(is_nonempty(r[c]) for c in ("bootstrap_rng_stream_stage2", "bootstrap_seed_stage2", "bootstrap_probe_stage2"))
             if stage == 1.0:
                 if has2:
                     bad.append(f"{key}: Stage-1 test carries Stage-2 RNG metadata")
             elif stage == 2.0:
-                if not (is_nonempty(r["bootstrap_rng_stream_stage2"]) and _seed_ok(r["bootstrap_seed_stage2"])):
+                if not (is_nonempty(r["bootstrap_rng_stream_stage2"]) and _seed_ok(r["bootstrap_seed_stage2"]) and is_nonempty(r["bootstrap_probe_stage2"])):
                     bad.append(f"{key}: Stage-2 RNG metadata missing or malformed")
                     continue
-                s2.add((r["bootstrap_rng_stream_stage2"].strip(), int(r["bootstrap_seed_stage2"])))
+                s2.add((r["bootstrap_rng_stream_stage2"].strip(), int(r["bootstrap_seed_stage2"]), r["bootstrap_probe_stage2"].strip()))
             else:
                 bad.append(f"{key}: stage {r.get('stage')!r}")
         if bad:
             return bad
-        if len(rules) != 1:
-            bad.append(f"{len(rules)} different stream rules recorded")
+        if len(inv) != 1:
+            bad.append(f"{len(inv)} different (rule, bit generator, numpy version, resampling API) records")
         if len(s1) != 1:
             bad.append(f"{len(s1)} different Stage-1 streams recorded (the paired Stage-1 replicates are shared by all tests)")
         if len(s2) > 1:
             bad.append(f"{len(s2)} different Stage-2 streams recorded (the Stage-2 replicates are shared by all Stage-2 tests)")
         if s1 and s2 and next(iter(s1))[0] == next(iter(s2))[0]:
             bad.append("Stage-2 stream identifier equals the Stage-1 stream identifier")
-        if bad or rule is None:
+        if bad or spec is None:
             return bad
-        if rules != {str(rule.get("rule"))}:
-            bad.append(f"recorded stream rule {sorted(rules)} is not the approved rule {rule.get('rule')!r}")
-            return bad
-        fn = RNG_RULES.get(rule.get("rule"))
-        if fn is not None:
-            (a, b) = next(iter(s1))
-            (c, d) = next(iter(s2)) if s2 else (None, None)
-            why = fn(a, b, c, d, rule)
-            if why:
-                bad.append(f"stream metadata violate the approved rule: {why}")
-        return bad
+        rule, bitgen, npv, api = next(iter(inv))
+        if rule != str(spec.get("rule")):
+            return [f"recorded stream rule {rule!r} is not the approved rule {spec.get('rule')!r}"]
+        fn = RNG_RULES.get(spec.get("rule"))
+        if fn is None or spec.get("root_entropy") is None:
+            return bad                                                   # structure only; the gate is NOT EVALUABLE (decision missing)
+        meta = dict(rule=rule, bit_generator=bitgen, numpy_version=npv, resampling_api=api, stage1=next(iter(s1)), stage2=next(iter(s2)) if s2 else None)
+        return list(fn(meta, spec, N))
     return ev
 
 
-def bootstrap_rng_gate(D: dict, order: list) -> GateSpec:
-    rule = D.get("bootstrap_rng")
-    if rule is None:
-        reason = "PROTOCOL DECISION REQUIRED: bootstrap RNG stream rule and seeds are not specified (stream independence not established)"
-    elif rule.get("rule") not in RNG_RULES:
-        reason = f"no validator implemented for the bootstrap RNG rule {rule.get('rule')!r} (stream derivation cannot be verified)"
+TEMPLATE_FIELDS = ("root_entropy", "spawn_index", "numpy_version")
+
+
+def validate_stream_id_template(spec: dict) -> list:
+    """Schema of the machine-readable identifier template of rule A (protocol definition; independent of root_entropy):
+    every placeholder of TEMPLATE_FIELDS exactly once, no other placeholder, no format spec / conversion / escaped or stray braces, and the
+    fixed components exactly  <rule> | entropy={root_entropy} | spawn_key=({spawn_index},) | bitgen=<bit_generator> | numpy={numpy_version}."""
+    import string
+    t = spec.get("stream_id_template")
+    if not isinstance(t, str) or not t.strip():
+        return ["stream_id_template missing or empty"]
+    if "{{" in t or "}}" in t:
+        return ["stream_id_template contains escaped braces"]
+    try:
+        parsed = list(string.Formatter().parse(t))
+    except ValueError as e:
+        return [f"stream_id_template has a malformed brace expression: {e}"]
+    bad, names = [], []
+    for _lit, fld, fmt, conv in parsed:
+        if fld is None:
+            continue
+        if fmt or conv:
+            bad.append(f"placeholder {fld!r} carries a format spec or conversion")
+        names.append(fld)
+    cnt = Counter(names)
+    bad += [f"placeholder {{{f}}} occurs {cnt.get(f, 0)} times (exactly once required)" for f in TEMPLATE_FIELDS if cnt.get(f, 0) != 1]
+    bad += [f"unknown placeholder {{{f}}}" for f in cnt if f not in TEMPLATE_FIELDS]
+    want = [str(spec.get("rule")), "entropy={root_entropy}", "spawn_key=({spawn_index},)", f"bitgen={spec.get('bit_generator')}", "numpy={numpy_version}"]
+    if not isinstance(spec.get("rule"), str) or not isinstance(spec.get("bit_generator"), str):
+        bad.append("rule or bit_generator missing: fixed identifier components undefined")
+    elif t.split("|") != want:
+        bad.append(f"fixed identifier components {t.split('|')} differ from {want}")
+    return bad
+
+
+def bootstrap_rng_gate(D: dict, order: list, N: int) -> GateSpec:
+    spec = D.get("bootstrap_rng")
+    if spec is not None and spec.get("rule") == RULE_A:
+        tbad = validate_stream_id_template(spec)                  # protocol-definition check, BEFORE any root-entropy decision
+        if tbad:
+            raise ValueError("bootstrap_rng.stream_id_template invalid: " + "; ".join(tbad))
+    if spec is None:
+        reason = "PROTOCOL DECISION REQUIRED: bootstrap RNG rule not specified (independence by design not established)"
+    elif spec.get("rule") not in RNG_RULES:
+        reason = f"no validator implemented for the bootstrap RNG rule {spec.get('rule')!r}"
+    elif spec.get("root_entropy") is None:
+        reason = "PROTOCOL DECISION REQUIRED: the root SeedSequence entropy of the approved rule has not been recorded"
+    elif not _seed_ok(str(spec.get("root_entropy"))):
+        raise ValueError(f"protocol root_entropy {spec.get('root_entropy')!r} is not a non-negative decimal integer")
     else:
         reason = None
-    return GateSpec("PHYS.statistics.bootstrap_rng", "bootstrap RNG stream metadata: Stage-1 / independent Stage-2 streams recorded and consistent",
-                    "tests.csv", ("observable", "contrast_id"), expected_keys=order, table_evaluator=bootstrap_rng_evaluator(D),
-                    not_evaluable_reason=reason)
+
+    def numpy_pin(load):
+        if spec is not None and spec.get("numpy_version") and numpy_version() != spec["numpy_version"]:
+            return f"installed numpy {numpy_version()} differs from the pinned {spec['numpy_version']}: streams cannot be reproduced bit for bit here"
+        return None
+    return GateSpec("PHYS.statistics.bootstrap_rng", "bootstrap RNG: approved SeedSequence/PCG64 spawn rule, Stage-1 and Stage-2 streams recorded and reproducible",
+                    "tests.csv", ("observable", "contrast_id"), expected_keys=order, table_evaluator=bootstrap_rng_evaluator(D, N),
+                    not_evaluable_reason=reason, not_evaluable_fn=numpy_pin)
+
+
+# ----- approved rule (R7, option A): SeedSequence(entropy=E) root, PCG64, Stage 1 = child spawn_key (0,), Stage 2 = child spawn_key (1,) -----
+RULE_A = "SEEDSEQ-PCG64-SPAWN-A"
+
+
+def rule_a_stream_id(spec: dict, E: int, stage: int) -> str:
+    """Render the protocol's machine-readable template `stream_id_template` (never parsed out of explanatory prose)."""
+    return spec["stream_id_template"].format(root_entropy=int(E), spawn_index=stage - 1, numpy_version=spec["numpy_version"])
+
+
+def rule_a_probe(E: int, stage: int, N: int) -> str:
+    """sha256 of the FIRST replicate's resampling indices of a stage: Generator(PCG64(SeedSequence(entropy=E, spawn_key=(stage-1,))))
+    .integers(low=0, high=N, size=N, dtype=int64), little-endian int64 bytes."""
+    import numpy as np
+    child = np.random.SeedSequence(entropy=int(E), spawn_key=(stage - 1,))
+    idx = np.random.Generator(np.random.PCG64(child)).integers(low=0, high=N, size=N, dtype=np.int64, endpoint=False)
+    return hashlib.sha256(idx.astype("<i8").tobytes()).hexdigest()
+
+
+def _rule_a_validator(meta, spec, N):
+    bad = []
+    E = int(spec["root_entropy"])
+    if meta["bit_generator"] != spec["bit_generator"] or spec["bit_generator"] != "PCG64":
+        bad.append(f"bit generator {meta['bit_generator']!r} is not PCG64")
+    if meta["numpy_version"] != spec["numpy_version"]:
+        bad.append(f"recorded numpy {meta['numpy_version']!r} is not the pinned {spec['numpy_version']!r}")
+    if meta["resampling_api"] != spec["resampling_api"]:
+        bad.append("recorded resampling API is not the approved call")
+    for stage, rec in ((1, meta["stage1"]), (2, meta["stage2"])):
+        if rec is None:
+            continue
+        sid, seed, probe = rec
+        if seed != E:
+            bad.append(f"Stage-{stage} seed {seed} is not the recorded root entropy")
+        if sid != rule_a_stream_id(spec, E, stage):
+            bad.append(f"Stage-{stage} stream identifier does not follow the approved format/spawn key")
+        if numpy_version() == spec["numpy_version"] and probe != rule_a_probe(E, stage, N):
+            bad.append(f"Stage-{stage} stream probe does not reproduce from the recorded metadata")
+    return bad
+
+
+RNG_RULES[RULE_A] = _rule_a_validator
+
+
+# ----- approved C0 selection (R7): dedicated SeedSequence(entropy=S), PCG64, permutation of the ordered ensemble units -----
+C0_ALG = "SEEDSEQ-PCG64-PERMUTATION-C0"
+
+
+def c0_subset_size(fraction, n_cells, N) -> int:
+    """n = ceil(fraction * n_cells * N) in EXACT rational arithmetic (fraction parsed from its decimal text), e.g. (16 N + 99) // 100."""
+    return math.ceil(Fraction(str(fraction)) * n_cells * N)
+
+
+def _c0_select(units, n, seed, spec):
+    import numpy as np
+    order = sorted(units, key=lambda u: (float(u[0]), float(u[1]), int(u[2])))       # W, zeta, seed ascending; keys unique -> no ties
+    perm = np.random.Generator(np.random.PCG64(np.random.SeedSequence(entropy=int(seed)))).permutation(len(order))
+    return [order[i] for i in sorted(int(i) for i in perm[:n])]
+
+
+SELECTION_ALGORITHMS[C0_ALG] = _c0_select
 
 
 # ----------------------------------------------------------------------
@@ -754,34 +881,40 @@ def physical_gate_spec(D: dict, n_seeds: int) -> list:
                           checks=[Check("unitarity", "le", L["unitarity"]), Check("reciprocity", "le", L["reciprocity"]),
                                   Check("lead_tail_max", "le", L["lead_tail_guard"]), Check("n_open", "eqcol", "n_open_analytic"),
                                   Check("v_hash", "nonempty"), Check("tau", "finite"), Check("T1", "finite")]))
-    # C0 reproducibility subset: distinct ensemble units, protocol count, recorded selection; the selection rule itself is an OPEN protocol decision
-    n_sub = math.ceil(L["reproducibility_subset_fraction"] * len(cells) * N)
+    # C0 reproducibility subset (docs/CAMPAIGN_STATUS_CONTRACT.md section 5): exact rational size rule; dedicated selection seed
+    n_sub = c0_subset_size(L["reproducibility_subset_fraction"], len(cells), N)
     ens = [(w, z, s) for (w, z) in cells for s in seeds]
     sel = D.get("reproducibility_selection")
-    rep = GateSpec("PHYS.C0.reproducibility", "C0 bitwise-reproducible rerun of the predeclared subset: distinct ensemble units, exact count, recorded selection",
+    rep = GateSpec("PHYS.C0.reproducibility", "C0 bitwise-reproducible rerun of the protocol-selected subset: exact units, count and recorded selection",
                    "reproducibility.csv", ("W", "zeta", "seed"), checks=[Check("bitwise_equal", "true"), Check("selection_algorithm", "nonempty"),
-                                                                       Check("selection_seed", "nonempty")])
-    if sel is None:
-        ens_set = {tuple(norm(x) for x in k) for k in ens}
-
-        def subset_rule(load):
-            rows = [r for r in (load("reproducibility.csv") or [])]
-            keys = [_row_key(r, ("W", "zeta", "seed")) for r in rows]
-            inside = [k for k in dict.fromkeys(keys) if k in ens_set]
-            return inside if len(inside) == n_sub else inside + [("__protocol_count__", n_sub, len(inside))]     # forces 'missing' if count wrong
-        rep.expected_keys_fn = subset_rule
-        rep.not_evaluable_reason = "PROTOCOL DECISION REQUIRED: reproducibility selection algorithm and seed are not specified"
+                                                                       Check("selection_seed", "nonempty"), Check("selection_numpy_version", "nonempty")])
+    alg = None if sel is None else SELECTION_ALGORITHMS.get(sel.get("algorithm"))
+    seed = None if sel is None else sel.get("seed")
+    boot = D.get("bootstrap_rng") or {}
+    if seed is not None:
+        if not _seed_ok(str(seed)):
+            raise ValueError(f"protocol C0 selection seed {seed!r} is not a non-negative decimal integer")
+        if boot.get("root_entropy") is not None and int(seed) == int(boot["root_entropy"]):
+            raise ValueError("the C0 selection seed must be dedicated (different from the bootstrap root entropy)")
+    if alg is None or seed is None:
+        # structural checks only (protocol-derived, independent of the observed table): units from the ensemble, exactly n_sub distinct
+        rep.allowed_keys, rep.expected_distinct_count = ens, n_sub
+        rep.not_evaluable_reason = ("PROTOCOL DECISION REQUIRED: C0 selection algorithm not specified" if sel is None else
+                                    f"no implementation for C0 selection algorithm {sel.get('algorithm')!r}" if alg is None else
+                                    "PROTOCOL DECISION REQUIRED: the dedicated C0 selection seed has not been recorded")
     else:
-        alg = SELECTION_ALGORITHMS.get(sel.get("algorithm"))
-        if alg is None:
-            rep.expected_keys = []
-            rep.not_evaluable_reason = f"no recomputation available for selection algorithm {sel.get('algorithm')!r}"
+        if numpy_version() != sel.get("numpy_version"):
+            # the pinned permutation cannot be reproduced here: structural checks still apply (FAIL), the exact subset is NOT EVALUABLE
+            rep.allowed_keys, rep.expected_distinct_count = ens, n_sub
+            rep.not_evaluable_reason = f"installed numpy {numpy_version()} differs from the pinned {sel.get('numpy_version')}: subset not reproducible here"
         else:
-            rep.expected_keys = list(alg(ens, n_sub, sel["seed"]))
+            rep.expected_keys = list(alg(ens, n_sub, int(seed), sel))
             if len(set(rep.expected_keys)) != n_sub or not set(rep.expected_keys) <= set(ens):
                 raise ValueError("selection algorithm returned an invalid subset")
-            rep.row_evaluator = lambda r, sel=sel: None if (str(r.get("selection_algorithm")).strip() == str(sel["algorithm"])
-                                                              and norm(r.get("selection_seed")) == norm(sel["seed"])) else "selection algorithm/seed not the protocol's"
+        rep.row_evaluator = lambda r, sel=sel: None if (str(r.get("selection_algorithm")).strip() == str(sel["algorithm"])
+                                                          and _seed_ok(str(r.get("selection_seed"))) and int(r.get("selection_seed")) == int(sel["seed"])
+                                                          and str(r.get("selection_numpy_version")).strip() == str(sel["numpy_version"])) \
+            else "selection algorithm / seed / numpy version not the protocol's"
     specs.append(rep)
     c2 = C["C2"]
     specs.append(GateSpec("PHYS.C2.solver_cross_check", "C2 M3 vs M1 max|dS| (unadjudicated or adjudicated exceedance is never PASS)",
@@ -850,7 +983,7 @@ def physical_gate_spec(D: dict, n_seeds: int) -> list:
                           "tests.csv", ("observable", "contrast_id"), expected_keys=order,
                           status_column="decision", status_ok=tuple(D["statistics"]["decisions"]),
                           table_evaluator=statistics_table_evaluator(D, order)))
-    specs.append(bootstrap_rng_gate(D, order))
+    specs.append(bootstrap_rng_gate(D, order, N))
     return specs
 
 

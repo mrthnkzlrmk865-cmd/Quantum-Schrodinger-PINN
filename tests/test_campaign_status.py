@@ -63,34 +63,43 @@ def tree_hashes(d):
 # ----------------------------------------------------------------------
 # synthetic physical campaign: passing stage implementations
 # ----------------------------------------------------------------------
-DRAFT = cs.load_draft()                          # the real (unfrozen) draft: reproducibility selection undecided
-TEST_ALG = "TEST-ONLY-lowest-keys"               # test-only selection rule; NOT a protocol decision
+DRAFT = cs.load_draft()                          # the real (unfrozen) draft: approved rules, but root entropy and C0 seed NOT recorded
+# TEST-ONLY values for the two undecided protocol numbers. They exist only inside this test module and are NOT protocol decisions.
+TEST_ENTROPY, TEST_C0_SEED = 987654321, 13579
 TEST_DRAFT = copy.deepcopy(DRAFT)
-TEST_DRAFT["reproducibility_selection"] = {"algorithm": TEST_ALG, "seed": 0}
-TEST_RNG = "TEST-ONLY-rng"                       # test-only stream rule; NOT a protocol decision
-TEST_DRAFT["bootstrap_rng"] = {"rule": TEST_RNG}
-RNG1, RNG2 = (f"{TEST_RNG}:stage1:101", 101), (f"{TEST_RNG}:stage2:202", 202)
+TEST_DRAFT["bootstrap_rng"]["root_entropy"] = TEST_ENTROPY
+TEST_DRAFT["reproducibility_selection"]["seed"] = TEST_C0_SEED
+RULE = DRAFT["bootstrap_rng"]["rule"]
+NPV = DRAFT["bootstrap_rng"]["numpy_version"]
+API = DRAFT["bootstrap_rng"]["resampling_api"]
 
 
-def _test_rng_rule(s1, seed1, s2, seed2, spec):
-    """Test-only validator: a stream identifier must encode its stage and its seed."""
-    if s1 != f"{TEST_RNG}:stage1:{seed1}":
-        return "Stage-1 identifier does not derive from its seed"
-    if s2 is not None and s2 != f"{TEST_RNG}:stage2:{seed2}":
-        return "Stage-2 identifier does not derive from its seed"
-    return None
+def _sid(E, stage):                                   # third (test-side) rendering of the approved identifier format
+    return f"SEEDSEQ-PCG64-SPAWN-A|entropy={E}|spawn_key=({stage - 1},)|bitgen=PCG64|numpy={NPV}"
 
 
-def _lowest_keys(ens, n, seed):
-    return sorted(ens, key=lambda k: tuple(float(x) for x in k))[:n]
+def _probe(E, stage, N):                              # third implementation of the stream probe
+    import numpy as np
+    g = np.random.default_rng(np.random.SeedSequence(E).spawn(2)[stage - 1])        # default_rng wraps PCG64
+    idx = g.integers(0, N, size=N, dtype=np.int64)
+    return hashlib.sha256(np.asarray(idx, dtype="<i8").tobytes()).hexdigest()
 
 
-@pytest.fixture(autouse=True)
-def _register_test_selection(monkeypatch):
-    monkeypatch.setitem(cs.SELECTION_ALGORITHMS, TEST_ALG, _lowest_keys)
-    monkeypatch.setitem(ver.SELECTION_ALGORITHMS_V, TEST_ALG, _lowest_keys)
-    monkeypatch.setitem(cs.RNG_RULES, TEST_RNG, _test_rng_rule)
-    monkeypatch.setitem(ver.RNG_RULES_V, TEST_RNG, _test_rng_rule)
+def c0_subset_t(N, seed):                             # third implementation of the approved C0 selection
+    import numpy as np
+    units = sorted((w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N + 1))
+    n = -(-16 * N // 100)
+    pick = np.random.Generator(np.random.PCG64(np.random.SeedSequence(seed))).permutation(len(units))[:n]
+    return [units[i] for i in sorted(pick.tolist())]
+
+
+def rng_meta(stage, E=TEST_ENTROPY, N=N_TEST):
+    m = dict(bootstrap_rng_rule=RULE, bootstrap_bit_generator="PCG64", bootstrap_numpy_version=NPV, bootstrap_resampling_api=API,
+             bootstrap_rng_stream_stage1=_sid(E, 1), bootstrap_seed_stage1=E, bootstrap_probe_stage1=_probe(E, 1, N),
+             bootstrap_rng_stream_stage2="", bootstrap_seed_stage2="", bootstrap_probe_stage2="")
+    if stage == 2:
+        m.update(bootstrap_rng_stream_stage2=_sid(E, 2), bootstrap_seed_stage2=E, bootstrap_probe_stage2=_probe(E, 2, N))
+    return m
 
 
 @pytest.fixture
@@ -141,8 +150,7 @@ def make_tests_rows(D, K1_over=None, K2_over=None):
         lo, hi = _cp(K, B, a)
         rows[k] = dict(observable=k[0], contrast_id=k[1], theta_hat=0.01, ci95_sampling_lo=-0.005, ci95_sampling_hi=0.025, K_stage1=K1[k], K=K, B=B,
                        stage=stage, p_hat=ph, mc_se=math.sqrt(ph * (1 - ph) / B), mc_ci_sim99_lo=lo, mc_ci_sim99_hi=hi, p_lo_final=lo, p_hi_final=max(hi, ph),
-                       bootstrap_rng_rule=TEST_RNG, bootstrap_rng_stream_stage1=RNG1[0], bootstrap_seed_stage1=RNG1[1],
-                       bootstrap_rng_stream_stage2=RNG2[0] if stage == 2 else "", bootstrap_seed_stage2=RNG2[1] if stage == 2 else "")
+                       **rng_meta(stage))
     phi = {k: rows[k]["p_hi_final"] for k in order}
     R = _holm_t(phi, al)
     A = _holm_t({k: rows[k]["p_lo_final"] for k in order}, al) - R
@@ -183,8 +191,10 @@ def passing_stages(N=N_TEST, mutate=None):
         "main_ensemble": lambda ctx: {"realizations": [dict(W=w, zeta=z, seed=s, energy_index=e, status="OK", unitarity=1e-13, reciprocity=1e-13, n_open=6,
                                                             n_open_analytic=6, lead_tail_max=1e-12, v_hash="sha256:x", tau=0.5, T1=0.4)
                                                        for (w, z) in cells for s in seeds for e in E]},
-        "C0_reproducibility": lambda ctx: {"reproducibility": [dict(W=k[0], zeta=k[1], seed=k[2], bitwise_equal=True, selection_algorithm=TEST_ALG, selection_seed=0)
-                                                               for k in _lowest_keys([(w, z, s) for (w, z) in cells for s in seeds], math.ceil(0.01 * 16 * N), 0)]},
+        "C0_reproducibility": lambda ctx: {"reproducibility": [dict(W=k[0], zeta=k[1], seed=k[2], bitwise_equal=True,
+                                                                    selection_algorithm=DRAFT["reproducibility_selection"]["algorithm"],
+                                                                    selection_seed=TEST_C0_SEED, selection_numpy_version=NPV)
+                                                               for k in c0_subset_t(N, TEST_C0_SEED)]},
         "C2_solver_cross_check": lambda ctx: {"solver_cross_check": [dict(W=w, zeta=z, seed=s, energy_index=e, max_abs_dS=1e-12)
                                                                      for (w, z) in cells for s in seeds[:10] for e in E], "adjudication": []},
         "C1_dx_1024": lambda ctx: {"controls": control_rows("C1", cells, 20)},
@@ -871,7 +881,7 @@ def test_i3_sampling_and_mc_intervals_have_distinct_columns():
 # ISSUE 4: reproducibility subset: uniqueness, ensemble membership, exact count, recorded selection; open protocol decision
 # ======================================================================
 def test_i4_real_draft_leaves_the_selection_rule_open_and_cannot_pass(tmp_path):
-    assert DRAFT["reproducibility_selection"] is None and "PROTOCOL DECISION REQUIRED" in DRAFT["reproducibility_selection_note"]
+    assert DRAFT["reproducibility_selection"]["seed"] is None and DRAFT["reproducibility_selection_open_decisions"]
     out, s = run_phys(tmp_path, draft=DRAFT)
     assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "NOT EVALUABLE" and s["overall_status"] == "NOT EVALUABLE"
     v = ver.verify_physical(out, N_TEST)                              # default = the real draft
@@ -1003,9 +1013,9 @@ def _stage2_index():
 # ======================================================================
 def test_r6_rng_real_draft_is_not_evaluable_not_pass(tmp_path):
     out, s, v = _run_r6(tmp_path, draft=DRAFT)
-    assert DRAFT["bootstrap_rng"] is None and "PROTOCOL DECISION REQUIRED" in DRAFT["bootstrap_rng_note"]
+    assert DRAFT["bootstrap_rng"]["root_entropy"] is None and DRAFT["bootstrap_rng_open_decisions"]
     assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "NOT EVALUABLE" and s["overall_status"] != "PASS"
-    assert "independence not established" in s["registry"]["PHYS.statistics.bootstrap_rng"]["reason"]
+    assert "root SeedSequence entropy" in s["registry"]["PHYS.statistics.bootstrap_rng"]["reason"]
     assert len(DRAFT["bootstrap_rng_alternatives_for_review"]) >= 3                    # alternatives listed, none selected
 
 
@@ -1029,14 +1039,14 @@ def test_r6_rng_metadata_mutations(tmp_path, case):
                 if r["stage"] == 2:
                     r["bootstrap_rng_stream_stage2"] = r["bootstrap_rng_stream_stage1"]            # different seeds, same stream identifier
         elif case == "inconsistent_stage1":
-            rows[5]["bootstrap_rng_stream_stage1"], rows[5]["bootstrap_seed_stage1"] = f"{TEST_RNG}:stage1:999", 999   # well-formed but different
+            rows[5]["bootstrap_rng_stream_stage1"], rows[5]["bootstrap_seed_stage1"] = _sid(999, 1), 999   # well-formed but different
         elif case == "stage1_with_stage2_fields":
             i = [k for k, r in enumerate(rows) if r["stage"] == 1][0]
-            rows[i]["bootstrap_rng_stream_stage2"], rows[i]["bootstrap_seed_stage2"] = RNG2
+            rows[i]["bootstrap_rng_stream_stage2"], rows[i]["bootstrap_seed_stage2"] = _sid(TEST_ENTROPY, 2), TEST_ENTROPY
         elif case == "two_stage2_streams":
             k2 = [k for k, r in enumerate(rows) if r["stage"] == 2]
             assert len(k2) >= 2
-            rows[k2[-1]]["bootstrap_rng_stream_stage2"], rows[k2[-1]]["bootstrap_seed_stage2"] = f"{TEST_RNG}:stage2:303", 303
+            rows[k2[-1]]["bootstrap_rng_stream_stage2"], rows[k2[-1]]["bootstrap_seed_stage2"] = _sid(303, 2), 303
         elif case == "missing_stage1_stream":
             rows[0]["bootstrap_rng_stream_stage1"] = " "
         elif case == "missing_rule":
@@ -1331,14 +1341,445 @@ def test_r6_c2_real_draft_has_no_criterion_and_documents_the_decision():
 # ======================================================================
 # R6: registries empty in production, independence preserved
 # ======================================================================
-def test_r6_production_registries_are_empty_and_verifier_independent():
-    """The modules DEFINE every decision registry empty (the test-only rules are injected per test and removed afterwards)."""
-    want = {"campaign_status.py": ("SELECTION_ALGORITHMS", "RNG_RULES", "C2_ADJUDICATION_CRITERIA"),
-            "verify_campaign_outputs.py": ("SELECTION_ALGORITHMS_V", "RNG_RULES_V", "C2_CRITERIA_V")}
-    for f, names in want.items():
-        tree = ast.parse(open(os.path.join(HERE, f)).read())
-        found = {n.target.id: n.value for n in tree.body if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)}
-        for nm in names:
-            assert nm in found and isinstance(found[nm], ast.Dict) and not found[nm].keys, (f, nm)
+def test_r7_production_registries_hold_exactly_the_approved_rules_and_verifier_is_independent():
+    """R7: the approved bootstrap rule and C0 selection have one validator in EACH implementation; no C2 criterion is registered."""
+    assert set(cs.RNG_RULES) == {RULE} == set(ver.RNG_RULES_V)
+    assert set(cs.SELECTION_ALGORITHMS) == {DRAFT["reproducibility_selection"]["algorithm"]} == set(ver.SELECTION_ALGORITHMS_V)
+    assert cs.C2_ADJUDICATION_CRITERIA == {} and ver.C2_CRITERIA_V == {}
+    assert cs.RNG_RULES[RULE] is not ver.RNG_RULES_V[RULE] and cs.RNG_RULES[RULE].__module__ != ver.RNG_RULES_V[RULE].__module__
     im = _imports(os.path.join(HERE, "verify_campaign_outputs.py"))
     assert "campaign_status" not in im and "physical_campaign_driver" not in im
+
+
+# ======================================================================
+# R7 TASK 1: approved bootstrap RNG architecture (option A)
+# ======================================================================
+def test_r7_rng_spec_is_option_a_with_entropy_unrecorded():
+    b = DRAFT["bootstrap_rng"]
+    assert b["rule"] == "SEEDSEQ-PCG64-SPAWN-A" and b["bit_generator"] == "PCG64" and b["root_entropy"] is None
+    assert b["numpy_version"] == "2.5.3" and "numpy==2.5.3" in open(os.path.join(HERE, "requirements-lock.txt")).read()
+    assert b["resampling_api"] == "numpy.random.Generator.integers(low=0, high=N, size=N, dtype=numpy.int64, endpoint=False)"
+    assert "independent by design under the declared RNG mechanism" in b["independence_statement"]
+    assert "spawn_key == (0,)" in b["spawn_procedure"] and "spawn_key == (1,)" in b["spawn_procedure"]
+
+
+def test_r7_spawn_procedure_equivalence_used_by_the_two_validators():
+    import numpy as np
+    for E in (0, 1, TEST_ENTROPY, 2**64 + 5):
+        ch = np.random.SeedSequence(E).spawn(2)
+        for i in (0, 1):
+            assert ch[i].spawn_key == (i,)
+            assert (ch[i].generate_state(8) == np.random.SeedSequence(entropy=E, spawn_key=(i,)).generate_state(8)).all()
+        assert (ch[0].generate_state(8) != ch[1].generate_state(8)).any()
+    for st in (1, 2):
+        assert cs.rule_a_probe(TEST_ENTROPY, st, N_TEST) == _probe(TEST_ENTROPY, st, N_TEST)
+        assert cs.rule_a_stream_id(DRAFT["bootstrap_rng"], TEST_ENTROPY, st) == _sid(TEST_ENTROPY, st)
+    assert _probe(TEST_ENTROPY, 1, N_TEST) != _probe(TEST_ENTROPY, 2, N_TEST)
+
+
+def test_r7_rng_approved_architecture_passes_in_both(tmp_path):
+    out, s, v = _run_r6(tmp_path)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "PASS" == v["gate_states"]["PHYS.statistics.bootstrap_rng"]
+
+
+def _rng_mut(case):
+    E = TEST_ENTROPY
+
+    def f(rows):
+        for r in rows:
+            two = r["stage"] == 2
+            if case == "spawn_key_2":
+                r["bootstrap_rng_stream_stage1"] = _sid(E, 1).replace("spawn_key=(0,)", "spawn_key=(2,)")
+            elif case == "swapped_spawn_keys":
+                r["bootstrap_rng_stream_stage1"], r["bootstrap_probe_stage1"] = _sid(E, 2), _probe(E, 2, N_TEST)
+                if two:
+                    r["bootstrap_rng_stream_stage2"], r["bootstrap_probe_stage2"] = _sid(E, 1), _probe(E, 1, N_TEST)
+            elif case == "probe_from_wrong_spawn_key":
+                r["bootstrap_probe_stage1"] = _probe(E, 2, N_TEST)
+            elif case == "wrong_bit_generator":
+                r["bootstrap_bit_generator"] = "MT19937"
+            elif case == "probe_from_other_bit_generator":
+                import numpy as np
+                g = np.random.Generator(np.random.Philox(np.random.SeedSequence(E).spawn(2)[0]))
+                r["bootstrap_probe_stage1"] = hashlib.sha256(g.integers(0, N_TEST, size=N_TEST, dtype=np.int64).astype("<i8").tobytes()).hexdigest()
+            elif case == "wrong_root_entropy":                                          # internally consistent, but not the protocol entropy
+                r.update(rng_meta(r["stage"], E=E + 1))
+            elif case == "numpy_in_id":
+                r["bootstrap_rng_stream_stage1"] = _sid(E, 1).replace(f"numpy={NPV}", "numpy=2.5.2")
+            elif case == "numpy_metadata":
+                r["bootstrap_numpy_version"] = "2.5.2"
+            elif case == "api_metadata":
+                r["bootstrap_resampling_api"] = API.replace("size=N", "size=(B, N)")
+            elif case == "inconsistent_api":
+                if r is rows[0]:
+                    r["bootstrap_resampling_api"] = API.replace("endpoint=False", "endpoint=True")
+        return rows
+    return _stats(f)
+
+
+@pytest.mark.parametrize("case", ["spawn_key_2", "swapped_spawn_keys", "probe_from_wrong_spawn_key", "wrong_bit_generator",
+                                  "probe_from_other_bit_generator", "wrong_root_entropy", "numpy_in_id", "numpy_metadata", "api_metadata",
+                                  "inconsistent_api"])
+def test_r7_rng_mutations_fail_in_both(tmp_path, case):
+    out, s, v = _run_r6(tmp_path, mutate=_rng_mut(case))
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL", s["registry"]["PHYS.statistics.bootstrap_rng"]
+    assert s["overall_status"] == "FAIL"
+
+
+def test_r7_rng_installed_numpy_differs_from_pin_is_not_evaluable(tmp_path, monkeypatch):
+    monkeypatch.setattr(cs, "numpy_version", lambda: "0.0.0")
+    monkeypatch.setattr(ver, "_np_version", lambda: "0.0.0")
+    out, s, v = _run_r6(tmp_path)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "NOT EVALUABLE"
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "NOT EVALUABLE" and s["overall_status"] == "NOT EVALUABLE"
+
+
+@pytest.mark.parametrize("bad", ["-3", "1.5", "abc", -3, 1.5])
+def test_r7_malformed_protocol_root_entropy_fails_closed(tmp_path, bad):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["bootstrap_rng"]["root_entropy"] = bad
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"
+
+
+def test_r7_rng_real_draft_with_perfect_metadata_is_still_not_evaluable(tmp_path):
+    out, s, v = _run_r6(tmp_path, draft=DRAFT)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "NOT EVALUABLE" and s["overall_status"] != "PASS"
+
+
+# ======================================================================
+# R7 TASK 5: C0 reproducibility subset
+# ======================================================================
+def test_r7_c0_subset_size_rule_is_exact():
+    for N in range(100, 1001):
+        n = (16 * N + 99) // 100
+        assert cs.c0_subset_size(0.01, 16, N) == n == ver._subset_count(0.01, 16, N)
+
+
+@pytest.mark.parametrize("N", [100, 137, 1000])
+def test_r7_c0_selection_is_reproducible_from_the_recorded_metadata(N):
+    units = [(w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N + 1)]
+    n = (16 * N + 99) // 100
+    a = cs.SELECTION_ALGORITHMS[DRAFT["reproducibility_selection"]["algorithm"]](units, n, TEST_C0_SEED, DRAFT["reproducibility_selection"])
+    b = ver.SELECTION_ALGORITHMS_V[DRAFT["reproducibility_selection"]["algorithm"]](DRAFT["grid"], list(range(1, N + 1)), n, TEST_C0_SEED)
+    c = c0_subset_t(N, TEST_C0_SEED)
+    assert [tuple(map(float, x)) for x in a] == [tuple(map(float, x)) for x in b] == [tuple(map(float, x)) for x in c]
+    assert len(set(a)) == n and a == cs.SELECTION_ALGORITHMS[DRAFT["reproducibility_selection"]["algorithm"]](list(reversed(units)), n, TEST_C0_SEED, None)
+    assert a != c0_subset_t(N, TEST_C0_SEED + 1)                                         # the seed matters
+
+
+def test_r7_c0_baseline_passes_and_spec_uses_the_selected_units(tmp_path):
+    out, s, v = _run_r6(tmp_path)
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "PASS"
+    sp = [g for g in cs.physical_gate_spec(TEST_DRAFT, N_TEST) if g.gate_id == "PHYS.C0.reproducibility"][0]
+    assert sorted(map(lambda k: tuple(map(float, k)), sp.expected_keys)) == sorted(map(lambda k: tuple(map(float, k)), c0_subset_t(N_TEST, TEST_C0_SEED)))
+
+
+def _c0(fn):
+    return lambda st: wrap(st, "C0_reproducibility", "reproducibility", lambda rows: fn([dict(r) for r in rows]))
+
+
+@pytest.mark.parametrize("case", ["unit_not_selected", "missing_row_seed", "malformed_row_seed", "other_row_seed", "numpy_column", "algorithm_column",
+                                  "missing_numpy_column_value"])
+def test_r7_c0_mutations_fail_in_both(tmp_path, case):
+    chosen = set(c0_subset_t(N_TEST, TEST_C0_SEED))
+    other = [u for u in sorted((w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N_TEST + 1)) if u not in chosen][0]
+
+    def f(rows):
+        if case == "unit_not_selected":
+            rows[-1].update(W=other[0], zeta=other[1], seed=other[2])
+        elif case == "missing_row_seed":
+            rows[0]["selection_seed"] = ""
+        elif case == "malformed_row_seed":
+            rows[0]["selection_seed"] = "1.5"
+        elif case == "other_row_seed":
+            rows[0]["selection_seed"] = TEST_C0_SEED + 1
+        elif case == "numpy_column":
+            rows[0]["selection_numpy_version"] = "2.5.2"
+        elif case == "algorithm_column":
+            rows[0]["selection_algorithm"] = "LOWEST-KEYS"
+        elif case == "missing_numpy_column_value":
+            rows[0]["selection_numpy_version"] = " "
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_c0(f))
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+
+
+@pytest.mark.parametrize("bad", ["-1", "7.0", "x", -1])
+def test_r7_malformed_protocol_c0_seed_fails_closed(tmp_path, bad):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["reproducibility_selection"]["seed"] = bad
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"
+
+
+def test_r7_c0_seed_must_be_dedicated(tmp_path):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["reproducibility_selection"]["seed"] = TEST_ENTROPY                               # same number as the bootstrap root entropy
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["overall_status"] == "FAIL" and "dedicated" in s["problems"][0] and v["recomputed"] == "FAIL"
+
+
+def test_r7_c0_real_draft_seed_missing_is_not_evaluable(tmp_path):
+    out, s, v = _run_r6(tmp_path, draft=DRAFT)
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "NOT EVALUABLE" and "seed" in s["registry"]["PHYS.C0.reproducibility"]["reason"]
+
+
+# ======================================================================
+# R7 TASK 4: C2 still unresolved by design
+# ======================================================================
+def test_r7_c2_open_decisions_documented_and_states(tmp_path):
+    assert DRAFT["C2_adjudication_criteria"] is None and len(DRAFT["C2_adjudication_open_decisions"]) == 6
+    out, s, v = _run_r6(tmp_path, mutate=_c2([GOOD_ADJ]), name="flag")
+    assert _c2_states(s) == ("FAIL", "PASS", "NOT EVALUABLE") and s["overall_status"] == "FAIL"
+    assert "no numerical C2 adjudication" in s["registry"]["PHYS.C2.adjudication_resolved"]["reason"]
+    out, s, v = _run_r6(tmp_path, mutate=_c2([], flag=True), name="missing")
+    assert _c2_states(s) == ("FAIL", "FAIL", "FAIL") and s["overall_status"] == "FAIL"
+
+
+# ======================================================================
+# R7 audit fixes (R7a)
+# ======================================================================
+NON_ASCII_DIGITS = ["\u0669\u0668\u0667",        # Arabic-Indic 987
+                    "\u06f1\u06f2\u06f3",        # Extended Arabic-Indic (Persian) 123
+                    "\u0967\u0968\u0969",        # Devanagari 123
+                    "\uff11\uff12\uff13",        # fullwidth 123
+                    "1\u00b2",                    # superscript two (str.isdigit() is True)
+                    "\u0661" + "2"]               # mixed Arabic-Indic and ASCII
+
+
+@pytest.mark.parametrize("v", NON_ASCII_DIGITS)
+def test_r7a_non_ascii_digits_rejected_identically(v):
+    assert v.strip().isdigit() or not v.strip().isdigit()           # (documentation: several of these ARE str.isdigit())
+    assert cs._seed_ok(v) is False and ver._digits(v) is False
+
+
+@pytest.mark.parametrize("v,ok", [("0", True), ("123", True), (" 987654321 ", True), ("00042", True), (str(2**80), True),
+                                  ("", False), ("  ", False), ("-1", False), ("+1", False), ("1.0", False), ("1e3", False), ("12a", False)])
+def test_r7a_ascii_seed_rule_matches_in_both(v, ok):
+    assert cs._seed_ok(v) is ok and ver._digits(v) is ok
+
+
+def test_r7a_arabic_indic_seeds_in_rows_fail_in_both(tmp_path):
+    ar = "".join(chr(0x660 + int(c)) for c in str(TEST_ENTROPY))
+    assert int(ar) == TEST_ENTROPY                                    # Python int() would silently convert it
+
+    def f(rows):
+        for r in rows:
+            r["bootstrap_seed_stage1"] = ar
+            if r["stage"] == 2:
+                r["bootstrap_seed_stage2"] = ar
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_stats(f), name="rng")
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+    arc0 = "".join(chr(0x660 + int(c)) for c in str(TEST_C0_SEED))
+    out, s, v = _run_r6(tmp_path, mutate=_c0(lambda rows: [dict(r, selection_seed=arc0) for r in rows]), name="c0")
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+
+
+@pytest.mark.parametrize("field", ["bootstrap_rng.root_entropy", "reproducibility_selection.seed"])
+@pytest.mark.parametrize("v", NON_ASCII_DIGITS[:4])
+def test_r7a_non_ascii_protocol_values_fail_closed_in_both(tmp_path, field, v):
+    d = copy.deepcopy(TEST_DRAFT)
+    sec, key = field.split(".")
+    d[sec][key] = v
+    out, s, v_ = _run_r6(tmp_path, draft=d)
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v_["recomputed"] == "FAIL"
+
+
+def test_r7a_ascii_baseline_still_passes(tmp_path):
+    out, s, v = _run_r6(tmp_path)
+    assert s["overall_status"] == "PASS" and v["agree"]
+
+
+# ---- C0 structural validation independent of the observed table and of numpy ----
+def _mismatch(monkeypatch):
+    monkeypatch.setattr(cs, "numpy_version", lambda: "0.0.0")
+    monkeypatch.setattr(ver, "_np_version", lambda: "0.0.0")
+
+
+def test_r7a_c0_spec_does_not_derive_keys_from_observed_rows(monkeypatch):
+    ens = {(w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N_TEST + 1)}
+    for draft, mism in ((DRAFT, False), (TEST_DRAFT, True)):
+        if mism:
+            _mismatch(monkeypatch)
+        g = [x for x in cs.physical_gate_spec(draft, N_TEST) if x.gate_id == "PHYS.C0.reproducibility"][0]
+        assert g.expected_keys_fn is None and g.expected_keys is None
+        assert set(map(tuple, g.allowed_keys)) == ens and g.expected_distinct_count == (16 * N_TEST + 99) // 100
+
+
+@pytest.mark.parametrize("case,expect", [("valid", "NOT EVALUABLE"), ("out_of_ensemble", "FAIL"), ("too_few", "FAIL"),
+                                         ("too_many", "FAIL"), ("duplicate", "FAIL"), ("wrong_row_seed", "FAIL")])
+def test_r7a_c0_structure_under_numpy_mismatch(tmp_path, monkeypatch, case, expect):
+    _mismatch(monkeypatch)
+    chosen = set(c0_subset_t(N_TEST, TEST_C0_SEED))
+    spare = [u for u in sorted((w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N_TEST + 1)) if u not in chosen][0]
+
+    def f(rows):
+        if case == "out_of_ensemble":
+            rows[-1]["seed"] = N_TEST + 7
+        elif case == "too_few":
+            rows = rows[:-1]
+        elif case == "too_many":
+            rows = rows + [dict(rows[0], W=spare[0], zeta=spare[1], seed=spare[2])]
+        elif case == "duplicate":
+            rows = rows[:-1] + [rows[0]]
+        elif case == "wrong_row_seed":
+            rows[0]["selection_seed"] = TEST_C0_SEED + 1
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_c0(f))
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == expect == v["gate_states"]["PHYS.C0.reproducibility"]
+    assert s["overall_status"] != "PASS"
+
+
+@pytest.mark.parametrize("case", ["out_of_ensemble", "too_few", "too_many"])
+def test_r7a_c0_structure_with_unrecorded_seed(tmp_path, case):
+    chosen = set(c0_subset_t(N_TEST, TEST_C0_SEED))
+    spare = [u for u in sorted((w, z, s_) for w in DRAFT["grid"]["W"] for z in DRAFT["grid"]["zeta"] for s_ in range(1, N_TEST + 1)) if u not in chosen][0]
+
+    def f(rows):
+        if case == "out_of_ensemble":
+            rows[-1]["seed"] = N_TEST + 7
+        elif case == "too_few":
+            rows = rows[:-1]
+        else:
+            rows = rows + [dict(rows[0], W=spare[0], zeta=spare[1], seed=spare[2])]
+        return rows
+    out, s, v = _run_r6(tmp_path, mutate=_c0(f), draft=DRAFT)
+    assert s["registry"]["PHYS.C0.reproducibility"]["state"] == "FAIL" == v["gate_states"]["PHYS.C0.reproducibility"]
+
+
+# ---- identifier template separated from explanatory prose ----
+def test_r7a_template_field_is_dedicated_and_prose_is_separate():
+    b = DRAFT["bootstrap_rng"]
+    assert "stream_id_format" not in b and b["stream_id_template"].count("{") == 3 and "stream_id_description" in b
+    assert b["stream_id_template"].format(root_entropy=5, spawn_index=1, numpy_version=NPV) == _sid(5, 2)
+    src = open(os.path.join(HERE, "verify_campaign_outputs.py")).read() + open(os.path.join(HERE, "campaign_status.py")).read()
+    assert "stream_id_description" not in src and 'split("  ")' not in src
+
+
+def test_r7a_editing_the_prose_does_not_change_validation(tmp_path):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["bootstrap_rng"]["stream_id_description"] = "Edited  prose  with  double  spaces  |entropy=<x>| and {braces}."
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "PASS" and s["overall_status"] == "PASS"
+
+
+def test_r7a_validators_consume_the_template_field(tmp_path):
+    d = copy.deepcopy(TEST_DRAFT)
+    d["bootstrap_rng"]["stream_id_template"] = d["bootstrap_rng"]["stream_id_template"].replace("bitgen=PCG64", "bitgen=PCG-64")
+    out, s, v = _run_r6(tmp_path, draft=d, name="changed")
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"   # R7b: fixed component bitgen=PCG-64 != PCG64
+    d2 = copy.deepcopy(TEST_DRAFT)
+    del d2["bootstrap_rng"]["stream_id_template"]
+    out, s, v = _run_r6(tmp_path, draft=d2, name="missing")
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"
+
+
+# ---- plan wording ----
+def test_r7a_plan_independence_wording():
+    plan = open(os.path.join(HERE, "docs", "PHYSICAL_CAMPAIGN_PLAN.md")).read()
+    assert "integer seeds are statistically independent" not in plan
+    assert "independent by design under the declared deterministic seed-derivation scheme" in plan
+    assert "not a proven mathematical independence" in plan
+
+
+# ======================================================================
+# R7b: schema validation of the machine-readable identifier template (protocol definition)
+# ======================================================================
+GOOD_T = DRAFT["bootstrap_rng"]["stream_id_template"]
+BAD_TEMPLATES = {
+    "missing_field": None, "empty": "", "blank": "   ", "not_a_string": 123,
+    "no_root_entropy": GOOD_T.replace("{root_entropy}", "123"),
+    "no_spawn_index": GOOD_T.replace("{spawn_index}", "0"),
+    "no_numpy_version": GOOD_T.replace("{numpy_version}", "2.5.3"),
+    "duplicate_in_component": GOOD_T.replace("entropy={root_entropy}", "entropy={root_entropy}{root_entropy}"),
+    "duplicate_extra_component": GOOD_T + "|{spawn_index}",
+    "unknown_placeholder": GOOD_T.replace("bitgen=PCG64", "bitgen={bit_generator}"),
+    "unknown_extra": GOOD_T + "|seed={seed}",
+    "unterminated": GOOD_T.replace("{root_entropy}", "{root_entropy"),
+    "stray_close": GOOD_T.replace("{root_entropy}", "root_entropy}"),
+    "empty_braces": GOOD_T.replace("{root_entropy}", "{}"),
+    "escaped": GOOD_T.replace("{root_entropy}", "{{root_entropy}}"),
+    "format_spec": GOOD_T.replace("{root_entropy}", "{root_entropy:>5}"),
+    "conversion": GOOD_T.replace("{root_entropy}", "{root_entropy!r}"),
+    "space_inside": GOOD_T.replace("{root_entropy}", "{ root_entropy}"),
+    "wrong_rule_prefix": GOOD_T.replace("SEEDSEQ-PCG64-SPAWN-A", "SEEDSEQ-PCG64-SPAWN-B"),
+    "wrong_bitgen": GOOD_T.replace("bitgen=PCG64", "bitgen=Philox"),
+    "missing_component": GOOD_T.replace("|bitgen=PCG64", ""),
+    "extra_component": GOOD_T + "|extra",
+    "spawn_key_without_parens": GOOD_T.replace("spawn_key=({spawn_index},)", "spawn_key={spawn_index}"),
+    "reordered": "|".join([GOOD_T.split("|")[0], GOOD_T.split("|")[2], GOOD_T.split("|")[1]] + GOOD_T.split("|")[3:]),
+}
+
+
+def _with_template(draft, t):
+    d = copy.deepcopy(draft)
+    if t is None:
+        del d["bootstrap_rng"]["stream_id_template"]
+    else:
+        d["bootstrap_rng"]["stream_id_template"] = t
+    return d
+
+
+def test_r7b_production_template_is_valid_in_both():
+    assert cs.validate_stream_id_template(DRAFT["bootstrap_rng"]) == [] and ver._template_problems(DRAFT["bootstrap_rng"]) == []
+    assert GOOD_T == "SEEDSEQ-PCG64-SPAWN-A|entropy={root_entropy}|spawn_key=({spawn_index},)|bitgen=PCG64|numpy={numpy_version}"
+
+
+@pytest.mark.parametrize("case", sorted(BAD_TEMPLATES))
+def test_r7b_bad_templates_rejected_by_both_validators(case):
+    b = _with_template(DRAFT, BAD_TEMPLATES[case])["bootstrap_rng"]
+    assert cs.validate_stream_id_template(b) and ver._template_problems(b), case          # G: both reject, independently
+
+
+@pytest.mark.parametrize("case", ["missing_field", "no_root_entropy", "no_spawn_index", "no_numpy_version", "duplicate_in_component",
+                                  "unknown_placeholder", "unterminated", "wrong_bitgen"])
+def test_r7b_bad_template_with_null_entropy_is_protocol_fail(tmp_path, case):
+    """A, B, C: the production draft (root_entropy = null) with an invalid template is FAIL, not NOT EVALUABLE."""
+    d = _with_template(DRAFT, BAD_TEMPLATES[case])
+    assert d["bootstrap_rng"]["root_entropy"] is None
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and "stream_id_template" in s["problems"][0]
+    assert v["recomputed"] == "FAIL" and v["agree"] and any("template" in f or "placeholder" in f or "brace" in f or "component" in f for f in v["failures"])
+
+
+@pytest.mark.parametrize("case", ["no_numpy_version", "no_root_entropy", "duplicate_extra_component"])
+def test_r7b_bad_template_fails_even_when_recorded_ids_were_changed_to_match(tmp_path, case):
+    """The reported weakness: a template without a placeholder plus identifiers rewritten to match it must still FAIL."""
+    d = _with_template(TEST_DRAFT, BAD_TEMPLATES[case])
+    t = d["bootstrap_rng"]["stream_id_template"]
+
+    def f(rows):
+        for r in rows:
+            r["bootstrap_rng_stream_stage1"] = t.replace("{root_entropy}", str(TEST_ENTROPY)).replace("{spawn_index}", "0").replace("{numpy_version}", NPV)
+            if r["stage"] == 2:
+                r["bootstrap_rng_stream_stage2"] = t.replace("{root_entropy}", str(TEST_ENTROPY)).replace("{spawn_index}", "1").replace("{numpy_version}", NPV)
+        return rows
+    out, s, v = _run_r6(tmp_path, draft=d, mutate=_stats(f))
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"
+
+
+def test_r7b_valid_template_with_null_entropy_is_not_evaluable(tmp_path):
+    """D: a valid template does not turn the open root-entropy decision into a FAIL."""
+    out, s, v = _run_r6(tmp_path, draft=DRAFT)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "NOT EVALUABLE" == v["gate_states"]["PHYS.statistics.bootstrap_rng"]
+    assert s["overall_status"] == "NOT EVALUABLE"
+
+
+def test_r7b_valid_template_with_test_entropy_passes(tmp_path):
+    """E: recorded (test-only) entropy and matching synthetic metadata."""
+    out, s, v = _run_r6(tmp_path)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "PASS" == v["gate_states"]["PHYS.statistics.bootstrap_rng"]
+    assert s["overall_status"] == "PASS"
+
+
+@pytest.mark.parametrize("draft_name", ["production", "test"])
+def test_r7b_description_edits_do_not_affect_validation(tmp_path, draft_name):
+    """F: stream_id_description is prose only, including text that looks like a broken template."""
+    base = DRAFT if draft_name == "production" else TEST_DRAFT
+    d = copy.deepcopy(base)
+    d["bootstrap_rng"]["stream_id_description"] = "{root_entropy {seed} }} | bitgen=Philox | missing placeholders {"
+    assert cs.validate_stream_id_template(d["bootstrap_rng"]) == [] and ver._template_problems(d["bootstrap_rng"]) == []
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == ("NOT EVALUABLE" if draft_name == "production" else "PASS")

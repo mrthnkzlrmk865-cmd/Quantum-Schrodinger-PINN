@@ -768,7 +768,8 @@
    "seed",
    "bitwise_equal",
    "selection_algorithm",
-   "selection_seed"
+   "selection_seed",
+   "selection_numpy_version"
   ],
   "solver_cross_check": [
    "W",
@@ -835,7 +836,12 @@
    "bootstrap_rng_stream_stage1",
    "bootstrap_seed_stage1",
    "bootstrap_rng_stream_stage2",
-   "bootstrap_seed_stage2"
+   "bootstrap_seed_stage2",
+   "bootstrap_bit_generator",
+   "bootstrap_numpy_version",
+   "bootstrap_resampling_api",
+   "bootstrap_probe_stage1",
+   "bootstrap_probe_stage2"
   ],
   "stages": [
    "stage",
@@ -856,15 +862,48 @@
    "NOT EVALUABLE"
   ]
  },
- "reproducibility_selection": null,
- "reproducibility_selection_note": "PROTOCOL DECISION REQUIRED: the plan specifies a '1 % random subset' (count ceil(0.01 * 16 * N) distinct (W, zeta, seed) units of the confirmatory ensemble) but no selection algorithm or seed. Until both are fixed in the protocol the C0 reproducibility gate is NOT EVALUABLE (fail-closed); no seed is invented.",
- "bootstrap_rng": null,
+ "reproducibility_selection": {
+  "algorithm": "SEEDSEQ-PCG64-PERMUTATION-C0",
+  "decision": "selection procedure specified in R7; seed NOT YET SUPPLIED: the C0 gate stays NOT EVALUABLE until it is recorded",
+  "seed": null,
+  "seed_representation": "one non-negative integer in ASCII decimal digits 0-9 only, dedicated to C0 (must differ from bootstrap_rng.root_entropy); recorded as text in selection_seed",
+  "seed_sequence": "numpy.random.SeedSequence(entropy=seed) (no spawn key; separate from the bootstrap SeedSequence)",
+  "bit_generator": "PCG64",
+  "numpy_version": "2.5.3",
+  "units_order": "all (W, zeta, seed) units of the confirmatory ensemble (16 cells x N seeds), sorted ascending by W, then zeta, then seed (numeric); the keys are unique, so there are no ties",
+  "subset_size": "n = ceil(reproducibility_subset_fraction * 16 * N) in exact rational arithmetic, i.e. (16 N + 99) // 100 for the fraction 0.01",
+  "api": "perm = numpy.random.Generator(numpy.random.PCG64(numpy.random.SeedSequence(entropy=seed))).permutation(M), M = 16 N; selected = sorted(perm[:n]); subset = [units[i] for i in selected]",
+  "row_columns": "each subset row records selection_algorithm, selection_seed and selection_numpy_version"
+ },
+ "bootstrap_rng": {
+  "rule": "SEEDSEQ-PCG64-SPAWN-A",
+  "decision": "APPROVED in R7 (option A of docs/CAMPAIGN_STATUS_CONTRACT.md section 1). root_entropy NOT YET SUPPLIED: the RNG gate stays NOT EVALUABLE until it is recorded, before any physical campaign data are generated.",
+  "root_entropy": null,
+  "root_entropy_representation": "one non-negative integer written in ASCII decimal digits 0-9 only (no sign, exponent, decimal point or non-ASCII digits; surrounding whitespace is ignored); recorded as text in bootstrap_seed_stage1 / bootstrap_seed_stage2",
+  "seed_sequence": "root = numpy.random.SeedSequence(entropy=root_entropy)",
+  "spawn_procedure": "children = root.spawn(2); stage1 = children[0] (spawn_key == (0,)); stage2 = children[1] (spawn_key == (1,)). Equivalent construction used for validation: numpy.random.SeedSequence(entropy=root_entropy, spawn_key=(i,)). The root's own stream is not used.",
+  "bit_generator": "PCG64",
+  "generator_initialization": "rng_stage_i = numpy.random.Generator(numpy.random.PCG64(child_i))",
+  "resampling_api": "numpy.random.Generator.integers(low=0, high=N, size=N, dtype=numpy.int64, endpoint=False)",
+  "resampling_order": "replicates b = 0, 1, ..., B-1 of a stage are drawn in this order, one call per replicate, N = number of confirmatory seeds; replicate b gives the resampled seed list applied to every cell, energy and observable, i.e. to all 68 tests (paired). A batched implementation is admissible only if it reproduces exactly this index sequence.",
+  "numpy_version": "2.5.3",
+  "numpy_version_source": "requirements-lock.txt (numpy==2.5.3)",
+  "stream_id_template": "SEEDSEQ-PCG64-SPAWN-A|entropy={root_entropy}|spawn_key=({spawn_index},)|bitgen=PCG64|numpy={numpy_version}",
+  "stream_id_template_fields": {
+   "root_entropy": "the recorded root entropy (decimal integer)",
+   "spawn_index": "0 for Stage 1, 1 for Stage 2",
+   "numpy_version": "the pinned numpy version"
+  },
+  "stream_id_description": "Machine-readable template in stream_id_template (placeholders in braces). Example for Stage 1: SEEDSEQ-PCG64-SPAWN-A|entropy=<E>|spawn_key=(0,)|bitgen=PCG64|numpy=2.5.3. Validators render stream_id_template; this prose is never parsed.",
+  "probe": "bootstrap_probe_stage<s> = sha256 hex digest of the first replicate's indices of stage s: Generator(PCG64(SeedSequence(entropy=root_entropy, spawn_key=(s-1,)))).integers(low=0, high=N, size=N, dtype=int64, endpoint=False) as little-endian int64 bytes",
+  "independent_validation": "aggregator and independent verifier each (separately coded) check: rule name, PCG64, numpy version and API strings equal the protocol; seeds equal root_entropy; stream identifiers equal the declared format with spawn keys (0,) and (1,); one Stage-1 stream for all 68 tests and one Stage-2 stream for all Stage-2 tests; the probes are recomputed with the pinned numpy (NOT EVALUABLE if the installed numpy differs from the pin)",
+  "independence_statement": "Stage-1 and Stage-2 streams are independent by design under the declared RNG mechanism (distinct SeedSequence spawn keys of one root); this is not a mathematical proof of statistical independence"
+ },
  "bootstrap_rng_specified_by_plan": [
   "section 5.3 (a): one replicate resamples the confirmatory seeds jointly for all cells, energies and both observables -> all 68 tests share the Stage-1 replicates (one Stage-1 stream)",
   "section 5.3 (f) step 3: Stage 2 draws B2 = 1e6 new replicates from an independent random stream, 'a separate, recorded child of the bootstrap SeedSequence, never overlapping Stage 1' -> one Stage-2 stream shared by all Stage-2 tests",
   "section 5.2 / 5.3 (h): the bootstrap RNG seeds are fixed and recorded"
  ],
- "bootstrap_rng_note": "PROTOCOL DECISION REQUIRED (not specified by the plan): (1) the root entropy (seed) of the bootstrap SeedSequence; (2) the bit generator (e.g. PCG64 vs Philox); (3) which SeedSequence node is the Stage-1 stream (the root itself or a spawned child) and which spawn key is Stage 2; (4) the identifier format that records stream rule, entropy and spawn key; (5) the resampling call (e.g. Generator.integers(0, N, size=(B, N))) and the numpy version pin required for bit-for-bit stream reproducibility. Until decided the RNG gate is NOT EVALUABLE; recorded different seeds or different identifiers are NOT a proof of stream independence.",
  "bootstrap_rng_alternatives_for_review": [
   {
    "label": "A",
@@ -905,5 +944,19 @@
   "justification": "docs/CAMPAIGN_STATUS_CONTRACT.md section 2 (measured: CP endpoints vs exact binomial tails <= 7.6e-14 relative; worst formula cancellation mc_se 2.5e-11 relative at K = B-1, B = 1e6; smallest nonzero compared quantity 3.7e-11)"
  },
  "C2_adjudication_criteria": null,
- "C2_adjudication_note": "PROTOCOL DECISION REQUIRED: the plan says a flagged C2 realization is 'adjudicated with M4 (exact lattice) as in B3Y' but defines no numerical resolution criterion for a single resolution (the B3Y growth rule needs several dx). A reviewer must specify: (1) which comparison resolves a discrepancy (e.g. eps_M1 and/or eps_M3 against M4, at which limit); (2) which M4 gates (X4/X5/X7 and e_ind limit) the adjudicating solve must pass and which columns record them; (3) the outcome vocabulary (e.g. RESOLVED / PRECISION-LIMITED / UNEXPLAINED); (4) how an outcome is reported in the campaign status (the plan already fixes: never PASS, at best 'COMPLETED WITH ADJUDICATED EXCEEDANCES'). Until then ADJUDICATED means only that a record exists (administrative), and the resolution gate is NOT EVALUABLE whenever a C2 row is flagged."
+ "C2_adjudication_note": "PROTOCOL DECISION REQUIRED: the plan says a flagged C2 realization is 'adjudicated with M4 (exact lattice) as in B3Y' but defines no numerical resolution criterion for a single resolution (the B3Y growth rule needs several dx). A reviewer must specify: (1) which comparison resolves a discrepancy (e.g. eps_M1 and/or eps_M3 against M4, at which limit); (2) which M4 gates (X4/X5/X7 and e_ind limit) the adjudicating solve must pass and which columns record them; (3) the outcome vocabulary (e.g. RESOLVED / PRECISION-LIMITED / UNEXPLAINED); (4) how an outcome is reported in the campaign status (the plan already fixes: never PASS, at best 'COMPLETED WITH ADJUDICATED EXCEEDANCES'). Until then ADJUDICATED means only that a record exists (administrative), and the resolution gate is NOT EVALUABLE whenever a C2 row is flagged.",
+ "bootstrap_rng_open_decisions": [
+  "root_entropy (one non-negative integer, recorded before any physical campaign data are generated)"
+ ],
+ "reproducibility_selection_open_decisions": [
+  "seed (dedicated C0 selection seed, recorded before the confirmatory run)"
+ ],
+ "C2_adjudication_open_decisions": [
+  "the exact M4 comparison (which of eps_M1 / eps_M3 against the exact-lattice S, and at which matrix norm)",
+  "the numerical acceptance limit",
+  "the M4 validation gates the adjudicating solve must pass (X4 / X5 / X7, e_ind limit)",
+  "the recorded columns for those gates and comparisons",
+  "the outcome vocabulary (e.g. RESOLVED / PRECISION-LIMITED / UNEXPLAINED)",
+  "how adjudicated exceedances are reported (the plan already fixes: never PASS; at best COMPLETED WITH ADJUDICATED EXCEEDANCES)"
+ ]
 }
