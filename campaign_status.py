@@ -39,6 +39,30 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Selection algorithms for the C0 reproducibility subset. EMPTY on purpose: the protocol has not fixed the algorithm or its seed
 # (docs/physical_campaign_gates_draft.json, reproducibility_selection = null). Name -> function(ensemble_keys, n, seed) -> list of keys.
 SELECTION_ALGORITHMS: dict = {}
+# Bootstrap RNG stream rules. EMPTY on purpose: the protocol has not fixed the stream-generation rule or the seeds
+# (draft: bootstrap_rng = null). Name -> function(stage1_stream, stage1_seed, stage2_stream, stage2_seed, rule_spec) -> None | reason.
+RNG_RULES: dict = {}
+# C2 adjudication criteria. EMPTY on purpose: no numerical resolution criterion is approved (draft: C2_adjudication_criteria = null).
+# Name -> function(adjudication_row, criteria_spec) -> None | reason.
+C2_ADJUDICATION_CRITERIA: dict = {}
+
+# Numerical verification tolerance for REPORTED floating-point statistics (section 5.3): a and b agree iff both are finite and
+#   |a - b| <= VERIFY_ATOL + VERIFY_RTOL * max(|a|, |b|).
+# Justification (docs/CAMPAIGN_STATUS_CONTRACT.md, section 2): the largest legitimate implementation difference measured is 2.5e-11
+# relative (mc_se at K = B-1, B = 1e6, cancellation in 1 - p_hat); scipy Clopper-Pearson endpoints agree with exact binomial tails to
+# <= 7.6e-14 relative. ATOL = 0 because every compared quantity is either structurally exact (0 at K = 0, 1 at K = B; checked exactly)
+# or >= 3.7e-11 (smallest nonzero CP lower endpoint), where any positive ATOL would only weaken the test. Decisions never depend on
+# this tolerance: Holm sets are recomputed from the integer counts.
+VERIFY_RTOL = 1e-9
+VERIFY_ATOL = 0.0
+
+
+def approx_equal(a, b, rtol=VERIFY_RTOL, atol=VERIFY_ATOL) -> bool:
+    try:
+        a, b = float(a), float(b)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= atol + rtol * max(abs(a), abs(b))
 
 
 # ----------------------------------------------------------------------
@@ -121,7 +145,8 @@ class GateSpec:
     expected_keys: Optional[list] = None               # protocol-derived REQUIRED keys, each exactly once
     allowed_keys: Optional[list] = None                # protocol-defined OPTIONAL keys (at most once each); anything else is unexpected
     expected_multiplicity: Optional[dict] = None       # protocol-derived key -> exact number of rows (tables that repeat a record)
-    expected_keys_fn: Optional[Callable] = None        # (tables dict) -> required keys, for protocol rules that depend on another table
+    expected_keys_fn: Optional[Callable] = None        # (load) -> required keys, for protocol rules that depend on another table
+    allowed_keys_fn: Optional[Callable] = None         # (load) -> optional keys whose permission depends on another table
     row_filter: dict = field(default_factory=dict)     # column -> value; selects the rows owned by this gate
     row_select: Optional[Callable] = None              # additional ownership predicate
     checks: list = field(default_factory=list)
@@ -131,6 +156,7 @@ class GateSpec:
     row_evaluator: Optional[Callable] = None           # row -> None | reason
     table_evaluator: Optional[Callable] = None         # rows -> list of reasons (cross-row rules, e.g. Holm sets)
     not_evaluable_reason: Optional[str] = None         # a missing protocol decision: the gate cannot be PASS until it is made
+    not_evaluable_fn: Optional[Callable] = None        # (load) -> reason | None (a missing decision that matters only for some data)
 
     def owns(self, row) -> bool:
         if any(norm(row.get(c)) != norm(v) for c, v in self.row_filter.items()):
@@ -187,12 +213,15 @@ def evaluate_gate(spec: GateSpec, out_dir: str, cache: dict) -> dict:
             dup = [k for k in exp if counts.get(k, 0) > exp[k]]
             extra = [k for k in counts if k not in exp]
         else:
-            req = spec.expected_keys_fn(cache) if spec.expected_keys_fn is not None else spec.expected_keys
+            load = lambda t: _load(out_dir, t, cache)
+            req = spec.expected_keys_fn(load) if spec.expected_keys_fn is not None else spec.expected_keys
             if req is None:
                 reasons.append("gate has no protocol-derived key set")
                 req = []
             req = [tuple(norm(x) for x in k) for k in req]
             opt = [tuple(norm(x) for x in k) for k in (spec.allowed_keys or [])]
+            if spec.allowed_keys_fn is not None:
+                opt += [tuple(norm(x) for x in k) for k in spec.allowed_keys_fn(load)]
             if len(set(req)) != len(req) or set(req) & set(opt):
                 reasons.append("protocol-derived key set is not unique")
             rec["n_expected"] = len(req)
@@ -244,6 +273,8 @@ def evaluate_gate(spec: GateSpec, out_dir: str, cache: dict) -> dict:
             rec.update(state=NOT_EVALUABLE, reason=f"{ne} NOT EVALUABLE rows")
         elif spec.not_evaluable_reason:
             rec.update(state=NOT_EVALUABLE, reason=spec.not_evaluable_reason)
+        elif spec.not_evaluable_fn is not None and spec.not_evaluable_fn(lambda t: _load(out_dir, t, cache)):
+            rec.update(state=NOT_EVALUABLE, reason=spec.not_evaluable_fn(lambda t: _load(out_dir, t, cache)))
         else:
             rec.update(state=PASS, reason="observed key set equals the protocol key set; all rows pass")
     except Exception as e:                                                    # noqa: BLE001  (fail closed)
@@ -449,7 +480,7 @@ def statistics_table_evaluator(D: dict, test_order: list):
     alpha, B1, B2 = st["holm_alpha"], st["B_stage1"], st["B_stage2"]
     a1, a2 = st["mc_alpha_per_test_stage1"], st["mc_alpha_per_test_stage2"]
     REJ, NREJ, AMB = st["decisions"]
-    rel = lambda a, b: abs(a - b) <= 1e-9 * max(abs(a), abs(b), 1e-300)
+    rel = approx_equal
 
     def ev(rows):
         bad = []
@@ -474,12 +505,19 @@ def statistics_table_evaluator(D: dict, test_order: list):
                 continue
             ph = (K + 1) / (B + 1)
             lo, hi = clopper_pearson(K, B, a1 if stage == 1 else a2)
-            if not (rel(f["p_hat"], ph) and rel(f["mc_se"], math.sqrt(ph * (1 - ph) / B)) and rel(f["mc_ci_sim99_lo"] + 1e-300, lo + 1e-300)
-                    and rel(f["mc_ci_sim99_hi"], hi) and rel(f["p_lo_final"] + 1e-300, lo + 1e-300) and rel(f["p_hi_final"], max(hi, ph))):
+            if not (rel(f["p_hat"], ph) and rel(f["mc_se"], math.sqrt(ph * (1 - ph) / B)) and rel(f["mc_ci_sim99_lo"], lo)
+                    and rel(f["mc_ci_sim99_hi"], hi) and rel(f["p_lo_final"], lo) and rel(f["p_hi_final"], max(hi, ph))):
                 bad.append(f"{key}: p_hat / MC SE / simultaneous MC interval / endpoint vectors inconsistent with K, B")
                 continue
+            if (K == 0 and (f["mc_ci_sim99_lo"] != 0.0 or f["p_lo_final"] != 0.0)) or (K == B and (f["mc_ci_sim99_hi"] != 1.0 or f["p_hi_final"] != 1.0)):
+                bad.append(f"{key}: structurally exact endpoint (0 at K = 0, 1 at K = B) not exact")
+                continue
+            if not (0.0 <= f["p_lo_final"] <= f["p_hat"] <= f["p_hi_final"] <= 1.0):
+                bad.append(f"{key}: endpoint ordering 0 <= p_lo <= p_hat <= p_hi <= 1 violated")
+                continue
             lo1, hi1 = clopper_pearson(K1, B1, a1)
-            V[key] = dict(stage=stage, plo1=lo1, phi1=max(hi1, (K1 + 1) / (B1 + 1)), plo=f["p_lo_final"], phi=f["p_hi_final"], f=f, d=r["decision"])
+            # Holm sets, ranks and adjusted p are computed from the values implied by the INTEGER counts, never from the reported floats
+            V[key] = dict(stage=stage, plo1=lo1, phi1=max(hi1, (K1 + 1) / (B1 + 1)), plo=lo, phi=max(hi, ph), f=f, d=r["decision"])
         if bad:
             return bad
         if set(V) != set(test_order):
@@ -505,6 +543,87 @@ def statistics_table_evaluator(D: dict, test_order: list):
                 bad.append(f"{k}: adjusted p and R_claim disagree")
         return bad
     return ev
+
+
+# ----------------------------------------------------------------------
+# bootstrap RNG stream metadata (section 5.3 (a), (f) step 3; docs/CAMPAIGN_STATUS_CONTRACT.md section 1)
+# ----------------------------------------------------------------------
+RNG_COLUMNS = ("bootstrap_rng_rule", "bootstrap_rng_stream_stage1", "bootstrap_seed_stage1", "bootstrap_rng_stream_stage2", "bootstrap_seed_stage2")
+
+
+def _seed_ok(v) -> bool:
+    """A recorded seed must be a non-negative integer written in decimal digits (no sign, no decimal point, no whitespace-only)."""
+    return isinstance(v, str) and v.strip().isdigit()
+
+
+def bootstrap_rng_evaluator(D: dict):
+    """Structural checks that hold for ANY admissible stream rule (one shared Stage-1 stream for the paired replicates of all 68 tests;
+    one shared Stage-2 stream for all Stage-2 tests; distinct stream identifiers; stage-2 fields empty exactly for Stage-1 rows;
+    the recorded rule equals the protocol rule if one is approved, and passes that rule's validator if one is implemented)."""
+    rule = D.get("bootstrap_rng")
+
+    def ev(rows):
+        bad = []
+        s1, s2, rules = set(), set(), set()
+        for r in rows:
+            key = (r.get("observable"), r.get("contrast_id"))
+            if any(c not in r for c in RNG_COLUMNS):
+                bad.append(f"{key}: RNG metadata columns missing")
+                continue
+            stage = norm(r.get("stage"))
+            if not is_nonempty(r["bootstrap_rng_rule"]) or not is_nonempty(r["bootstrap_rng_stream_stage1"]) or not _seed_ok(r["bootstrap_seed_stage1"]):
+                bad.append(f"{key}: Stage-1 RNG metadata missing or malformed")
+                continue
+            rules.add(r["bootstrap_rng_rule"].strip())
+            s1.add((r["bootstrap_rng_stream_stage1"].strip(), int(r["bootstrap_seed_stage1"])))
+            has2 = is_nonempty(r["bootstrap_rng_stream_stage2"]) or is_nonempty(r["bootstrap_seed_stage2"])
+            if stage == 1.0:
+                if has2:
+                    bad.append(f"{key}: Stage-1 test carries Stage-2 RNG metadata")
+            elif stage == 2.0:
+                if not (is_nonempty(r["bootstrap_rng_stream_stage2"]) and _seed_ok(r["bootstrap_seed_stage2"])):
+                    bad.append(f"{key}: Stage-2 RNG metadata missing or malformed")
+                    continue
+                s2.add((r["bootstrap_rng_stream_stage2"].strip(), int(r["bootstrap_seed_stage2"])))
+            else:
+                bad.append(f"{key}: stage {r.get('stage')!r}")
+        if bad:
+            return bad
+        if len(rules) != 1:
+            bad.append(f"{len(rules)} different stream rules recorded")
+        if len(s1) != 1:
+            bad.append(f"{len(s1)} different Stage-1 streams recorded (the paired Stage-1 replicates are shared by all tests)")
+        if len(s2) > 1:
+            bad.append(f"{len(s2)} different Stage-2 streams recorded (the Stage-2 replicates are shared by all Stage-2 tests)")
+        if s1 and s2 and next(iter(s1))[0] == next(iter(s2))[0]:
+            bad.append("Stage-2 stream identifier equals the Stage-1 stream identifier")
+        if bad or rule is None:
+            return bad
+        if rules != {str(rule.get("rule"))}:
+            bad.append(f"recorded stream rule {sorted(rules)} is not the approved rule {rule.get('rule')!r}")
+            return bad
+        fn = RNG_RULES.get(rule.get("rule"))
+        if fn is not None:
+            (a, b) = next(iter(s1))
+            (c, d) = next(iter(s2)) if s2 else (None, None)
+            why = fn(a, b, c, d, rule)
+            if why:
+                bad.append(f"stream metadata violate the approved rule: {why}")
+        return bad
+    return ev
+
+
+def bootstrap_rng_gate(D: dict, order: list) -> GateSpec:
+    rule = D.get("bootstrap_rng")
+    if rule is None:
+        reason = "PROTOCOL DECISION REQUIRED: bootstrap RNG stream rule and seeds are not specified (stream independence not established)"
+    elif rule.get("rule") not in RNG_RULES:
+        reason = f"no validator implemented for the bootstrap RNG rule {rule.get('rule')!r} (stream derivation cannot be verified)"
+    else:
+        reason = None
+    return GateSpec("PHYS.statistics.bootstrap_rng", "bootstrap RNG stream metadata: Stage-1 / independent Stage-2 streams recorded and consistent",
+                    "tests.csv", ("observable", "contrast_id"), expected_keys=order, table_evaluator=bootstrap_rng_evaluator(D),
+                    not_evaluable_reason=reason)
 
 
 # ----------------------------------------------------------------------
@@ -540,7 +659,7 @@ def b3y_gate_spec(P: dict) -> list:
     specs.append(GateSpec("B3Y.decomposition.evaluable", "every M2/M3 decomposition row is evaluable (gates, mirrors, finite terms)",
                           "error_decomposition.csv", ("point", "inv_dx", "method"),
                           expected_keys=[(p, i, m) for p in t3f for i in (mid, fine) for m in ("M2", "M3")],
-                          allowed_keys=[(p, base, m) for p in t3f if p in t3v for m in ("M2", "M3")],
+                          allowed_keys_fn=lambda load: b3y_optional_decomposition_keys(load, t3f, t3v, base),
                           status_column="status", status_ok=("", "OK"), status_not_evaluable=("NOT EVALUABLE",),
                           checks=[Check(c, "finite") for c in ("total", "bulk_rounding", "lead_data", "solver", "identity_residual_three_term", "e_ind_combined")] +
                           [Check(c, "true") for c in ("gate_fl_passed", "gate_hybrid_passed", "mirror_source_bitwise", "mirror_extraction_bitwise",
@@ -577,6 +696,15 @@ def b3y_gate_spec(P: dict) -> list:
                           ("config", "inv_dx"), expected_keys=[(c, f"{i}_vs_{base}") for c in sorted({pts[p]["config"] for p in t2}) for i in (mid, fine)],
                           row_select=is_p2, checks=[Check("P2_potential_bitwise", "true"), Check("coincident_x_bitwise", "true")]))
     return specs
+
+
+def b3y_optional_decomposition_keys(load, t3f, t3v, base):
+    """COMPATIBILITY rows (not protocol-required): M2/M3 decomposition at the base resolution 1/512 is accepted only for a point that is in
+    BOTH tier3_xp_1024_2048 and tier3_xp_512_validation AND has exactly one tier3_exact_lattice.csv record at inv_dx = 512 with
+    gates_passed == True. No other resolution, point or method can enter through this rule."""
+    t3 = load("tier3_exact_lattice.csv") or []
+    ok = Counter(norm(r.get("point")) for r in t3 if norm(r.get("inv_dx")) == norm(base) and is_true(r.get("gates_passed")))
+    return [(p, base, m) for p in t3f if p in t3v and ok.get(norm(p), 0) == 1 for m in ("M2", "M3")]
 
 
 def aggregate_b3y(out_dir: str, protocol_path: Optional[str] = None) -> dict:
@@ -636,8 +764,8 @@ def physical_gate_spec(D: dict, n_seeds: int) -> list:
     if sel is None:
         ens_set = {tuple(norm(x) for x in k) for k in ens}
 
-        def subset_rule(cache):
-            rows = [r for r in (cache.get("reproducibility.csv") or [])]
+        def subset_rule(load):
+            rows = [r for r in (load("reproducibility.csv") or [])]
             keys = [_row_key(r, ("W", "zeta", "seed")) for r in rows]
             inside = [k for k in dict.fromkeys(keys) if k in ens_set]
             return inside if len(inside) == n_sub else inside + [("__protocol_count__", n_sub, len(inside))]     # forces 'missing' if count wrong
@@ -662,17 +790,37 @@ def physical_gate_spec(D: dict, n_seeds: int) -> list:
                           checks=[Check("max_abs_dS", "le", L["solver_cross_check_S_abs"])]))
     lim = L["solver_cross_check_S_abs"]
 
-    def flagged(cache):
-        rows = cache.get("solver_cross_check.csv") or []
+    def flagged(load):
+        rows = load("solver_cross_check.csv") or []
         out = []
         for r in rows:
             x = num(r.get("max_abs_dS"))
             if x is None or not (math.isfinite(x) and x <= lim):
                 out.append(_row_key(r, ("W", "zeta", "seed", "energy_index")))
         return list(dict.fromkeys(out))
-    specs.append(GateSpec("PHYS.C2.adjudication_evaluable", "exactly one evaluable adjudication row per flagged C2 row", "adjudication.csv",
-                          ("W", "zeta", "seed", "energy_index"), expected_keys_fn=flagged, status_column="status", status_ok=("ADJUDICATED",),
-                          status_not_evaluable=("NOT EVALUABLE",)))
+    # C2 adjudication, two separate questions (docs/CAMPAIGN_STATUS_CONTRACT.md, section 4):
+    #  (a) administrative: exactly one adjudication record per flagged C2 row, with a valid status and the recorded M4 comparison numbers;
+    #  (b) scientific: is the discrepancy RESOLVED? Requires a protocol-approved numerical criterion. None is approved, so (b) is NOT
+    #      EVALUABLE whenever anything is flagged. Neither gate can turn a flagged C2 row into a PASS: PHYS.C2.solver_cross_check stays FAIL.
+    adj_num = [Check("eps_M1", "finite"), Check("eps_M3", "finite")]
+    specs.append(GateSpec("PHYS.C2.adjudication_recorded", "administrative: exactly one adjudication record per flagged C2 row (status, M4 numbers)",
+                          "adjudication.csv", ("W", "zeta", "seed", "energy_index"), expected_keys_fn=flagged, status_column="status",
+                          status_ok=("ADJUDICATED",), status_not_evaluable=("NOT EVALUABLE",), checks=adj_num))
+    crit = D.get("C2_adjudication_criteria")
+    crit_fn = None if crit is None else C2_ADJUDICATION_CRITERIA.get(crit.get("criterion"))
+
+    def resolution_open(load):
+        if not flagged(load):
+            return None                                                      # nothing to resolve
+        if crit is None:
+            return "PROTOCOL DECISION REQUIRED: no numerical C2 adjudication (resolution) criterion is approved"
+        if crit_fn is None:
+            return f"no implementation for the C2 adjudication criterion {crit.get('criterion')!r}"
+        return None
+    specs.append(GateSpec("PHYS.C2.adjudication_resolved", "scientific: every flagged C2 discrepancy satisfies the approved numerical resolution criterion",
+                          "adjudication.csv", ("W", "zeta", "seed", "energy_index"), expected_keys_fn=flagged, status_column="status",
+                          status_ok=("ADJUDICATED",), status_not_evaluable=("NOT EVALUABLE",), checks=adj_num,
+                          row_evaluator=(lambda r: crit_fn(r, crit)) if crit_fn is not None else None, not_evaluable_fn=resolution_open))
     c5 = C["C5"]
     specs.append(GateSpec("PHYS.C5.b3y_reproduction", "C5 seed 0 reproduces B3Y", "b3y_reproduction.csv", ("zeta", "energy_index"),
                           expected_keys=[(z, e) for z in c5["zeta"] for e in E], checks=[Check("abs_dT1", "le", L["b3y_reproduction_abs_dT1"])]))
@@ -702,6 +850,7 @@ def physical_gate_spec(D: dict, n_seeds: int) -> list:
                           "tests.csv", ("observable", "contrast_id"), expected_keys=order,
                           status_column="decision", status_ok=tuple(D["statistics"]["decisions"]),
                           table_evaluator=statistics_table_evaluator(D, order)))
+    specs.append(bootstrap_rng_gate(D, order))
     return specs
 
 

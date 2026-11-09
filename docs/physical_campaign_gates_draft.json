@@ -830,7 +830,12 @@
    "holm_rank",
    "holm_threshold",
    "p_holm_adj_from_phi",
-   "decision"
+   "decision",
+   "bootstrap_rng_rule",
+   "bootstrap_rng_stream_stage1",
+   "bootstrap_seed_stage1",
+   "bootstrap_rng_stream_stage2",
+   "bootstrap_seed_stage2"
   ],
   "stages": [
    "stage",
@@ -852,5 +857,53 @@
   ]
  },
  "reproducibility_selection": null,
- "reproducibility_selection_note": "PROTOCOL DECISION REQUIRED: the plan specifies a '1 % random subset' (count ceil(0.01 * 16 * N) distinct (W, zeta, seed) units of the confirmatory ensemble) but no selection algorithm or seed. Until both are fixed in the protocol the C0 reproducibility gate is NOT EVALUABLE (fail-closed); no seed is invented."
+ "reproducibility_selection_note": "PROTOCOL DECISION REQUIRED: the plan specifies a '1 % random subset' (count ceil(0.01 * 16 * N) distinct (W, zeta, seed) units of the confirmatory ensemble) but no selection algorithm or seed. Until both are fixed in the protocol the C0 reproducibility gate is NOT EVALUABLE (fail-closed); no seed is invented.",
+ "bootstrap_rng": null,
+ "bootstrap_rng_specified_by_plan": [
+  "section 5.3 (a): one replicate resamples the confirmatory seeds jointly for all cells, energies and both observables -> all 68 tests share the Stage-1 replicates (one Stage-1 stream)",
+  "section 5.3 (f) step 3: Stage 2 draws B2 = 1e6 new replicates from an independent random stream, 'a separate, recorded child of the bootstrap SeedSequence, never overlapping Stage 1' -> one Stage-2 stream shared by all Stage-2 tests",
+  "section 5.2 / 5.3 (h): the bootstrap RNG seeds are fixed and recorded"
+ ],
+ "bootstrap_rng_note": "PROTOCOL DECISION REQUIRED (not specified by the plan): (1) the root entropy (seed) of the bootstrap SeedSequence; (2) the bit generator (e.g. PCG64 vs Philox); (3) which SeedSequence node is the Stage-1 stream (the root itself or a spawned child) and which spawn key is Stage 2; (4) the identifier format that records stream rule, entropy and spawn key; (5) the resampling call (e.g. Generator.integers(0, N, size=(B, N))) and the numpy version pin required for bit-for-bit stream reproducibility. Until decided the RNG gate is NOT EVALUABLE; recorded different seeds or different identifiers are NOT a proof of stream independence.",
+ "bootstrap_rng_alternatives_for_review": [
+  {
+   "label": "A",
+   "rule": "SeedSequence(entropy=E_boot) root; Stage 1 = child spawn_key (0,), Stage 2 = child spawn_key (1,); PCG64",
+   "note": "both streams are siblings derived by SeedSequence hashing from one recorded entropy"
+  },
+  {
+   "label": "B",
+   "rule": "SeedSequence(entropy=E_boot) root used directly for Stage 1; Stage 2 = root.spawn(1)[0] (spawn_key (0,)); PCG64",
+   "note": "literal reading of 'a child of the bootstrap SeedSequence'"
+  },
+  {
+   "label": "C",
+   "rule": "PCG64(SeedSequence(E_boot)) for Stage 1; Stage 2 = the same bit generator advanced with .jumped(1)",
+   "note": "non-overlap of the two subsequences follows from the jump distance (2^127 steps); still not a proof of statistical independence"
+  },
+  {
+   "label": "D",
+   "rule": "Philox counter-based generator, one key, Stage 1 / Stage 2 distinguished by a distinct counter block or key word",
+   "note": "counter-based; streams disjoint by construction of the counter space"
+  },
+  {
+   "label": "E_boot source (applies to A-D)",
+   "rule": "E_boot fixed in the frozen protocol before any confirmatory data exist, either as a recorded integer or derived deterministically from the frozen protocol hash",
+   "note": "prevents choosing a seed after seeing results"
+  }
+ ],
+ "verification_tolerance": {
+  "rtol": 1e-09,
+  "atol": 0.0,
+  "definition": "reported value a and recomputed value b agree iff both are finite and |a - b| <= atol + rtol * max(|a|, |b|)",
+  "structural_exactness": [
+   "K = 0 => mc_ci_sim99_lo == 0.0 and p_lo_final == 0.0 exactly",
+   "K = B => mc_ci_sim99_hi == 1.0 and p_hi_final == 1.0 exactly",
+   "0 <= p_lo_final <= p_hat <= p_hi_final <= 1"
+  ],
+  "scope": "applies only to the consistency of reported floats with values recomputed from the integer counts; Holm sets, Stage-2 selection, ranks and decision labels are recomputed from the integer counts and never depend on it",
+  "justification": "docs/CAMPAIGN_STATUS_CONTRACT.md section 2 (measured: CP endpoints vs exact binomial tails <= 7.6e-14 relative; worst formula cancellation mc_se 2.5e-11 relative at K = B-1, B = 1e6; smallest nonzero compared quantity 3.7e-11)"
+ },
+ "C2_adjudication_criteria": null,
+ "C2_adjudication_note": "PROTOCOL DECISION REQUIRED: the plan says a flagged C2 realization is 'adjudicated with M4 (exact lattice) as in B3Y' but defines no numerical resolution criterion for a single resolution (the B3Y growth rule needs several dx). A reviewer must specify: (1) which comparison resolves a discrepancy (e.g. eps_M1 and/or eps_M3 against M4, at which limit); (2) which M4 gates (X4/X5/X7 and e_ind limit) the adjudicating solve must pass and which columns record them; (3) the outcome vocabulary (e.g. RESOLVED / PRECISION-LIMITED / UNEXPLAINED); (4) how an outcome is reported in the campaign status (the plan already fixes: never PASS, at best 'COMPLETED WITH ADJUDICATED EXCEEDANCES'). Until then ADJUDICATED means only that a record exists (administrative), and the resolution gate is NOT EVALUABLE whenever a C2 row is flagged."
 }
