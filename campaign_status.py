@@ -630,8 +630,47 @@ def bootstrap_rng_evaluator(D: dict, N: int):
     return ev
 
 
+TEMPLATE_FIELDS = ("root_entropy", "spawn_index", "numpy_version")
+
+
+def validate_stream_id_template(spec: dict) -> list:
+    """Schema of the machine-readable identifier template of rule A (protocol definition; independent of root_entropy):
+    every placeholder of TEMPLATE_FIELDS exactly once, no other placeholder, no format spec / conversion / escaped or stray braces, and the
+    fixed components exactly  <rule> | entropy={root_entropy} | spawn_key=({spawn_index},) | bitgen=<bit_generator> | numpy={numpy_version}."""
+    import string
+    t = spec.get("stream_id_template")
+    if not isinstance(t, str) or not t.strip():
+        return ["stream_id_template missing or empty"]
+    if "{{" in t or "}}" in t:
+        return ["stream_id_template contains escaped braces"]
+    try:
+        parsed = list(string.Formatter().parse(t))
+    except ValueError as e:
+        return [f"stream_id_template has a malformed brace expression: {e}"]
+    bad, names = [], []
+    for _lit, fld, fmt, conv in parsed:
+        if fld is None:
+            continue
+        if fmt or conv:
+            bad.append(f"placeholder {fld!r} carries a format spec or conversion")
+        names.append(fld)
+    cnt = Counter(names)
+    bad += [f"placeholder {{{f}}} occurs {cnt.get(f, 0)} times (exactly once required)" for f in TEMPLATE_FIELDS if cnt.get(f, 0) != 1]
+    bad += [f"unknown placeholder {{{f}}}" for f in cnt if f not in TEMPLATE_FIELDS]
+    want = [str(spec.get("rule")), "entropy={root_entropy}", "spawn_key=({spawn_index},)", f"bitgen={spec.get('bit_generator')}", "numpy={numpy_version}"]
+    if not isinstance(spec.get("rule"), str) or not isinstance(spec.get("bit_generator"), str):
+        bad.append("rule or bit_generator missing: fixed identifier components undefined")
+    elif t.split("|") != want:
+        bad.append(f"fixed identifier components {t.split('|')} differ from {want}")
+    return bad
+
+
 def bootstrap_rng_gate(D: dict, order: list, N: int) -> GateSpec:
     spec = D.get("bootstrap_rng")
+    if spec is not None and spec.get("rule") == RULE_A:
+        tbad = validate_stream_id_template(spec)                  # protocol-definition check, BEFORE any root-entropy decision
+        if tbad:
+            raise ValueError("bootstrap_rng.stream_id_template invalid: " + "; ".join(tbad))
     if spec is None:
         reason = "PROTOCOL DECISION REQUIRED: bootstrap RNG rule not specified (independence by design not established)"
     elif spec.get("rule") not in RNG_RULES:

@@ -495,11 +495,45 @@ def _rng_gate(rows, D, order, n_seeds):
     return "PASS", []
 
 
+def _template_problems(b):
+    """Independent schema check of the rule-A identifier template (hand-written brace scan; no str.format machinery)."""
+    t = b.get("stream_id_template")
+    if not isinstance(t, str) or t.strip() == "":
+        return ["identifier template missing"]
+    names, out, i = [], [], 0
+    while i < len(t):
+        ch = t[i]
+        if ch == "}":
+            return ["stray closing brace in identifier template"]
+        if ch == "{":
+            j = t.find("}", i + 1)
+            if j < 0:
+                return ["unterminated brace in identifier template"]
+            inner = t[i + 1:j]
+            if inner == "" or "{" in inner or not all(c.isascii() and (c.isalnum() or c == "_") for c in inner):
+                return [f"malformed placeholder {{{inner}}}"]
+            names.append(inner)
+            i = j + 1
+            continue
+        i += 1
+    for f in ("root_entropy", "spawn_index", "numpy_version"):
+        if names.count(f) != 1:
+            out.append(f"placeholder {f} occurs {names.count(f)} times")
+    out += [f"unknown placeholder {n}" for n in sorted(set(names)) if n not in ("root_entropy", "spawn_index", "numpy_version")]
+    comps = t.split("|")
+    expect = (b.get("rule"), "entropy={root_entropy}", "spawn_key=({spawn_index},)", "bitgen=" + str(b.get("bit_generator")), "numpy={numpy_version}")
+    if not (isinstance(b.get("rule"), str) and isinstance(b.get("bit_generator"), str)) or len(comps) != 5 or tuple(comps) != expect:
+        out.append("fixed identifier components malformed")
+    return out
+
+
 def _protocol_problems(D):
     """Inadmissible recorded protocol values (the aggregator refuses to build its registry for these: overall FAIL)."""
     bad = []
     b = D.get("bootstrap_rng") or {}
     c = D.get("reproducibility_selection") or {}
+    if b and b.get("rule") == "SEEDSEQ-PCG64-SPAWN-A":
+        bad += _template_problems(b)                              # independent of whether root_entropy has been recorded
     if b.get("root_entropy") is not None and not _digits(str(b["root_entropy"])):
         bad.append("bootstrap root_entropy malformed")
     if c.get("seed") is not None:

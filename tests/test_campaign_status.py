@@ -1669,11 +1669,11 @@ def test_r7a_validators_consume_the_template_field(tmp_path):
     d = copy.deepcopy(TEST_DRAFT)
     d["bootstrap_rng"]["stream_id_template"] = d["bootstrap_rng"]["stream_id_template"].replace("bitgen=PCG64", "bitgen=PCG-64")
     out, s, v = _run_r6(tmp_path, draft=d, name="changed")
-    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL"           # recorded ids no longer match the protocol template
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"   # R7b: fixed component bitgen=PCG-64 != PCG64
     d2 = copy.deepcopy(TEST_DRAFT)
     del d2["bootstrap_rng"]["stream_id_template"]
     out, s, v = _run_r6(tmp_path, draft=d2, name="missing")
-    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "FAIL" and s["overall_status"] == "FAIL"
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"
 
 
 # ---- plan wording ----
@@ -1682,3 +1682,104 @@ def test_r7a_plan_independence_wording():
     assert "integer seeds are statistically independent" not in plan
     assert "independent by design under the declared deterministic seed-derivation scheme" in plan
     assert "not a proven mathematical independence" in plan
+
+
+# ======================================================================
+# R7b: schema validation of the machine-readable identifier template (protocol definition)
+# ======================================================================
+GOOD_T = DRAFT["bootstrap_rng"]["stream_id_template"]
+BAD_TEMPLATES = {
+    "missing_field": None, "empty": "", "blank": "   ", "not_a_string": 123,
+    "no_root_entropy": GOOD_T.replace("{root_entropy}", "123"),
+    "no_spawn_index": GOOD_T.replace("{spawn_index}", "0"),
+    "no_numpy_version": GOOD_T.replace("{numpy_version}", "2.5.3"),
+    "duplicate_in_component": GOOD_T.replace("entropy={root_entropy}", "entropy={root_entropy}{root_entropy}"),
+    "duplicate_extra_component": GOOD_T + "|{spawn_index}",
+    "unknown_placeholder": GOOD_T.replace("bitgen=PCG64", "bitgen={bit_generator}"),
+    "unknown_extra": GOOD_T + "|seed={seed}",
+    "unterminated": GOOD_T.replace("{root_entropy}", "{root_entropy"),
+    "stray_close": GOOD_T.replace("{root_entropy}", "root_entropy}"),
+    "empty_braces": GOOD_T.replace("{root_entropy}", "{}"),
+    "escaped": GOOD_T.replace("{root_entropy}", "{{root_entropy}}"),
+    "format_spec": GOOD_T.replace("{root_entropy}", "{root_entropy:>5}"),
+    "conversion": GOOD_T.replace("{root_entropy}", "{root_entropy!r}"),
+    "space_inside": GOOD_T.replace("{root_entropy}", "{ root_entropy}"),
+    "wrong_rule_prefix": GOOD_T.replace("SEEDSEQ-PCG64-SPAWN-A", "SEEDSEQ-PCG64-SPAWN-B"),
+    "wrong_bitgen": GOOD_T.replace("bitgen=PCG64", "bitgen=Philox"),
+    "missing_component": GOOD_T.replace("|bitgen=PCG64", ""),
+    "extra_component": GOOD_T + "|extra",
+    "spawn_key_without_parens": GOOD_T.replace("spawn_key=({spawn_index},)", "spawn_key={spawn_index}"),
+    "reordered": "|".join([GOOD_T.split("|")[0], GOOD_T.split("|")[2], GOOD_T.split("|")[1]] + GOOD_T.split("|")[3:]),
+}
+
+
+def _with_template(draft, t):
+    d = copy.deepcopy(draft)
+    if t is None:
+        del d["bootstrap_rng"]["stream_id_template"]
+    else:
+        d["bootstrap_rng"]["stream_id_template"] = t
+    return d
+
+
+def test_r7b_production_template_is_valid_in_both():
+    assert cs.validate_stream_id_template(DRAFT["bootstrap_rng"]) == [] and ver._template_problems(DRAFT["bootstrap_rng"]) == []
+    assert GOOD_T == "SEEDSEQ-PCG64-SPAWN-A|entropy={root_entropy}|spawn_key=({spawn_index},)|bitgen=PCG64|numpy={numpy_version}"
+
+
+@pytest.mark.parametrize("case", sorted(BAD_TEMPLATES))
+def test_r7b_bad_templates_rejected_by_both_validators(case):
+    b = _with_template(DRAFT, BAD_TEMPLATES[case])["bootstrap_rng"]
+    assert cs.validate_stream_id_template(b) and ver._template_problems(b), case          # G: both reject, independently
+
+
+@pytest.mark.parametrize("case", ["missing_field", "no_root_entropy", "no_spawn_index", "no_numpy_version", "duplicate_in_component",
+                                  "unknown_placeholder", "unterminated", "wrong_bitgen"])
+def test_r7b_bad_template_with_null_entropy_is_protocol_fail(tmp_path, case):
+    """A, B, C: the production draft (root_entropy = null) with an invalid template is FAIL, not NOT EVALUABLE."""
+    d = _with_template(DRAFT, BAD_TEMPLATES[case])
+    assert d["bootstrap_rng"]["root_entropy"] is None
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and "stream_id_template" in s["problems"][0]
+    assert v["recomputed"] == "FAIL" and v["agree"] and any("template" in f or "placeholder" in f or "brace" in f or "component" in f for f in v["failures"])
+
+
+@pytest.mark.parametrize("case", ["no_numpy_version", "no_root_entropy", "duplicate_extra_component"])
+def test_r7b_bad_template_fails_even_when_recorded_ids_were_changed_to_match(tmp_path, case):
+    """The reported weakness: a template without a placeholder plus identifiers rewritten to match it must still FAIL."""
+    d = _with_template(TEST_DRAFT, BAD_TEMPLATES[case])
+    t = d["bootstrap_rng"]["stream_id_template"]
+
+    def f(rows):
+        for r in rows:
+            r["bootstrap_rng_stream_stage1"] = t.replace("{root_entropy}", str(TEST_ENTROPY)).replace("{spawn_index}", "0").replace("{numpy_version}", NPV)
+            if r["stage"] == 2:
+                r["bootstrap_rng_stream_stage2"] = t.replace("{root_entropy}", str(TEST_ENTROPY)).replace("{spawn_index}", "1").replace("{numpy_version}", NPV)
+        return rows
+    out, s, v = _run_r6(tmp_path, draft=d, mutate=_stats(f))
+    assert s["overall_status"] == "FAIL" and s["registry"] == {} and v["recomputed"] == "FAIL"
+
+
+def test_r7b_valid_template_with_null_entropy_is_not_evaluable(tmp_path):
+    """D: a valid template does not turn the open root-entropy decision into a FAIL."""
+    out, s, v = _run_r6(tmp_path, draft=DRAFT)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "NOT EVALUABLE" == v["gate_states"]["PHYS.statistics.bootstrap_rng"]
+    assert s["overall_status"] == "NOT EVALUABLE"
+
+
+def test_r7b_valid_template_with_test_entropy_passes(tmp_path):
+    """E: recorded (test-only) entropy and matching synthetic metadata."""
+    out, s, v = _run_r6(tmp_path)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == "PASS" == v["gate_states"]["PHYS.statistics.bootstrap_rng"]
+    assert s["overall_status"] == "PASS"
+
+
+@pytest.mark.parametrize("draft_name", ["production", "test"])
+def test_r7b_description_edits_do_not_affect_validation(tmp_path, draft_name):
+    """F: stream_id_description is prose only, including text that looks like a broken template."""
+    base = DRAFT if draft_name == "production" else TEST_DRAFT
+    d = copy.deepcopy(base)
+    d["bootstrap_rng"]["stream_id_description"] = "{root_entropy {seed} }} | bitgen=Philox | missing placeholders {"
+    assert cs.validate_stream_id_template(d["bootstrap_rng"]) == [] and ver._template_problems(d["bootstrap_rng"]) == []
+    out, s, v = _run_r6(tmp_path, draft=d)
+    assert s["registry"]["PHYS.statistics.bootstrap_rng"]["state"] == ("NOT EVALUABLE" if draft_name == "production" else "PASS")
