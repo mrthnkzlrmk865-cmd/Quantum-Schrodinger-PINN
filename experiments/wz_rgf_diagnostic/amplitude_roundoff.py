@@ -136,6 +136,12 @@ def UQ(S):
     return float(U), float(np.max(np.abs(S - S.T)))
 
 
+def S_block_offdiag(S):
+    """max |off-diagonal| inside each of the four n_open x n_open blocks of S (channel mixing)."""
+    n = S.shape[0] // 2
+    return float(max(np.max(np.abs(B - np.diag(np.diag(B)))) for B in (S[:n, :n], S[:n, n:], S[n:, :n], S[n:, n:])))
+
+
 def git(*a):
     try:
         return subprocess.run(["git", *a], capture_output=True, text=True, cwd=ROOT, timeout=20).stdout.strip()
@@ -185,6 +191,9 @@ def telescope(rec, k, lead, delta_mp, lam, s_exact, t_ref, t_d, N):
                n_distinct_P=int(len(set(complex(p) for p in rec["P_diag"][:, k]))),
                n_distinct_W=int(len(set(complex(w) for w in rec["W_diag"][:, k]))),
                predicted_from_P_formation=f(mp.re(T["P_formation"])))
+    out["propagator_total_amp"] = out["terms_amp"]["P_formation"] + out["terms_amp"]["W_recurrence"]
+    out["propagator_total_phase"] = out["terms_phase"]["P_formation"] + out["terms_phase"]["W_recurrence"]
+    out["propagator_fraction_of_amp"] = (out["propagator_total_amp"] / total_amp) if total_amp != 0 else None
     out["P_formation_fraction_of_amp"] = (out["terms_amp"]["P_formation"] / total_amp) if total_amp != 0 else None
     out["W_recurrence_fraction_of_amp"] = (out["terms_amp"]["W_recurrence"] / total_amp) if total_amp != 0 else None
     return out
@@ -296,8 +305,8 @@ def main():
                 closed_err = dict(max_rel_G11=max(v["G11"] for v in ce.values()), max_rel_GNN=max(v["GNN"] for v in ce.values()),
                                   max_rel_GN1=max(v["GN1"] for v in ce.values()), max_rel_G1N=max(v["G1N"] for v in ce.values()),
                                   n6=ce[6], n63=ce[63])
-            S_off = float(np.max(np.abs(S["S"] - np.diag(np.diag(S["S"])))))
-            info = dict(path=path, method=meth, U_full_open_S=U, Q_full_open_S=Q, S_offdiag_max=S_off,
+            S_off = S_block_offdiag(S["S"])
+            info = dict(path=path, method=meth, U_full_open_S=U, Q_full_open_S=Q, S_block_offdiag_max=S_off,
                         S_size=int(S["S"].shape[0]), offdiag_max_internal=rec["offdiag_max"],
                         res_P_double_max=float(np.max(rec["res_P"])), res_P_double_mean=float(np.mean(rec["res_P"])),
                         res_Z_double=rec["res_Z"], cond_Z=rec["cond_Z"], W_max=rec["W_max"],
@@ -357,7 +366,7 @@ def main():
                               wz_solve_eps_A_vs_L=aW, wz_solve_eps_phi_vs_L=pW,
                               RW_minus_L_phase=f(mp.arg(t_ref[n] / tL)), RW_minus_L_amp=f(abs(t_ref[n] / tL) - 1),
                               abs_r_L=float(abs(rp["r_L"][kk, kk])))
-    production = dict(U_full_open_S=Up, Q_full_open_S=Qp, S_offdiag_max=float(np.max(np.abs(rp["S"] - np.diag(np.diag(rp["S"]))))),
+    production = dict(U_full_open_S=Up, Q_full_open_S=Qp, S_block_offdiag_max=S_block_offdiag(rp["S"]),
                       min_rcond=float(rp["min_rcond"]), channels=prod_ch)
 
     # ---- Part D: N = 1 and N = 2 ----------------------------------------------------------------------------------------
@@ -442,7 +451,7 @@ def main():
     # ---- CSV ------------------------------------------------------------------------------------------------------------
     cols = ["part", "N", "path", "method", "channel", "eps_A_tRL", "eps_phi_tRL", "eps_A_tLR", "eps_phi_tLR", "abs_r_L", "abs_dr_L",
             "U_full_open_S", "Q_full_open_S", "res_P_double_max", "res_P_exact_max", "step_amp_P_formation_mean", "step_phase_P_formation_mean",
-            "step_amp_W_mean", "T_amp_P_formation", "T_amp_W_recurrence", "T_amp_propagation", "T_amp_Z_total", "T_amp_fisher_lee_total",
+            "step_amp_W_mean", "T_amp_P_formation", "T_amp_W_recurrence", "T_amp_propagator_total", "T_amp_propagation", "T_amp_Z_total", "T_amp_fisher_lee_total",
             "T_phase_P_formation", "T_phase_W_recurrence", "T_phase_propagation", "telescoping_residual"]
     with open(os.path.join(OUT, "amplitude_roundoff_comparisons.csv"), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
@@ -457,7 +466,7 @@ def main():
                                 res_P_double_max=info["res_P_double_max"], res_P_exact_max=v["res_P_exact_max"],
                                 step_amp_P_formation_mean=tl["per_step"]["form_amp"]["mean"], step_phase_P_formation_mean=tl["per_step"]["form_phase"]["mean"],
                                 step_amp_W_mean=tl["per_step"]["w_amp"]["mean"],
-                                T_amp_P_formation=ta["P_formation"], T_amp_W_recurrence=ta["W_recurrence"], T_amp_propagation=ta["propagation_multiplication"],
+                                T_amp_P_formation=ta["P_formation"], T_amp_W_recurrence=ta["W_recurrence"], T_amp_propagator_total=tl["propagator_total_amp"], T_amp_propagation=ta["propagation_multiplication"],
                                 T_amp_Z_total=ta["Z_inputs"] + ta["Z_formation"] + ta["Z_inversion"] + ta["GN1_multiplication"],
                                 T_amp_fisher_lee_total=ta["lead_sin_theta"] + ta["fisher_lee_multiplication"],
                                 T_phase_P_formation=tp["P_formation"], T_phase_W_recurrence=tp["W_recurrence"],
