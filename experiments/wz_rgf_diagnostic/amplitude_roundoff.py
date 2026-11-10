@@ -215,7 +215,7 @@ def main():
     dfl = np.diag(Delta[0]).copy()
     lead = wz.lead_from_delta(dfl)
     is_open = lead["open"]
-    o_idx = list(np.where(is_open)[0])
+    o_idx = [int(i) for i in np.where(is_open)[0]]
     closed_idx = [n for n in range(ny) if not is_open[n]]
     assert o_idx == [0, 1, 2, 3, 4] and K5 in o_idx
     dmp = [mp.mpf(float(d)) for d in dfl]
