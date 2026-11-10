@@ -1,0 +1,9 @@
+{
+ "W_minus_w_exact_abs": 1.2519378140021259e-19,
+ "abs_exact_inverse_of_double_W_minus_1": -2.634832220392261e-22,
+ "abs_P_double_minus_1": 1.3661180601918155e-17,
+ "predicted_eps_A_coherent": 4.7568230855879015e-14,
+ "observed_eps_A_WZ_delta_lead": 4.820169139447784e-14,
+ "arg_P_error": 9.644263177029629e-20,
+ "predicted_eps_phi_coherent": 3.3581324382417165e-16
+}
