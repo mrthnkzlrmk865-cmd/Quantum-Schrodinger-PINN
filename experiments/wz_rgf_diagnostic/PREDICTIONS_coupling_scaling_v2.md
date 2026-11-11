@@ -48,6 +48,7 @@ Revision 2 changes (vs `b62ed42`). Mutant definitions, sample counts, grid, thre
 | C7 | Reference accuracy (§4.6, §4.7) now uses the same validated exact-residual bound instead of an mp-evaluated residual | the residual was not validated |
 | C8 | §4.6 classification updated. The zero test of §5.2 is explicitly a **non-validated numerical classification** | do not call it rigorous |
 | C9 | The binomial tail bound in §5.2 (ii) is replaced by a ratio-test bound with a stated proof, α ≥ 1, and T counting coefficient magnitudes. The earlier /(1 − x)^m tail factor was asserted without proof | mathematical correction |
+| C12 | §2.4.1 step 7: the claimed equivalence "ε_A = 0 iff ΔA = 0" is replaced by the implication ε_A = 0 ⟹ ΔA = 0. The converse is not guaranteed (enclosure radii stay positive). No other statement relied on the equivalence | logical correctness |
 | C11 | The upper square root ū is defined piecewise, with ū(0) = 0 exactly. The earlier formula returned 2⁻ᵐ at f = 0, making the b = 0 branch unreachable and contradicting "b = 0 iff f_1 = 0". The upper-bound guarantee is unchanged for f > 0. The zero-case effects on ρ, a_k, n_k and ε_A are checked (§2.4.1 steps 4 and 7), and the Taylor-disk convention for b = 0 is stated | internal consistency |
 | C10 | The λ-enclosure radius is stated as ≤ 2⁻²⁵⁵, a correct worst case. The historical D3 entry is annotated: its rigor claim is superseded by C1 | accuracy of claims |
 
@@ -268,7 +269,12 @@ RQ1, not tuned to any result.
      - f_R = 0 (X exactly inverse to A_c) gives ρ = ε_A·ū(f_X), which is valid.
      - f_X = 0 means X = 0, so R = I, ρ ≥ 1 and the point is uncertified. a_k is never formed with f_X = 0 and ρ < 1.
      - f_c = 0 gives n_k = ε_A ≥ ‖ΔA‖₂ = ‖A(s_k)‖₂, which is valid.
-     - ε_A = 0 occurs exactly when ΔA = 0.
+     - ε_A = 0 ⟹ ΔA = 0, because ‖ΔA‖_F ≤ ε_A. **The converse is not guaranteed.** ε_A is built from the enclosure radii
+       e_λ,n, which are positive for every enclosed lead term (hi − lo ≥ 2⁻ᵐ). So ε_A > 0 can hold even when the actual
+       error ΔA happens to be 0, for example if λ_n is a dyadic rational equal to its midpoint λ̃_n.
+       - In this design ε_A = 0 occurs only when no lead term is enclosed (R_orig).
+       - Every use of ε_A needs only the upper-bound property ‖ΔA‖_F ≤ ε_A, so a conservative positive ε_A is always
+         valid; it merely enlarges ρ and n_k slightly.
      - No division by ū(·) occurs anywhere; the only divisions are by 1 − ρ > 0 and by 2a_k b with b > 0.
 8. If ρ ≥ 1: retry once with X recomputed at dps 120. If that fails too, s_k is uncertified, and its neighbours must cover it
    through bisection.
