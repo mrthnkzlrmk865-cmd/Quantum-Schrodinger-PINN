@@ -48,6 +48,7 @@ Revision 2 changes (vs `b62ed42`). Mutant definitions, sample counts, grid, thre
 | C7 | Reference accuracy (§4.6, §4.7) now uses the same validated exact-residual bound instead of an mp-evaluated residual | the residual was not validated |
 | C8 | §4.6 classification updated. The zero test of §5.2 is explicitly a **non-validated numerical classification** | do not call it rigorous |
 | C9 | The binomial tail bound in §5.2 (ii) is replaced by a ratio-test bound with a stated proof, α ≥ 1, and T counting coefficient magnitudes. The earlier /(1 − x)^m tail factor was asserted without proof | mathematical correction |
+| C11 | The upper square root ū is defined piecewise, with ū(0) = 0 exactly. The earlier formula returned 2⁻ᵐ at f = 0, making the b = 0 branch unreachable and contradicting "b = 0 iff f_1 = 0". The upper-bound guarantee is unchanged for f > 0. The zero-case effects on ρ, a_k, n_k and ε_A are checked (§2.4.1 steps 4 and 7), and the Taylor-disk convention for b = 0 is stated | internal consistency |
 | C10 | The λ-enclosure radius is stated as ≤ 2⁻²⁵⁵, a correct worst case. The historical D3 entry is annotated: its rigor claim is superseded by C1 | accuracy of claims |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
@@ -192,7 +193,8 @@ RQ1, not tuned to any result.
      - ‖A(s)⁻¹‖₂ ≤ 2a_k;
      - ‖A(s)‖₂ ≤ n_k + r_k b;
      - cond₂(A(s)) ≤ 2a_k(n_k + r_k b).
-   - **b = 0** (A1 = 0, i.e. V_j(1) = 0 on every slice of that matrix): A(s) ≡ A(s_k) for all s. Then r_k := +∞, one
+   - **b = 0** (equivalently A1 = 0, i.e. V_j(1) = 0 on every slice of that matrix; see §2.4.1 step 7): A(s) ≡ A(s_k) for all
+     s. Then r_k := +∞ (used only in the coverage comparisons, never multiplied by b), one
      validated point certifies all of [0, 1], and the bounds are a_k and n_k with no s-dependence. The formula 1/(2a_k b) is
      never evaluated.
    - **Certification points:**
@@ -228,7 +230,8 @@ RQ1, not tuned to any result.
   - A_c(s) is an exact dyadic matrix, with λ_n replaced by λ̃_n;
   - ΔA is nonzero only on the diagonal of slices 1 and N, with |ΔA_nn| ≤ t·e_λ,n per lead. For N = 1 both leads act on one
     block: |ΔA_nn| ≤ 2t·e_λ,n.
-  - Validated bound: ‖ΔA‖_F ≤ ε_A := upper rational √(Σ entries of the squared bounds).
+  - Validated bound: ‖ΔA‖_F ≤ ε_A := ū(Σ of the squared entry bounds), with ū from step 4 below. If no lead term is enclosed
+    (R_orig, whose σ_code entries are exact doubles), the sum is 0 and ε_A = 0 exactly, consistent with ΔA = 0 in §4.7.
   - ΔA does not depend on s, and A1 is exactly dyadic.
 
 **Approximate inverse with an exactly computed residual.**
@@ -238,7 +241,17 @@ RQ1, not tuned to any result.
    **no rounding at all**.
 3. Exact rationals: f_R = ‖R‖_F² = Σ |R_ab|² (complex entries: re² + im²), f_X = ‖X‖_F², f_c = ‖A_c(s_k)‖_F² and
    f_1 = ‖A1‖_F².
-4. Rigorous upper square roots ū(f) ≥ √f for rationals: ū(f) = (isqrt(⌈f·4^m⌉) + 1)/2^m with m = 256.
+4. Rigorous upper square roots for rationals f ≥ 0 (m = 256), defined **piecewise**:
+   - ū(0) := 0 (exact);
+   - ū(f) := (isqrt(⌈f·4^m⌉) + 1)/2^m for f > 0.
+
+   Guarantees:
+   - **f > 0:** with M = ⌈f·4^m⌉ ≥ f·4^m, isqrt(M) = ⌊√M⌋, so isqrt(M) + 1 > √M ≥ 2^m√f. Hence ū(f) > √f > 0.
+   - **f = 0:** ū(0) = 0 = √0.
+   - So ū(f) ≥ √f for every f ≥ 0, and **ū(f) = 0 iff f = 0**. The f = 0 branch returns the exact value, so no upper-bound
+     guarantee is weakened.
+   - Every f to which ū is applied (f_R, f_X, f_c, f_1 and the sum in ε_A) is an exact non-negative rational, so the branch is
+     decided by an exact comparison with 0.
 5. ρ := ū(f_R) + ε_A·ū(f_X). Since I − A(s_k)X = R − ΔA·X, this gives
    ‖I − A(s_k)X‖₂ ≤ ‖R‖_F + ‖ΔA‖_F‖X‖_F ≤ ρ (using ‖·‖₂ ≤ ‖·‖_F and submultiplicativity).
 6. If ρ < 1 (an exact rational comparison):
@@ -246,7 +259,17 @@ RQ1, not tuned to any result.
    - A(s_k)⁻¹ = X(I − R′)⁻¹, so ‖A(s_k)⁻¹‖₂ ≤ ‖X‖₂/(1 − ρ) ≤ a_k := ū(f_X)/(1 − ρ), exact rational.
    - This uses the **operator 2-norm**, for which ‖I‖₂ = 1 and ‖(I − R′)⁻¹‖₂ ≤ 1/(1 − ρ). Frobenius norms appear only as
      upper bounds of 2-norms; a Frobenius-only Neumann bound would be wrong, since ‖I‖_F = √n.
-7. n_k := ū(f_c) + ε_A ≥ ‖A(s_k)‖₂, and b := ū(f_1) ≥ ‖A1‖₂ (b = 0 exactly iff f_1 = 0).
+7. n_k := ū(f_c) + ε_A ≥ ‖A(s_k)‖₂, and b := ū(f_1) ≥ ‖A1‖₂. A1 is an exact dyadic matrix, so f_1 = ‖A1‖_F² = 0 iff A1 = 0.
+   By the piecewise definition, **b = 0 iff A1 = 0**: the b = 0 branch of §2.4 item 3 is reachable exactly when A(s) is
+   constant. For A1 ≠ 0, b > 0, so r_k = 1/(2a_k b) is a finite positive rational.
+   - b is computed per matrix A ∈ {M_L, M_L^(j)}. A prefix matrix whose slices 1..j all have V(1) = 0 takes the b = 0 branch
+     even if the full matrix does not.
+   - Effect of the zero branch on the other uses:
+     - f_R = 0 (X exactly inverse to A_c) gives ρ = ε_A·ū(f_X), which is valid.
+     - f_X = 0 means X = 0, so R = I, ρ ≥ 1 and the point is uncertified. a_k is never formed with f_X = 0 and ρ < 1.
+     - f_c = 0 gives n_k = ε_A ≥ ‖ΔA‖₂ = ‖A(s_k)‖₂, which is valid.
+     - ε_A = 0 occurs exactly when ΔA = 0.
+     - No division by ū(·) occurs anywhere; the only divisions are by 1 − ρ > 0 and by 2a_k b with b > 0.
 8. If ρ ≥ 1: retry once with X recomputed at dps 120. If that fails too, s_k is uncertified, and its neighbours must cover it
    through bisection.
 
@@ -279,7 +302,8 @@ complex s with |s − s_k| ≤ r_k. The coverage condition is checked in exact r
   covering must **not** be achieved across s = 1/2. Any certified interval [s_k − r_k, s_k + r_k] that contains s = 1/2 is a
   fatal error.
 - (T3) λ enclosure: the true root lies in the enclosure, checked against an independent dps-300 evaluation.
-- (T4) b = 0 path.
+- (T4) b = 0 path: ū(0) = 0 exactly; a matrix with A1 = 0 is certified on [0, 1] from one point; no expression 1/(2a_k b)
+  or r_k·b is evaluated.
 - Review gate R0 (§4.3) is extended to the certificate and validated-residual code.
 
 **Failure and cost policy:**
@@ -533,7 +557,7 @@ Expected ordering pairs (on-path, non-identical order mutants per N: N = 2 → 3
     other mutant.
   - The coefficients are computed in floating mp arithmetic at two precisions, so they are **approximate**. The zero test
     below is a numerical classification, not a validated proof.
-  - Convergence of the series on |s| ≤ r_0 = 1/(2a_0 b) follows from the validated certificate at s = 0 (§2.4 item 3):
+  - Convergence of the series on |s| ≤ r_0 = 1/(2a_0 b) (r_0 = +∞ when b = 0) follows from the validated certificate at s = 0 (§2.4 item 3):
     ‖A0⁻¹A1‖₂ ≤ a_0 b, so every Neumann series converges absolutely there, and so do finite sums and products of them.
 - **Zero test (precision scaling).** Compute everything at dps 100 and at dps 200. With z_k(dps) = ‖C_k‖_F / ‖Ĝ_full(0)‖₂:
   - C_k is **nonzero** if z_k(200) ≥ 1e-60 and |z_k(100) − z_k(200)| ≤ 1e-20·z_k(200).
@@ -551,6 +575,9 @@ Expected ordering pairs (on-path, non-identical order mutants per N: N = 2 → 3
     evaluated directly from mp inverses of L(2⁻⁶⁰), to relative 1e-40.
     - **Validated tail majorant.** Each block series F_A(s) = Σ_k s^k F_{A,k} of a matrix A (in Ĝ units, factor t)
       satisfies ‖F_{A,k}‖₂ ≤ t·a_A,0·(a_A,0 b_A)^k, with a_A,0 and b_A the validated s = 0 bounds of §2.4.1.
+      - b = 0 case (convention 0⁰ = 1): a constant matrix (b_A = 0) has only its k = 0 coefficient, and the bound gives 0
+        for k ≥ 1, as required.
+      - If b_A = 0 for every A, then β = 0, x = 0, r_0 = +∞ (the disk is all of ℂ) and the tail bound is exactly 0.
       - Let β = max_A a_A,0·b_A, x = |s|β < 1/2, and α = max(1, max_A t·a_A,0).
       - Write the discrepancy F_m (mutant formula minus the reference block) as a sum of monomials of degree ≤ m in such
         blocks, with T = the sum of the absolute values of the scalar coefficients. T and m are read off §4.2 per mutant
