@@ -1,6 +1,7 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 1: scientific design audit of the version committed in `01bf018`. Design only.
+Revision 2: focused mathematical audit of the continuous-interval certificate and of every validated-bound claim, on top of
+Revision 1 (`b62ed42`), itself an audit of `01bf018`. Design only.
 - Nothing in this document has been implemented or run.
 - No code exists for it, no matrix of it has been generated, and no previous file is modified.
 
@@ -22,7 +23,7 @@ Standing status:
 |---|---|---|
 | D1 | Removed the restriction q ∈ {1, 2, 3}. q is any finite integer ≥ 1 (identity theorem). It is identified from Taylor coefficients computed by truncated Neumann-series algebra, with a precision-scaling zero test, up to K_max = 12 | 1 |
 | D2 | A non-integer finite-scale slope estimate is no longer INVALID. INVALID now requires a contradiction between two exact computations or with a theorem. Unresolved order (ambiguous zero test, or order > K_max) is DESIGN INSUFFICIENT | 1 |
-| D3 | The grid conditioning check no longer stands in for analyticity. Added a rigorous continuous-interval certificate (a Neumann-radius covering of [0, 1]) for all matrices that are inverted. It is part of the acceptance filter. Analytic claims are restricted to the certified interval; R_W statements are pointwise | 2 |
+| D3 | The grid conditioning check no longer stands in for analyticity. Added a continuous-interval certificate (a Neumann-radius covering of [0, 1]) for all matrices that are inverted. Its inverse-norm bound was not yet validated; corrected in Revision 2, C1. It is part of the acceptance filter. Analytic claims are restricted to the certified interval; R_W statements are pointwise | 2 |
 | D4 | Error quantities are classified as rigorous, empirical, heuristic or fixed criterion (§4.6). Exceeding a heuristic τ bound alone is an **anomaly** (it blocks PASS and yields DESIGN INSUFFICIENT), never FAIL. The fixed 1e-10 criterion is unchanged and remains the only W/Z-accuracy FAIL criterion | 3 |
 | D5 | FAIL is split into FAIL-W (W/Z accuracy, the 1e-10 criterion) and FAIL-D (a diagnostic/scaling hypothesis falsified; explicitly **not** evidence of a W/Z defect) | 3 |
 | D6 | Added a specification-derived **oracle**: a closed-form mutant output for every mutant, built only from exact prefix and full inverses (§4.2). It is compared three ways with the mp transcription and the double mutants. Added a clean-room transcription and a mandatory independent review gate R0 (§4.3) | 4 |
@@ -32,6 +33,22 @@ Standing status:
 | D10 | Legacy diagnostic set G **removed**, to avoid any appearance of revisiting the previous experiment | scope hygiene |
 | D11 | The exact asymptote points on a fixed grid (2⁻⁹⁰…2⁻¹⁰⁰) are replaced by Taylor coefficients (D1). Finite-s exact profiles are kept only as consistency checks | 1 |
 | D12 | Coverage requirements are counted per class (R: 312 expected held-out ordering pairs) | 5 |
+
+Revision 2 changes (vs `b62ed42`). Mutant definitions, sample counts, grid, thresholds, fitting window and decision rules are
+**unchanged**.
+
+| # | change | reason |
+|---|---|---|
+| C1 | The certificate's inverse-norm bound is replaced. The earlier version used an mp approximation inflated by (1 + 1e-30), which is not a proof. The new method (§2.4.1) is a validated **approximate inverse with an exactly computed residual**: all inputs are dyadic, and the only irrational inputs (lead roots λ) are enclosed by exact integer square-root bounds | the earlier bound was not validated |
+| C2 | Every bound is stated for the spectral norm ‖·‖₂ and computed through the rigorous inequality ‖·‖₂ ≤ ‖·‖_F. Frobenius norms are evaluated exactly, then given a rigorous rational upper square root | norm consistency; ‖I‖_F ≠ 1 invalidates a Frobenius-only Neumann bound |
+| C3 | Special case b = 0 (A1 = 0, so A(s) is constant): radius = +∞; certification reduces to one point | the radius formula is undefined at b = 0 |
+| C4 | Failure and cost policy for the certificate: refine X, bisect within a budget, otherwise reject the configuration through the existing filter. **No silent fallback to an empirical certificate**; if the method is infeasible overall, a new design revision is required | audit request |
+| C5 | Mandatory certificate self-tests, including negative tests across a known singularity, before the manifest is frozen. Review gate R0 is extended to the certificate and validated-residual code | rigor depends on implementation correctness |
+| C6 | Taylor disk (§5.2) now uses the validated certificate at s = 0. Correction: every oracle formula except M10 is a **polynomial** in prefix and full inverse blocks, so no power-series inversion is needed. The earlier text wrongly invoked series inversion of W_j and Z⁻³ (Z⁻³ = (Ĝ_NN)³; W_j never appears in any oracle). M10's series is not computed. The tail bound in §5.2 (ii) is now a validated Cauchy-product majorant | mathematical correction |
+| C7 | Reference accuracy (§4.6, §4.7) now uses the same validated exact-residual bound instead of an mp-evaluated residual | the residual was not validated |
+| C8 | §4.6 classification updated. The zero test of §5.2 is explicitly a **non-validated numerical classification** | do not call it rigorous |
+| C9 | The binomial tail bound in §5.2 (ii) is replaced by a ratio-test bound with a stated proof, α ≥ 1, and T counting coefficient magnitudes. The earlier /(1 − x)^m tail factor was asserted without proof | mathematical correction |
+| C10 | The λ-enclosure radius is stated as ≤ 2⁻²⁵⁵, a correct worst case. The historical D3 entry is annotated: its rigor claim is superseded by C1 | accuracy of claims |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -162,20 +179,115 @@ RQ1, not tuned to any result.
    each of the following must be ≤ 1e3:
    - cond₂(M), cond₂(M^(j)), cond₂(I − W_j) (from prefix inverses), cond₂(Z_N) (= cond₂ of [(M/t)⁻¹]_NN⁻¹);
    - cond₂(Z_N − (Λ − I)), the M10 matrix.
-3. **Continuous-interval invertibility certificate on [0, 1] (rigorous, on L(s)).**
-   - For each A(s) ∈ {M_L(s), M_L^(j)(s), j = 1..N−1} (all affine: A(s) = A(s_k) + (s − s_k)A1):
-     - Compute at a certification point s_k: a_k = ‖A(s_k)⁻¹‖_F, an upper bound for the 2-norm. It is computed in mpmath
-       at dps 60 and inflated by a factor (1 + 1e-30) to cover rounding.
-     - Compute b = ‖A1‖_F.
-     - The Neumann series certifies invertibility for |s − s_k| < 1/(a_k b).
-   - Coverage uses the **half radius** r_k = 1/(2 a_k b). On |s − s_k| ≤ r_k this also gives the certified bounds
-     ‖A(s)⁻¹‖₂ ≤ 2a_k and cond₂(A(s)) ≤ 2a_k(‖A(s_k)‖_F + r_k b).
-   - Certification points start with the 81 grid points (§3) and s = 0. Every gap not covered is bisected, to a depth of at
-     most 30 per gap.
-   - **Accept only if [0, 1] is covered for every A.** Record the certified continuous condition-number bound.
-   - The real-interval covering also covers the complex disk |s| < r_0 around 0. That disk is the analytic neighbourhood
-     used for the Taylor coefficients (§5.2).
-   - Not certified continuously: R_W(s) (not affine; it has pointwise checks only) and the M10 matrix (pointwise only).
+3. **Continuous-interval invertibility certificate on [0, 1] (validated, on L(s); method in §2.4.1).**
+   - For each A(s) ∈ {M_L(s), M_L^(j)(s), j = 1..N−1}, all affine: A(s) = A(s_k) + (s − s_k)A1.
+   - At each certification point s_k, §2.4.1 yields validated rational upper bounds:
+     - a_k ≥ ‖A(s_k)⁻¹‖₂;
+     - n_k ≥ ‖A(s_k)‖₂;
+     - b ≥ ‖A1‖₂.
+   - **Neumann step** (operator 2-norm, valid for real and complex s): if |s − s_k|·a_k·b < 1, then A(s) is invertible and
+     ‖A(s)⁻¹‖₂ ≤ a_k / (1 − |s − s_k| a_k b).
+   - Coverage uses the **half radius** r_k = 1/(2 a_k b), computed exactly as a rational. On |s − s_k| ≤ r_k this gives the
+     validated bounds:
+     - ‖A(s)⁻¹‖₂ ≤ 2a_k;
+     - ‖A(s)‖₂ ≤ n_k + r_k b;
+     - cond₂(A(s)) ≤ 2a_k(n_k + r_k b).
+   - **b = 0** (A1 = 0, i.e. V_j(1) = 0 on every slice of that matrix): A(s) ≡ A(s_k) for all s. Then r_k := +∞, one
+     validated point certifies all of [0, 1], and the bounds are a_k and n_k with no s-dependence. The formula 1/(2a_k b) is
+     never evaluated.
+   - **Certification points:**
+     - Start with s = 0, the 81 grid points (§3) and s = 1, all exact dyadics.
+     - Sort the points. Coverage of [0, 1] holds iff 0 and 1 are covered and every consecutive pair satisfies
+       s_{k+1} − s_k ≤ r_k + r_{k+1}. These are exact rational comparisons.
+     - Every uncovered gap is bisected at its dyadic midpoint, to a depth of at most 30 per gap. The total budget is 2000
+       certification points per matrix A.
+   - **Accept only if [0, 1] is covered for every A.**
+     - Then, for **every** s ∈ [0, 1] (not only grid points), every matrix in the list is invertible, with the recorded
+       validated bounds. The closed intervals [s_k − r_k, s_k + r_k] cover the compact interval [0, 1].
+     - Record the validated continuous condition-number bound and the validated minimum r_k.
+   - **Taylor disk:** the s = 0 certificate also certifies the complex disk |s| ≤ r_0 = 1/(2 a_0 b) around 0 (or all of ℂ if
+     b = 0). That disk is the analytic neighbourhood used in §5.2.
+   - **Not certified continuously:** R_W(s), which is not affine (diagonal rounding) and has pointwise checks only; and the
+     M10 matrix Z − (Λ − I) (pointwise only, §2.4 item 2).
+   - The grid conditioning check (item 2) remains an **empirical** filter on R_W and L. It is not a certificate.
+
+#### 2.4.1 Validated method for the inverse-norm bound (selected), and the alternative considered
+
+**Exact representation of the inputs.**
+- Every double is a dyadic rational m·2^e with m an integer: E, E_perp,n, V_j(1) (multiples of 1/2), s (dyadic grid and
+  bisection midpoints), dx² = 2⁻⁶ and t = 32.
+- So every entry of A(s) is an exact dyadic rational, **except** the lead terms −tλ_n. The lead roots λ_n are determined by
+  the exact rational c_n = 1 − δ_n, δ_n = (E − E_perp,n)dx²:
+  - open channel (|c_n| < 1): λ_n = c_n + i√(1 − c_n²);
+  - closed channel (c_n > 1): λ_n = c_n − √(c_n² − 1). The design excludes c_n < −1 via δ_n ≤ 2 − δ_min.
+- **Enclosure of λ.** For a rational q > 0 and m = 256 bits:
+  - lo = isqrt(⌊q·4^m⌋)/2^m ≤ √q ≤ hi = (isqrt(⌈q·4^m⌉) + 1)/2^m, using exact Python integer `math.isqrt` (floor square root).
+  - Set λ̃_n to the dyadic midpoint of the resulting enclosure of λ_n, with a rigorous radius e_λ,n = (hi − lo)/2 ≤ 2⁻²⁵⁵
+    on the affected (real or imaginary) part.
+- The enclosure splits A(s) = A_c(s) + ΔA:
+  - A_c(s) is an exact dyadic matrix, with λ_n replaced by λ̃_n;
+  - ΔA is nonzero only on the diagonal of slices 1 and N, with |ΔA_nn| ≤ t·e_λ,n per lead. For N = 1 both leads act on one
+    block: |ΔA_nn| ≤ 2t·e_λ,n.
+  - Validated bound: ‖ΔA‖_F ≤ ε_A := upper rational √(Σ entries of the squared bounds).
+  - ΔA does not depend on s, and A1 is exactly dyadic.
+
+**Approximate inverse with an exactly computed residual.**
+1. X: compute an approximate inverse of A_c(s_k) in mpmath at dps 60 (dps 120 on retry). Round every entry to a dyadic with
+   a 256-bit mantissa. X is then an **exact** dyadic matrix. How X was obtained is irrelevant to rigor.
+2. R = I − A_c(s_k)·X: computed **exactly** in dyadic integer arithmetic (Python integers or `fractions.Fraction`). There is
+   **no rounding at all**.
+3. Exact rationals: f_R = ‖R‖_F² = Σ |R_ab|² (complex entries: re² + im²), f_X = ‖X‖_F², f_c = ‖A_c(s_k)‖_F² and
+   f_1 = ‖A1‖_F².
+4. Rigorous upper square roots ū(f) ≥ √f for rationals: ū(f) = (isqrt(⌈f·4^m⌉) + 1)/2^m with m = 256.
+5. ρ := ū(f_R) + ε_A·ū(f_X). Since I − A(s_k)X = R − ΔA·X, this gives
+   ‖I − A(s_k)X‖₂ ≤ ‖R‖_F + ‖ΔA‖_F‖X‖_F ≤ ρ (using ‖·‖₂ ≤ ‖·‖_F and submultiplicativity).
+6. If ρ < 1 (an exact rational comparison):
+   - A(s_k)X = I − R′ with ‖R′‖₂ ≤ ρ < 1, so A(s_k)X is invertible, and A(s_k) is invertible because it is square.
+   - A(s_k)⁻¹ = X(I − R′)⁻¹, so ‖A(s_k)⁻¹‖₂ ≤ ‖X‖₂/(1 − ρ) ≤ a_k := ū(f_X)/(1 − ρ), exact rational.
+   - This uses the **operator 2-norm**, for which ‖I‖₂ = 1 and ‖(I − R′)⁻¹‖₂ ≤ 1/(1 − ρ). Frobenius norms appear only as
+     upper bounds of 2-norms; a Frobenius-only Neumann bound would be wrong, since ‖I‖_F = √n.
+7. n_k := ū(f_c) + ε_A ≥ ‖A(s_k)‖₂, and b := ū(f_1) ≥ ‖A1‖₂ (b = 0 exactly iff f_1 = 0).
+8. If ρ ≥ 1: retry once with X recomputed at dps 120. If that fails too, s_k is uncertified, and its neighbours must cover it
+   through bisection.
+
+**Rounding coverage.**
+- Steps 2–7 are exact rational arithmetic. The only approximations are the two square-root enclosures (inputs λ and outputs
+  ū), and both are rigorous by construction from the exact integer floor square root.
+- No floating-point result enters any inequality except through X, which is used as an exact dyadic matrix.
+- Rigor therefore rests on:
+  - (i) the mathematical inequalities above;
+  - (ii) correctness of Python's exact integer arithmetic and `math.isqrt`;
+  - (iii) correctness of the implementation, which is addressed by the self-tests and review below.
+
+**Validity on the interval.** Given validated a_k, b and n_k, the Neumann step of item 3 holds exactly for every real or
+complex s with |s − s_k| ≤ r_k. The coverage condition is checked in exact rationals. The bound therefore holds for every s in
+[0, 1], not merely at evaluated points.
+
+**Alternative considered: directed-rounding interval arithmetic.**
+- mpmath provides an interval context (`mpmath.iv`, with real `ivmpf` and complex `ivmpc` intervals using outward rounding).
+- An interval Gaussian elimination, or a Krawczyk-type enclosure of A(s_k)⁻¹, would also be valid. Its disadvantages:
+  - (a) its rigor depends on the correctness of the library's directed rounding for every operation, including complex
+    ones, which is harder to audit;
+  - (b) wrapping and dependency effects inflate the enclosure with n (≤ 24) and could reject certifiable points;
+  - (c) it still needs a validated norm of an interval matrix.
+- The exact-residual method needs only exact integer arithmetic plus a scalar square-root enclosure. It is selected.
+- Interval arithmetic may be used as an optional independent cross-check of a_k. It has no decision role.
+
+**Self-tests (mandatory, at implementation time, before the manifest freeze; failure → the certificate code is not used):**
+- (T1) Exactly invertible matrices with known inverses (diagonal, permutation, 2×2 complex): a_k ≥ the true ‖A⁻¹‖₂.
+- (T2) Negative test: an affine family with a known singular point, e.g. A(s) = diag(1 − 2s, 1) and a 24 × 24 analogue. The
+  covering must **not** be achieved across s = 1/2. Any certified interval [s_k − r_k, s_k + r_k] that contains s = 1/2 is a
+  fatal error.
+- (T3) λ enclosure: the true root lies in the enclosure, checked against an independent dps-300 evaluation.
+- (T4) b = 0 path.
+- Review gate R0 (§4.3) is extended to the certificate and validated-residual code.
+
+**Failure and cost policy:**
+- If [0, 1] is not covered for some matrix within the depth and point budget, the **configuration fails the acceptance
+  filter** and is redrawn (§2.4); this is recorded.
+- If the validated certificate is infeasible for the manifest as a whole (systematic runtime or memory failure), the
+  experiment **must not** fall back to an empirical certificate under this design. A new design revision is required, which
+  would downgrade F1/F3 interval claims to grid-point claims.
 4. **Prohibited selection.** No selection on commutators, mutant signals, slopes or any solver output.
 
 ### 2.5 Conditional sampling (explicit limitation)
@@ -344,8 +456,11 @@ Required independence measures:
 | 1e-10 accuracy criterion (endpoint, prefix, W_j, P_j, ΔS) | **fixed acceptance criterion**, inherited unchanged | the only FAIL-W criterion |
 | judgeability gate τ_end ≤ 1e-11 (inherited) | heuristic | a non-judgeable held-out case → DESIGN INSUFFICIENT (it cannot be skipped silently) |
 | τ_end, τ_pre, τ_W, τ_P, τ_S and the U/Q/symmetry bounds | **heuristic** first-order block-elimination estimates (no theorem) | exceedance → anomaly → blocks PASS → DESIGN INSUFFICIENT; **never FAIL**; also enters N_X |
-| reference accuracy: a-posteriori bound ‖M⁻¹ − X‖ ≤ ‖X‖‖R‖/(1 − ‖R‖), R = I − MX evaluated at dps 120 | **rigorous** (modulo standard mpmath rounding analysis) | > 1e-55 relative → escalation, then INVALID |
-| Neumann invertibility certificate and continuous cond bound | **rigorous** (with the 1e-30 inflation) | acceptance filter |
+| reference accuracy: ‖A⁻¹ − X‖₂ ≤ ‖X‖₂·ρ/(1 − ρ), with ρ ≥ ‖I − AX‖₂ computed by the exact-residual method of §2.4.1 (X = the mp reference inverse rounded to dyadics; λ enclosed) | **validated** (exact residual; integer square-root enclosures) | ρ/(1 − ρ) > 1e-55 → escalation (dps 120), then INVALID |
+| Neumann invertibility certificate, validated inverse-norm bound and continuous cond bound (§2.4.1) | **validated** (exact residual, exact rational coverage; conditional on the self-tests and the R0 review) | acceptance filter |
+| Taylor tail majorant (§5.2 (ii)) | **validated** (from validated a, b) | INVALID check |
+| Zero test of Taylor coefficients (§5.2) | **non-validated numerical classification** (precision scaling); not a proof that a coefficient is zero | order identification; unresolved → DESIGN INSUFFICIENT |
+| dps-100 vs dps-60 agreement; `lu_solve` vs `inverse` | empirical cross-checks | INVALID on disagreement |
 | η_X | **empirical** | noise estimate |
 | SNR levels 10 and 1e3; detection factor 10; apparatus tolerance 10·N_X | design constants (the latter built on empirical η and heuristic τ) | detection, regression usability, INVALID |
 | slope tolerances 0.01 (H1), 0.02 and 0.005 (H2), window adequacy 0.02 | derived from heuristic A1 plus the empirical noise level | FAIL-D (H1, H2); window adequacy → DESIGN INSUFFICIENT |
@@ -359,7 +474,15 @@ Required independence measures:
 3. |D*_oracle,R_W(s) − D*_oracle,L(s)| / D*_oracle,L(s) ≤ 1e-6 wherever D*_L ≥ 1e-30. Rationale: the lattices differ by O(ε)
    in commuting diagonal parts, which perturb C_1 by relative O(ε); the s-part rounding enters at O(s²).
 4. Reference checks:
-   - (a) a-posteriori bound and residual ≤ 1e-55 at every grid point (full and prefix systems);
+   - (a) validated a-posteriori bound ρ/(1 − ρ) ≤ 1e-55 (§2.4.1 exact-residual method, applied to the mp reference inverse)
+     at every grid point, for the full and prefix systems of L and R_W.
+     - R_W entries are exact dyadics except the lead terms (λ of δ_lead,fl, enclosed as in §2.4.1). R_orig entries are all
+       doubles (σ_code), so ΔA = 0.
+     - R_orig is validated at every grid point if the runtime allows. Otherwise, preregistered, it is validated at k ≡ 0
+       (mod 4) only, and its remaining points are labelled empirical. B carries no decision weight, so this does not affect
+       any decision. L and R_W validation is mandatory at every grid point.
+     - The measured double errors are then bounded rigorously by measured value ± the validated reference error, which is
+       ≤ 1e-55 relative and negligible against 1e-10.
    - (b) dps 100 agreement within 1e-55 at k ≡ 0 (mod 4), at s = 1, at 2⁻⁴⁰, and on the duplicate set;
    - (c) `mp.lu_solve` vs `mp.inverse` at s ∈ {1, 2⁻¹², 2⁻⁴⁰}.
    - Escalation to dps 120 on failure; INVALID if it persists.
@@ -399,13 +522,19 @@ Expected ordering pairs (on-path, non-identical order mutants per N: N = 2 → 3
 
 - **Taylor coefficients.** On L(s), each inverse needed by the oracle is expanded around s = 0 as the Neumann series
   A(s)⁻¹ = Σ_k (−s)^k (A0⁻¹A1)^k A0⁻¹, truncated at K_max = 12.
-  - This covers every prefix matrix and the full M. Z⁻¹ is the NN block of the full inverse; P_j and the prefix blocks come
-    from the prefix inverses. Further inverses, such as W_j = I + (Ĝ^(j)_jj)⁻¹ and Z⁻³, are obtained by power-series
-    inversion and multiplication, which is valid because the constant terms are invertible: A0 is certified.
-  - The oracle formulas are evaluated in truncated power-series arithmetic. This yields C_0..C_12 for the designated block of
-    every mutant.
-  - The computation is algebraic (no radius or aliasing error). The certified disk |s| < r_0 (§2.4) guarantees convergence
-    of the series used for the finite-s consistency check below.
+  - This covers every prefix matrix and the full M. Z⁻¹ = Ĝ_NN is a block of the full inverse; P_j = −Ĝ^(j)_jj and the prefix
+    blocks come from the prefix inverses.
+  - **Every oracle formula of §4.2 except M10 is a polynomial in these blocks.** For example Z⁻³ = (Ĝ_NN)³ and
+    P_1 = −Ĝ^(1)_11; W_j does not appear in any oracle. So **no power-series inversion is needed**: only Neumann series and
+    their Cauchy products.
+  - M10 needs (Z − (Λ − I))⁻¹, which is not certified. Its series is not computed. M10 is structural and outside the scaling
+    decision.
+  - Evaluating the oracle formulas in truncated power-series arithmetic yields C_0..C_12 for the designated block of every
+    other mutant.
+  - The coefficients are computed in floating mp arithmetic at two precisions, so they are **approximate**. The zero test
+    below is a numerical classification, not a validated proof.
+  - Convergence of the series on |s| ≤ r_0 = 1/(2a_0 b) follows from the validated certificate at s = 0 (§2.4 item 3):
+    ‖A0⁻¹A1‖₂ ≤ a_0 b, so every Neumann series converges absolutely there, and so do finite sums and products of them.
 - **Zero test (precision scaling).** Compute everything at dps 100 and at dps 200. With z_k(dps) = ‖C_k‖_F / ‖Ĝ_full(0)‖₂:
   - C_k is **nonzero** if z_k(200) ≥ 1e-60 and |z_k(100) − z_k(200)| ≤ 1e-20·z_k(200).
   - C_k is **zero** if z_k(100) ≤ 1e-80 and z_k(200) ≤ 1e-170. An exactly zero coefficient computed in floating arithmetic
@@ -420,9 +549,23 @@ Expected ordering pairs (on-path, non-identical order mutants per N: N = 2 → 3
     is precision-limited, not a contradiction → DESIGN INSUFFICIENT for that pair.
   - (ii) **Series vs direct evaluation:** at s = 2⁻⁶⁰, the truncated series Σ_{k≤12} C_k s^k must agree with the oracle
     evaluated directly from mp inverses of L(2⁻⁶⁰), to relative 1e-40.
-    - The tail bound ‖·‖(s/r_0)¹³/(1 − s/r_0) is negligible for s ≪ r_0. This requires r_0 ≥ 2⁻⁴⁰; otherwise the check uses
-      s = r_0·2⁻²⁰.
-    - A disagreement beyond the rigorous tail bound plus precision → INVALID (reference, oracle or series error).
+    - **Validated tail majorant.** Each block series F_A(s) = Σ_k s^k F_{A,k} of a matrix A (in Ĝ units, factor t)
+      satisfies ‖F_{A,k}‖₂ ≤ t·a_A,0·(a_A,0 b_A)^k, with a_A,0 and b_A the validated s = 0 bounds of §2.4.1.
+      - Let β = max_A a_A,0·b_A, x = |s|β < 1/2, and α = max(1, max_A t·a_A,0).
+      - Write the discrepancy F_m (mutant formula minus the reference block) as a sum of monomials of degree ≤ m in such
+        blocks, with T = the sum of the absolute values of the scalar coefficients. T and m are read off §4.2 per mutant
+        and N; for example, M13 contributes coefficient 2 per loop term.
+      - The coefficients of the oracle series are then majorized by those of T·α^m (1 − x)^(−m). Taking α ≥ 1 makes this
+        majorant valid for every monomial of degree ≤ m.
+      - The tail beyond order K = 12 is bounded by T·α^m·C(K + m, m − 1)·x^(K+1)/(1 − r·x), with r = (K + m + 1)/(K + 2).
+        - Proof: (1 − x)^(−m) = Σ_k C(k + m − 1, m − 1) x^k. The ratio of consecutive terms is (k + m)/(k + 1)·x, which
+          decreases in k, so for k ≥ K + 1 it is ≤ r·x. The tail is therefore at most its first term C(K + m, m − 1)x^(K+1)
+          times a geometric factor 1/(1 − r·x).
+        - The bound requires r·x < 1. This is checked exactly; if it fails, the check point s is halved until it holds.
+      - The bound is evaluated in exact rationals.
+    - The check uses s = 2⁻⁶⁰ if 2⁻⁶⁰ ≤ r_0, otherwise s = r_0·2⁻²⁰.
+    - A disagreement larger than this validated tail bound plus the mp precision allowance (10^(−(dps−10)) relative) →
+      INVALID (reference, oracle or series error). The precision allowance is the only non-validated term.
   - (iii) **Class D and M12:** every coefficient must test zero and the grid oracle must vanish (F4, F5). Otherwise →
     INVALID.
 - **Finite-scale estimates.** Local slopes on the grid are **never** used to identify q, and a non-integer value at finite s
@@ -557,7 +700,9 @@ are controls.
 ### 8.1 Planned files (none exist yet)
 
 All under `experiments/wz_rgf_diagnostic/`:
-- `coupling_scaling_v2_manifest.py` (generator, filter, certificate);
+- `coupling_scaling_v2_manifest.py` (generator, filter);
+- `coupling_scaling_v2_certify.py` (validated exact-residual bounds, λ enclosures and the interval covering of §2.4.1, with
+  self-tests T1–T4; also used for the validated reference bounds of §4.7);
 - `coupling_scaling_v2.py` (driver);
 - `wz_mutants_oracle.py` (§4.2 oracle and the truncated-series evaluation);
 - `wz_mutants_mp.py` (clean-room transcription);
@@ -582,7 +727,8 @@ All under `experiments/wz_rgf_diagnostic/`:
 2. **Implementation and manifest freeze:**
    - Write the code; generate the manifests (filter and certificate only); commit them with `manifest.sha256` **before any
      solver or reference run**.
-   - Complete review gate R0 and commit its sign-off.
+   - Certificate self-tests T1–T4 must pass **before** the manifest is generated.
+   - Complete review gate R0, which includes the certificate code, and commit its sign-off.
 3. **Exploratory run (set X):**
    - Publish the report.
    - At most one amendment may follow, before the confirmatory run, limited to bug fixes, feasibility and added diagnostics.
@@ -628,8 +774,27 @@ Remaining ambiguities and open points:
 3. **The certificate is on L(s) only.** R_W(s) is a rounded, non-affine perturbation of L(s). Its invertibility between grid
    points is irrelevant, because double data exist only at grid points. Its closeness to L is checked by §4.7 (2) and (3),
    but no continuous statement about R_W is made.
-4. **The continuous condition-number bound** (factor 2 from the half-radius covering) is rigorous for invertibility and for
-   the inverse-norm bound. The heuristic τ bounds evaluated at grid points are not extended continuously.
+   - L(s) itself is defined with the double values of E and E_perp,n taken as exact. The certificate is a statement about
+     that lattice, not about the mathematically exact E_perp,n = (nπ)²/2.
+4. **The continuous bounds** (factor 2 from the half-radius covering) on invertibility, ‖A(s)⁻¹‖₂ and cond₂ are
+   **validated** (§2.4.1), conditional on implementation correctness:
+   - Python integer arithmetic and `math.isqrt` are assumed correct;
+   - the code is covered by self-tests T1–T4 and review gate R0.
+   A bug that the tests and review miss would invalidate the certificate. This is the only non-mathematical assumption of
+   the certificate. The heuristic τ bounds evaluated at grid points are not extended continuously.
+4a. **Non-validated numerical steps that remain:**
+   - the zero test of Taylor coefficients (precision scaling);
+   - the mp precision allowance in §5.2 (ii);
+   - the dps-100 and `lu_solve` cross-checks;
+   - the empirical grid conditioning filter;
+   - every heuristic τ bound.
+   None of them is called rigorous.
+4b. **Validated statements available:**
+   - **Nonzero coefficients:** a coefficient C_k could be proven nonzero by a validated enclosure (exact dyadic X0 plus the
+     validated bound on ‖A0⁻¹ − X0‖₂ propagated through the products). This is **not** required and has no decision role;
+     it may be recorded.
+   - **Zero coefficients:** only C_0 = 0 for pure order mutants and M9 is established by theorem (F2, F6). Vanishing of
+     C_1, …, C_{q−1} for q ≥ 2 rests on the numerical zero test alone.
 5. **M10's matrix** is only checked pointwise. M10 is structural, outside the scaling decision, and its analyticity is not
    claimed.
 6. **The oracle derivations** (§4.2) depend on the identity between recursion intermediates and prefix-reference
