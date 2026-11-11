@@ -1,6 +1,6 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 3.1. Document-only corrections on top of Revision 3 (`d40960b`), which implements the corrections of the
+Revision 3.2 (minimal, document-only; on top of Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
 independent R0 design review of `f101224` (verdict: CONDITIONAL PASS). Earlier revisions:
 - Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
 - Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
@@ -140,6 +140,25 @@ tolerance or the 1e-10 criterion is changed.**
 | Rev3.1-4 | Y precision wording: Y is the exact dyadic value of the mpmath result without subsequent rounding. The mantissa-width claim is removed (§2.4.1 step 1, R3.4) | no |
 | Rev3.1-5 | Cleanup: §2.4 items 4 and 5 and the certificate failure policy moved into their structural position before §2.4.1; the duplicate "Validity on the interval" paragraph and a duplicate lead-enclosure bullet in §4.7 removed; R3.19/R3.20 ordered | no |
 | Rev3.1-6 | §5.6: feasibility analysis of regression validity for q ≥ 2, with no rule change; the predicted risk is retained (§9 item 12) | no |
+
+Revision 3.2 (vs `ae05c0d`). **No grid, SNR threshold, fitting window, point count, sample count, threshold, mutant or
+decision rule is changed.**
+
+| # | change | rule change? |
+|---|---|---|
+| Rev3.2-1 | §5.6 (C-q1) now applies to the SNR-qualified points actually included in Ω_asym (at least 8 points, span ≥ 100, SNR*_m ≥ 1e3 at each included point), not to every grid point of [2⁻¹⁹, 2⁻¹²]. The necessary consequence (a qualified point at s ≤ 2⁻¹⁹) is retained. The point-count bullet is corrected accordingly | no (the analysis is aligned with the existing rules) |
+| Rev3.2-2 | §5.6 classification "Possible but unlikely" renamed "Likelihood not assessed"; no likelihood estimate is made | no |
+| Rev3.2-3 | §5.2 (ii) escalation wording: B_tail validated, B_prec non-validated, the dps-200 rerun is an independent numerical consistency check, persistent disagreement is DESIGN INSUFFICIENT and not proof of a contradiction, no third precision level | no (wording; the rule is as in Rev3.1-1) |
+| Rev3.2-4 | **Reviewer decisions confirmed**, as listed below | no (confirmation of existing values) |
+
+**Reviewer decisions confirmed (Rev3.2-4):**
+- the redraw cap of 10,000 attempts (§2.4 item 5);
+- Mag_m as the reference scale of B_prec and of the mutant-specific heuristic tolerance τ_abs,m and ν_X,m, with their
+  non-validated status preserved (§4.3, §5.2 (ii));
+- the noise-trend window: all grid s ≤ 2⁻¹², without SNR filtering (§5.5; R3.14);
+- the zero-test thresholds unchanged (§5.2);
+- the q ≥ 2 feasibility risk retained (§5.6, §9 item 12);
+- dps 200 as the final escalation level of the series check (§5.2 (ii)).
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -810,15 +829,20 @@ Expected meaningful-candidate pairs:
     from mp inverses of L(s*).
   - **Criterion.** The comparison passes if ‖S_K(s*) − F_dir(s*)‖_F ≤ B_tail(s*) + B_prec(s*). B_tail and B_prec are
     defined below.
-  - **Escalation (Rev3.1-1).** B_prec is non-validated, so exceeding it never by itself triggers INVALID.
-    - If the dps-100 comparison fails, perform an **independent higher-precision rerun**:
+  - **Status of the two terms.** **B_tail is validated** (a rigorous majorant from validated bounds, evaluated in exact
+    rationals). **B_prec is non-validated** (an mp rounding allowance). The comparison itself uses mp quantities that are not
+    validated (S_K and F_dir), so a failed comparison is not a proof of anything.
+  - **Escalation (Rev3.1-1; wording Rev3.2-3).** Exceeding the criterion never by itself triggers INVALID.
+    - If the dps-100 comparison fails, perform an **independent higher-precision numerical consistency check**:
       - F_dir(s*) is recomputed from fresh mpmath inverses of L(s*) at dps 200;
       - S_K(s*) is recomputed from the dps-200 coefficients (already computed for the zero test);
       - B_prec is re-evaluated at dps = 200.
     - If the dps-200 comparison passes, the discrepancy is attributed to precision and recorded.
     - If it also fails, the pair is classified **unresolved series inconsistency → DESIGN INSUFFICIENT** for its scope, and
-      it is reported for investigation.
-    - B_tail is validated and unchanged by the escalation.
+      it is reported for investigation. A persistent disagreement is **not** treated as proof of a mathematical
+      contradiction, and is not INVALID.
+    - **dps 200 is the final escalation level. No third precision level is specified** (confirmed, Rev3.2-4).
+    - B_tail is unchanged by the escalation.
     - **B_tail (validated majorant).**
       - Each block series of a matrix A in Ĝ units has coefficients with ‖·‖₂ ≤ t·a_A,0·(a_A,0 b_A)^k. With the convention
         0⁰ = 1, b_A = 0 gives zero coefficients for k ≥ 1.
@@ -900,8 +924,11 @@ Notation: G(s) := ‖Ĝ_full(s)‖₂ (on R_W).
   s ≤ 2⁻¹⁹.
 - **Noise floor.** ν_X(s) ≥ τ_abs(s) = τ_end·G(s) ≥ 1e-13·G(s), because τ_end ≥ 1e-13 by definition.
 - **Necessary condition (exact).** D*_m(s) ≥ 1e3·ν_X(s) ≥ 1e-10·G(s) at some grid s ≤ 2⁻¹⁹.
-- **Point count.** If SNR*_m ≥ 1e3 holds on all grid points in [2⁻¹⁹, 2⁻¹²], those are 15 points (8 powers of two and 7
-  points of the form 3·2⁻ᵏ), so the ≥ 8 requirement is not the binding one.
+- **Point count.** The ≥ 8 requirement concerns the **SNR-qualified points actually included in Ω_asym**, not every grid
+  point.
+  - The interval [2⁻¹⁹, 2⁻¹²] contains 15 grid points (8 powers of two and 7 points of the form 3·2⁻ᵏ), and the full
+    admissible range s ≤ 2⁻¹² contains 57.
+  - So 8 qualified points with the required span can exist without every grid point in an interval being qualified.
 
 **Leading-order translation** (approximate; valid only where the window is adequate, i.e. D*_m(s) ≈ ‖C_q‖ s^q).
 Evaluating at the most favourable admissible point s = 2⁻¹⁹:
@@ -930,10 +957,15 @@ therefore admissible only if ‖C_{q+1}‖ does not grow correspondingly (|μ_ef
   - The majorant and h are computed on L. Applying them to the R_W pair additionally relies on the empirical R_W ≈ L control
     of §4.7 item 3.
   - This test can only prove infeasibility; it can never establish feasibility.
-- **Possible but unlikely.** **Not assessable from this design.** No coefficient distribution is assumed or predicted, so no
-  likelihood statement is made for any q.
+- **Likelihood not assessed.** The design assumes and predicts no coefficient distribution, so no likelihood estimate is
+  made for any q. In particular, no case is classified as "possible but unlikely".
 - **Possible under explicit coefficient conditions.** Regression validity requires, at leading order, both:
-  - (C-q1) ‖C_q‖·s^q ≥ 1e3·ν_X(s) at every grid s ∈ [2⁻¹⁹, 2⁻¹²] (for q = 2: ‖C_2‖ ≳ 27.5·G at the noise floor);
+  - (C-q1) there is a set Ω of grid points with s ≤ 2⁻¹² such that ‖C_q‖·s^q ≳ 1e3·ν_X(s) holds **at every point of Ω**
+    (the leading-order form of SNR*_m ≥ 1e3, which is exactly the inclusion condition of Ω_asym), with |Ω| ≥ 8 and
+    max Ω / min Ω ≥ 100.
+    - Points of the interval that are not in Ω are simply not included. They need not be qualified.
+    - Necessarily min Ω ≤ 2⁻¹⁹, so at least one SNR-qualified point lies at s ≤ 2⁻¹⁹ (the necessary condition above).
+    - For q = 2 this gives ‖C_2‖ ≳ 27.5·G at the noise floor, evaluated at that point;
   - (C-q2) |μ_eff| ≲ 84, together with exact window adequacy.
   Beyond leading order, these conditions are checked directly by the existing rules on the exact R_W profile.
 
@@ -1104,11 +1136,12 @@ Assumptions:
 Values that are **not derived** from the protocol (flagged as required; not silently justified):
 1. **Zero-test thresholds** (1e-60, 1e-80, 1e-170, 1e-20). Inherited design constants.
 2. **K_max = 12.** Inherited search depth.
-3. **Redraw cap 10,000** (R3.15). Introduced in Revision 3 because a finite cap was required. No derivation exists; it should
-   be confirmed by the reviewer before the manifest freeze. Its only effect is to abort, never to change the sample.
+3. **Redraw cap 10,000** (R3.15). Introduced in Revision 3 because a finite cap was required. No derivation exists.
+   **Confirmed by the reviewer (Rev3.2-4).** Its only effect is to abort, never to change the sample.
 4. **Bisection depth 30 and 2000 points per matrix.** Inherited feasibility constants.
 5. **The use of Mag_m(s*) as the reference scale of B_prec, and of Mag_m in τ_abs,m** (R3.9, R3.10). Definitional choices
-   in the form of the inherited heuristic, with no new numerical constant. Flagged for R0.
+   in the form of the inherited heuristic, with no new numerical constant. **Accepted by the reviewer (Rev3.2-4).** Both
+   remain non-validated.
 
 Remaining ambiguities and limitations:
 6. **The certificate is on L(s) only.** R_W statements are pointwise. L uses the double E and E_perp,n as exact values.
