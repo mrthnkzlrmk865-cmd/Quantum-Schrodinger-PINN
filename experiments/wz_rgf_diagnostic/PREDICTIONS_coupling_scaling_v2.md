@@ -1,7 +1,7 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 3. It implements the corrections of the independent R0 design review of `f101224` (verdict: CONDITIONAL PASS), on
-top of:
+Revision 3.1. Document-only corrections on top of Revision 3 (`d40960b`), which implements the corrections of the
+independent R0 design review of `f101224` (verdict: CONDITIONAL PASS). Earlier revisions:
 - Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
 - Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
 
@@ -111,7 +111,7 @@ value or the 1e-10 criterion is changed.** Every change to a decision rule is li
 | R3.1 | E1 | Coverage uses certified points only. An uncertified point is discarded, never given radius 0 (§2.4 item 3) | no (clarification) |
 | R3.2 | E2 | Common Taylor radius r_0 := min over all matrices of r_0,A = 1/(2β), β = max_A a_A,0·b_A (§2.4, Fact 3, §5.2) | no |
 | R3.3 | E3 | Lead perturbation A_e specified separately for the full M (N ≥ 2), for N = 1, and for prefix matrices (§2.4.1) | no |
-| R3.4 | E5 | The validated Y is the **exact** dyadic value of the mpmath result. Its mantissa equals the working precision, with no further rounding (§2.4.1, §4.7) | no |
+| R3.4 | E5 | The validated Y is the **exact** dyadic value of the mpmath result, with no further rounding (§2.4.1, §4.7). The original wording, which also asserted a mantissa width equal to the working precision, was removed in Rev3.1-4 | no |
 | R3.5 | E6 | Self-test T5 (exact-rational assembly, floating-point intermediates prohibited) | adds a precondition |
 | R3.6 | E9 | ε_A explanation corrected. The one-way implication is kept. The example "A_e = 0 with ε_A > 0" is shown to be unreachable in this design and is not claimed to be realizable | no |
 | R3.7 | E10 | M9 product written as an explicit ordered product (§4.2) | no |
@@ -126,8 +126,20 @@ value or the 1e-10 criterion is changed.** Every change to a decision rule is li
 | R3.16 | E16 | Notation disambiguated (§N). Labels renamed: R1.x/R2.x/R3.x, Fact/Hyp/Asm/Gap, sets XP/HO, WZ/orig solver, Ref(·) | no |
 | R3.17 | E17 | Predicted risks added: q ≥ 2 pairs and zero-test scaling (§9) | no |
 | R3.18 | review §F | Self-tests T1–T4 fully specified; T5 added (§2.4.2) | adds preconditions |
-| R3.20 | E2 | s = 0 must itself be certified for every matrix, since the Taylor disk is built from the s = 0 certificate (previously implicit) | filter condition made explicit |
 | R3.19 | (consequence of R3.12) | W_j references are computed in the validated Schur form W_j = I + SC_j, which is algebraically identical to I + (Ĝ^(j)_jj)⁻¹ (§4.2, §4.7) | no |
+| R3.20 | E2 | s = 0 must itself be certified for every matrix, since the Taylor disk is built from the s = 0 certificate (previously implicit) | filter condition made explicit |
+
+Revision 3.1 (vs `d40960b`). **No sample count, grid, fitting window, mutant, SNR threshold, zero-test threshold, numerical
+tolerance or the 1e-10 criterion is changed.**
+
+| # | change | rule change? |
+|---|---|---|
+| Rev3.1-1 | The series-vs-direct check (§5.2 (ii)) no longer triggers INVALID through the non-validated B_prec. On failure there is an independent dps-200 rerun; persistent failure → DESIGN INSUFFICIENT ("unresolved series inconsistency"). B_tail is unchanged (validated) | **yes**: INVALID → escalation then DESIGN INSUFFICIENT (§5.2, §4.6, §6) |
+| Rev3.1-2 | Explicit binary64 import boundary (exact dyadic import of existing doubles; rational assembly only afterwards; direct float inputs to assembly rejected) (§2.4.1, T5) | no (clarification) |
+| Rev3.1-3 | T5 wording: binary64 addition rounds the represented s-term; exact assembly preserves it. Replaces "would be lost" | no |
+| Rev3.1-4 | Y precision wording: Y is the exact dyadic value of the mpmath result without subsequent rounding. The mantissa-width claim is removed (§2.4.1 step 1, R3.4) | no |
+| Rev3.1-5 | Cleanup: §2.4 items 4 and 5 and the certificate failure policy moved into their structural position before §2.4.1; the duplicate "Validity on the interval" paragraph and a duplicate lead-enclosure bullet in §4.7 removed; R3.19/R3.20 ordered | no |
+| Rev3.1-6 | §5.6: feasibility analysis of regression validity for q ≥ 2, with no rule change; the predicted risk is retained (§9 item 12) | no |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -284,11 +296,35 @@ v0 = 8 places s = 1 in a strong-coupling regime (a design choice for RQ1, not tu
      - Every matrix entering any oracle is invertible on the complex disk |s| ≤ r_0, and its Neumann series converges there
        absolutely, with |s|·a_A,0 b_A ≤ 1/2.
    - **Not certified continuously:** R_W(s) (pointwise checks only) and the M10 matrix (pointwise only).
+   - **Failure and cost policy:**
+     - If [0, 1] is not covered for some matrix within the depth and point budget, the configuration fails the acceptance
+       filter and is redrawn. This is recorded.
+     - If the certificate is infeasible for the manifest as a whole, no empirical fallback is allowed. A new design revision
+       is required.
+4. **Prohibited selection.** No selection on commutators, mutant signals, slopes or any solver output.
+5. **Redraw cap.**
+   - At most **attempt = 0 … 9999** (10,000 attempts) per configuration index. This value is a design choice, not derived;
+     see §9.
+   - If the cap is reached for any idx, manifest generation **aborts**. No partial manifest is committed, no index is
+     skipped and no sample count is reduced.
+   - The experiment is then **not run**, and its outcome is **DESIGN INSUFFICIENT (pre-run: the preregistered sample cannot
+     be drawn under the filter)**. Any continuation requires a new design revision.
 
 #### 2.4.1 Validated method for the inverse-norm bound
 
-**Exact representation of the inputs.**
-- Every double is a dyadic rational: E, E_perp,n, V_j(1), s, dx² = 2⁻⁶ and t = 32.
+**Exact representation of the inputs; the binary64 import boundary.**
+- **Source-value import (the only place binary64 values are accepted).**
+  - Existing binary64 values are converted once, by an import function, to their **exact dyadic rational value** (e.g.
+    `fractions.Fraction(x)`, which is exact for finite binary64 x). Complex binary64 values are imported as two exact
+    rationals. NaN and ±∞ are rejected.
+  - Imported values: E, E_perp,n (from `stationary.transverse_basis`), the manifest's E and V_j(1), the R_W arrays Δ_fl, the
+    production arrays `E*eye − H[j]` and σ_code, and the mpmath results that define Y_κ (§2.4.1 step 1).
+- **Rational assembly (after import).**
+  - All assembly, arithmetic and comparison uses exact rational arithmetic only. **No floating-point arithmetic is allowed
+    after conversion.**
+  - The rational assembly functions accept only `int` or `Fraction` (complex values as pairs of them) and **reject direct
+    float inputs**.
+- Every imported value is a dyadic rational: E, E_perp,n, V_j(1), s, dx² = 2⁻⁶ and t = 32.
 - Every entry of A(s) is an exact dyadic rational, except the lead terms tλ_n (from −Σ = tλ). Here γ_n = 1 − δ_n is exact and:
   - open channel (|γ_n| < 1): λ_n = γ_n + i√ξ_n with ξ_n = 1 − γ_n²;
   - closed channel (γ_n > 1): λ_n = γ_n − √ξ_n with ξ_n = γ_n² − 1.
@@ -309,12 +345,11 @@ v0 = 8 places s = 1 in a strong-coupling regime (a design choice for RQ1, not tu
 - A1 is exactly dyadic and s-independent.
 
 **Approximate inverse with an exactly computed residual.**
-1. **Y_κ** is the approximate inverse of A_mid(s_κ) computed by mpmath at working precision p bits (dps 60, p = 203; dps 120
-   on retry, p = 402).
-   - Y_κ is defined as **the exact dyadic value of each mpmath entry** (mpf/mpc values are dyadic with ≤ p-bit mantissas).
-   - There is **no further rounding**: the mantissa precision of Y_κ equals the working precision.
-   - So the validated object is exactly the matrix used in every subsequent comparison (§4.7). How Y_κ was obtained is
-     irrelevant to rigor.
+1. **Y_κ** is the approximate inverse of A_mid(s_κ) computed by mpmath (dps 60; dps 120 on retry).
+   - Y_κ is defined as **the exact dyadic rational represented by each returned mpmath entry** (real and imaginary parts),
+     imported **without any subsequent rounding**.
+   - So the validated object is exactly the matrix used in every subsequent comparison (§4.7). How Y_κ was obtained, and
+     its precision, are irrelevant to rigor.
 2. **Ξ_κ** = I − A_mid(s_κ)·Y_κ, computed **exactly** in dyadic integer arithmetic (Python integers or `fractions.Fraction`;
    no floating point).
 3. Exact rationals: f_Ξ = ‖Ξ_κ‖_F² (complex entries: re² + im²), f_Y = ‖Y_κ‖_F², f_mid = ‖A_mid(s_κ)‖_F² and
@@ -357,9 +392,6 @@ exact dyadic matrix. Rigor rests on:
 - (ii) Python's exact integer arithmetic and `math.isqrt`;
 - (iii) implementation correctness, addressed by T1–T5 and R0.
 
-**Validity on the interval.** Given validated a_κ, b and h_κ, the Neumann step holds for every real or complex s with
-|s − s_κ| ≤ r_κ. Coverage is decided exactly, so the bounds hold for every s ∈ [0, 1].
-
 **Alternative considered.**
 - Directed-rounding interval arithmetic (`mpmath.iv`, real `ivmpf` and complex `ivmpc`) would also be valid.
 - It is not selected, because:
@@ -368,19 +400,6 @@ exact dyadic matrix. Rigor rests on:
   - it still needs a validated interval-matrix norm.
 - It may serve as an optional cross-check of a_κ, with no decision role.
 
-**Failure and cost policy.**
-- If [0, 1] is not covered for some matrix within the depth and point budget, the configuration fails the acceptance filter
-  and is redrawn. This is recorded.
-- If the certificate is infeasible for the manifest as a whole, no empirical fallback is allowed. A new design revision is
-  required.
-4. **Prohibited selection.** No selection on commutators, mutant signals, slopes or any solver output.
-5. **Redraw cap.**
-   - At most **attempt = 0 … 9999** (10,000 attempts) per configuration index. This value is a design choice, not derived;
-     see §9.
-   - If the cap is reached for any idx, manifest generation **aborts**. No partial manifest is committed, no index is
-     skipped and no sample count is reduced.
-   - The experiment is then **not run**, and its outcome is **DESIGN INSUFFICIENT (pre-run: the preregistered sample cannot
-     be drawn under the filter)**. Any continuation requires a new design revision.
 
 #### 2.4.2 Certificate and assembly self-tests (T1–T5)
 
@@ -472,25 +491,34 @@ part of the R0 review.
 - **Edge cases:** f = 0; tiny f > 0; prefix-only b = 0.
 
 **T5 — exact-rational assembly** (A_mid(s), A1, and the R_W and R_orig reference matrices).
-- **Property:**
-  - the certificate and the validated references are assembled **exactly** from the exact rational values of the inputs:
+- **Property (two separate stages):**
+  - **(a) Import:** the import function maps every finite binary64 value to its exact dyadic rational. The round trip
+    float(rational) == x holds, and the denominator is a power of two. NaN and ±∞ are rejected.
+  - **(b) Rational assembly:** the certificate and validated-reference matrices are assembled from imported rationals only:
     - L: E, E_perp,n, V(1), s, t, dx² and the enclosure midpoints;
-    - R_W: the double Δ_fl taken exactly;
-    - R_orig: the production double arrays `E*eye − H[j]` and σ_code taken exactly;
-  - **no floating-point intermediate is permitted anywhere**.
+    - R_W: the imported Δ_fl;
+    - R_orig: the imported production arrays `E*eye − H[j]` and σ_code.
+  - **No floating-point arithmetic occurs after import.**
 - **Inputs:**
   - three fixed configurations (N_y = 2, 3, 4; N = 1, 2, 6), given by explicit integer arrays Jr_j and Ji_j and explicit
     dyadic E;
   - s ∈ {0, 1, 3/4, 2⁻⁴⁰, 3·2⁻⁴²}.
 - **Independent reference:** a second assembly routine, written separately from the definition M = E − H − Σ_L ⊕ Σ_R using
   `fractions.Fraction` only.
-- **Type checks:** the assembly accepts only `int`/`Fraction` inputs and must raise on any `float`. The test passes a float
-  and expects rejection.
-- **Exactness check:** A_mid(2⁻⁴⁰) − A_mid(0) = −2⁻⁴⁰·blockdiag(V(1)) exactly. This term would be lost if s·V_aa were
-  added to E − E_perp in double.
-- **Success:** entrywise exact equality with the independent assembly; no float object in any intermediate; float input
-  rejected; the exactness check holds.
-- **Failure:** any mismatch, any float intermediate, or acceptance of a float input.
+- **Import checks:**
+  - binary64 inputs including 0.1, −0.0, 2⁻¹⁰⁷⁴ (subnormal), 1.7976931348623157e308, π (as binary64) and one complex128
+    value: their exact rationals and round trips;
+  - NaN and +∞ must be rejected.
+- **Type checks:** the rational assembly functions must raise when given a `float` directly, even one that is exactly
+  representable such as 0.5. Import is the only accepted path for binary64 values.
+- **Exactness check:** A_mid(2⁻⁴⁰) − A_mid(0) = −2⁻⁴⁰·blockdiag(V(1)) exactly.
+  - Rationale: in binary64, forming E − E_perp − s·V_aa rounds each intermediate sum to the nearest double. This perturbs
+    the represented s-term by up to half an ulp of the sum, which matters when the term is small, as at the smallest grid s.
+  - Exact rational assembly preserves the represented term exactly.
+- **Success:** import exact with correct rejections; entrywise exact equality with the independent assembly; no float
+  object in any post-import intermediate; direct float input rejected; the exactness check holds.
+- **Failure:** any import inexactness, any mismatch, any float intermediate after import, or acceptance of a direct float
+  input by an assembly function.
 - **Edge cases:** N = 1 (both leads on one block); prefix matrices; s = 0; the smallest grid s.
 
 ### 2.5 Conditional sampling (explicit limitation)
@@ -668,8 +696,8 @@ item (a).
 | τ_end, τ_pre, τ_W, τ_P, τ_S, U/Q/symmetry bounds, τ_abs,m | heuristic | exceedance → anomaly → DESIGN INSUFFICIENT; never FAIL |
 | reference accuracy ‖A⁻¹ − Y‖₂ ≤ ‖Y‖₂·ω/(1 − ω) (§2.4.1 applied to the reference Y) | **validated** | ω/(1 − ω) > 1e-55 → escalation (dps 120), then INVALID |
 | certificate bounds (§2.4) | **validated**, conditional on T1–T5 and R0 | acceptance filter |
-| Taylor tail majorant (§5.2 (ii)) | **validated** (from validated a, b) | INVALID criterion with B_prec |
-| B_prec precision allowance (§5.2 (ii)) | non-validated (mp rounding) | INVALID criterion |
+| Taylor tail majorant B_tail (§5.2 (ii)) | **validated** (from validated a, b) | series check; failure after dps-200 escalation → DESIGN INSUFFICIENT |
+| B_prec precision allowance (§5.2 (ii)) | non-validated (mp rounding) | series check only; never triggers INVALID by itself |
 | zero test (§5.2) | non-validated numerical classification | order identification |
 | dps-100 and `lu_solve` cross-checks | empirical | INVALID on disagreement |
 | η_X | empirical | noise |
@@ -692,7 +720,6 @@ item (a).
 4. **Validated references.**
    - (a) For the full and prefix systems of L and R_W at **every** grid point, the reference inverse is the exact dyadic Y of
      §2.4.1 step 1 (no further rounding; R3.4), and ω/(1 − ω) ≤ 1e-55.
-     - Lead enclosure: as in §2.4.1. R_orig has A_e = 0.
      - R_orig is validated at every grid point if the runtime allows; otherwise at k ≡ 0 (mod 4) only, with the remaining
        points labelled empirical (no decision weight).
      - **Validated W_j and P_j references:**
@@ -772,14 +799,26 @@ Expected meaningful-candidate pairs:
   are tiny.
 - (Predicted risk: §9 item 11.)
 
-**Consistency checks** (genuine contradictions → INVALID):
+**Consistency checks** ((i) and (iii): genuine contradictions → INVALID; (ii): escalation, then DESIGN INSUFFICIENT):
 - (i) **Pure order mutants and M9:** C_0 must test zero (Fact 2, Fact 6). Nonzero → INVALID. Unresolved → DESIGN INSUFFICIENT
   for the pair.
+- Criterion (ii) below is a consistency **check** whose failure, after escalation, leads to DESIGN INSUFFICIENT (not
+  INVALID).
 - (ii) **Series vs direct evaluation (single criterion; R3.9).**
   - The check point s* = 2⁻⁶⁰ if 2⁻⁶⁰ ≤ r_0, otherwise s* = r_0·2⁻²⁰.
   - At dps 100, compute the truncated series S_K(s*) = Σ_{k ≤ K_max} C_k s*^k and the direct oracle discrepancy F_dir(s*)
     from mp inverses of L(s*).
-  - **INVALID iff ‖S_K(s*) − F_dir(s*)‖_F > B_tail(s*) + B_prec(s*).** Here:
+  - **Criterion.** The comparison passes if ‖S_K(s*) − F_dir(s*)‖_F ≤ B_tail(s*) + B_prec(s*). B_tail and B_prec are
+    defined below.
+  - **Escalation (Rev3.1-1).** B_prec is non-validated, so exceeding it never by itself triggers INVALID.
+    - If the dps-100 comparison fails, perform an **independent higher-precision rerun**:
+      - F_dir(s*) is recomputed from fresh mpmath inverses of L(s*) at dps 200;
+      - S_K(s*) is recomputed from the dps-200 coefficients (already computed for the zero test);
+      - B_prec is re-evaluated at dps = 200.
+    - If the dps-200 comparison passes, the discrepancy is attributed to precision and recorded.
+    - If it also fails, the pair is classified **unresolved series inconsistency → DESIGN INSUFFICIENT** for its scope, and
+      it is reported for investigation.
+    - B_tail is validated and unchanged by the escalation.
     - **B_tail (validated majorant).**
       - Each block series of a matrix A in Ĝ units has coefficients with ‖·‖₂ ≤ t·a_A,0·(a_A,0 b_A)^k. With the convention
         0⁰ = 1, b_A = 0 gives zero coefficients for k ≥ 1.
@@ -793,7 +832,8 @@ Expected meaningful-candidate pairs:
       - Requires ζx < 1, checked exactly. If it fails, s* is halved until it holds.
       - If β = 0, then x = 0 and B_tail = 0.
       - Evaluated in exact rationals.
-    - **B_prec (non-validated precision allowance)** := 10^−(dps−10)·Mag_m(s*) at dps = 100. Mag_m(s*) (§4.3) is the
+    - **B_prec (non-validated precision allowance)** := 10^−(dps−10)·Mag_m(s*) at the dps of the comparison (100, or 200 on
+      escalation). Mag_m(s*) (§4.3) is the
       magnitude of the oracle monomials before cancellation, i.e. the scale on which mp rounding acts. This defines the
       reference scale of the previous "10^(−(dps−10)) relative" allowance.
   - The previous additional "relative 1e-40" requirement is removed as conflicting (R3.9).
@@ -844,6 +884,64 @@ Expected meaningful-candidate pairs:
   - It must lie in [−0.25, 0.25]; otherwise → DESIGN INSUFFICIENT.
   - The s ≤ 2⁻¹² edge is the mutant-independent part of Ω_asym.
 
+### 5.6 Feasibility of regression validity for q ≥ 2 pairs (analysis only; no rule, grid, threshold or window change)
+
+Notation: G(s) := ‖Ĝ_full(s)‖₂ (on R_W).
+
+**Requirements that a pair must meet** (all existing rules):
+- Ω_asym ⊆ {grid s ≤ 2⁻¹²}, with SNR*_m ≥ 1e3 at every point used;
+- at least 8 points;
+- ln-span ≥ ln 100, i.e. max(Ω_asym)/min(Ω_asym) ≥ 100;
+- window adequacy (exact local slopes within 0.02 of q; |p̂* − q| ≤ 0.02).
+
+**Exact consequences of the definitions:**
+- **Span ⟹ a small resolvable point.** max(Ω_asym) ≤ 2⁻¹², so the span requires some point s_min ≤ 2⁻¹²/100 ≈ 2.44e-6. The
+  largest grid value ≤ 2.44e-6 is 2⁻¹⁹ ≈ 1.91e-6 (3·2⁻²⁰ ≈ 2.86e-6 is too large). So SNR*_m ≥ 1e3 must hold at some grid
+  s ≤ 2⁻¹⁹.
+- **Noise floor.** ν_X(s) ≥ τ_abs(s) = τ_end·G(s) ≥ 1e-13·G(s), because τ_end ≥ 1e-13 by definition.
+- **Necessary condition (exact).** D*_m(s) ≥ 1e3·ν_X(s) ≥ 1e-10·G(s) at some grid s ≤ 2⁻¹⁹.
+- **Point count.** If SNR*_m ≥ 1e3 holds on all grid points in [2⁻¹⁹, 2⁻¹²], those are 15 points (8 powers of two and 7
+  points of the form 3·2⁻ᵏ), so the ≥ 8 requirement is not the binding one.
+
+**Leading-order translation** (approximate; valid only where the window is adequate, i.e. D*_m(s) ≈ ‖C_q‖ s^q).
+Evaluating at the most favourable admissible point s = 2⁻¹⁹:
+
+    ‖C_q‖ ≳ 1e-10 · G · 2^(19q) · (ν_X/(1e-13·G))
+
+| q | factor 1e-10·2^(19q) | resulting requirement |
+|---|---|---|
+| 1 | ≈ 5.2e-5 | ‖C_1‖ ≳ 5.2e-5·G |
+| 2 | ≈ 27.5 | ‖C_2‖ ≳ 27.5·G |
+| 3 | ≈ 1.4e7 | ‖C_3‖ ≳ 1.4e7·G |
+
+Each further order multiplies the requirement by 2¹⁹ ≈ 5.2e5. The factor ν_X/(1e-13·G) ≥ 1 enlarges the requirement
+whenever the actual noise level exceeds its floor.
+
+**Window adequacy imposes a second, opposing condition.** The local-slope deviation is ≈ μ_eff·s/(1 + μ_eff·s), so adequacy
+at s = 2⁻¹² requires approximately |μ_eff| ≲ 0.0204·2¹² ≈ 84, where μ_eff = Re⟨C_q, C_{q+1}⟩/‖C_q‖². A large ‖C_q‖ is
+therefore admissible only if ‖C_{q+1}‖ does not grow correspondingly (|μ_eff| ≤ μ_est = ‖C_{q+1}‖/‖C_q‖).
+
+**Classification.**
+- **Mathematically impossible (decidable per pair; reported, no decision role).**
+  - Using the validated majorant of §5.2 (ii), D*_m(s) ≤ B_q(s) := T_m α^deg_m Σ_{k≥q} C(k + deg_m − 1, deg_m − 1)(βs)^k.
+    This is valid for s ≤ r_0, and conditional on the zero-test classification C_0..C_{q−1} = 0, which is not validated.
+  - G(s) ≥ t/h, with h the validated bound on ‖M(s)‖₂.
+  - If B_q(s) < 1e-10·t/h at every grid s ≤ min(2⁻¹⁹, r_0), the pair **cannot** be regression-valid.
+  - The majorant and h are computed on L. Applying them to the R_W pair additionally relies on the empirical R_W ≈ L control
+    of §4.7 item 3.
+  - This test can only prove infeasibility; it can never establish feasibility.
+- **Possible but unlikely.** **Not assessable from this design.** No coefficient distribution is assumed or predicted, so no
+  likelihood statement is made for any q.
+- **Possible under explicit coefficient conditions.** Regression validity requires, at leading order, both:
+  - (C-q1) ‖C_q‖·s^q ≥ 1e3·ν_X(s) at every grid s ∈ [2⁻¹⁹, 2⁻¹²] (for q = 2: ‖C_2‖ ≳ 27.5·G at the noise floor);
+  - (C-q2) |μ_eff| ≲ 84, together with exact window adequacy.
+  Beyond leading order, these conditions are checked directly by the existing rules on the exact R_W profile.
+
+**Consequence for the predicted risk (§9 item 12, retained).** A q ≥ 2 pair that does not meet (C-q1) and (C-q2) is not
+regression-valid. Under the existing rule that every ordering-meaningful pair must be regression-valid, such a pair yields
+DESIGN INSUFFICIENT. The risk is unchanged. The analysis makes it quantitative and gives a per-pair infeasibility test, with
+no decision role.
+
 ## 6. Preregistered decision rules
 
 Decisions use **set HO only**. Set XP is reported and can never yield PASS.
@@ -869,8 +967,8 @@ Definitions:
 - an oracle-vs-transcription or first-deviation failure (§4.3);
 - a missing R0 sign-off;
 - a manifest hash mismatch;
-- a §5.2 consistency contradiction (C_0 nonzero where a theorem requires zero; series-vs-direct criterion (ii) exceeded;
-  class-D or M12 coefficients or grid discrepancies not zero within τ_id);
+- a §5.2 consistency contradiction (C_0 nonzero where a theorem requires zero; class-D or M12 coefficients or grid
+  discrepancies not zero within τ_id). The series-vs-direct check (ii) is **not** an INVALID condition (Rev3.1-1);
 - a determinism mismatch.
 
 **FAIL-W** (W/Z accuracy; per scope): any correct-code WZ-solver endpoint, prefix, W_j or P_j error, or ΔS, **reliably
@@ -893,6 +991,7 @@ class D. This is the only W/Z failure criterion; the value 1e-10 is unchanged.
 - coverage below requirement: ordering-meaningful pairs fewer than 90 % of the expected count (class R: 312; class H: 312),
   or fewer than 10 per pure order mutant;
 - an unresolved C_0 (§5.2 (i));
+- an unresolved series inconsistency (§5.2 (ii) after the dps-200 escalation; Rev3.1-1);
 - **(global, pre-run)** manifest generation aborted at the redraw cap (§2.4 item 5).
 
 **PASS** (per scope): none of the above.
@@ -1030,7 +1129,7 @@ Remaining ambiguities and limitations:
     - This affects only pairs with q ≥ 2, where C_1, …, C_{q−1} must test zero; C_0 and C_1 are at safe scales.
     - Not corrected here, because the remedy (normalizing by the validated majorant) changes a threshold. It requires a new
       decision.
-12. **Predicted risk — q ≥ 2 pairs (R3.17).**
+12. **Predicted risk — q ≥ 2 pairs (R3.17; quantified in §5.6, Rev3.1-6).**
     - Ω_asym is fixed at s ≤ 2⁻¹² with SNR*_m ≥ 1e3, which needs D* ≳ 1e-10·‖Ĝ‖.
     - For q = 2, D* ≈ |C_2|s², so two decades of span require |C_2| on the order of 10 or more. Such pairs are expected to be
       **not regression-valid**.
