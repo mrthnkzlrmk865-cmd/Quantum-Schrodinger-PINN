@@ -1,21 +1,133 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Status: design only. Nothing in this document has been implemented or run.
-- No code exists for it.
-- No matrix of it has been generated.
-- No previous file is modified.
+Revision 3. It implements the corrections of the independent R0 design review of `f101224` (verdict: CONDITIONAL PASS), on
+top of:
+- Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
+- Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
+
+This is a design only:
+- nothing in this document has been implemented or run;
+- no code exists for it, no matrix of it has been generated, and no previous file is modified.
 
 Relation to the previous experiment (`PREDICTIONS_coupled_blocks.md`, design `7d69260`, implementation `63e046d`, results
 `e3c67a6`):
-- That experiment's decision, **DESIGN INSUFFICIENT**, is final and is not re-scored, re-fitted or reinterpreted here.
+- Its decision, **DESIGN INSUFFICIENT**, is final and is not re-scored, re-fitted or reinterpreted here.
 - Its post-hoc 3-point slopes (0.985–0.989) are **not** evidence for anything in this design and are not used to choose any
   threshold.
-- Its matrices are not part of this experiment's primary or confirmatory data.
+- Its matrices are not part of this experiment.
+- This experiment **cannot** attribute the previous 0.78–0.79 slopes to any specific cause. Those configurations are
+  excluded, and the previous fitted quantity (a block maximum with s-dependent normalization) differs from v2's. v2 tests
+  only whether the candidate mechanisms occur in a new population.
 
 Standing status:
 - B1 configuration F still FAILS the unchanged 1e-10 criterion.
 - W/Z is experimental and NOT validated.
 - No production change is authorized.
+
+## N. Notation (Revision 3; used throughout)
+
+| symbol | meaning |
+|---|---|
+| s | coupling multiplier, V_j(s) = s·V_j(1) (unchanged definition) |
+| L(s), R_W(s), R_orig(s) | represented lattices: exact; W/Z-represented; production-represented |
+| class R, class H, class D | potential classes. Always written with the word "class" |
+| M(s), M^(j)(s) | full device matrix and the j-slice prefix matrix (left lead only), physical units |
+| A0, A1 | for an affine matrix A(s) = A0 + s·A1 |
+| M1 … M16, M4L, M4R | mutant labels. Never matrices |
+| Δ_j | W/Z variable (E·I − diag(E_perp) − V_j)·dx² |
+| Λ, λ_n, γ_n | lead roots; γ_n = 1 − δ_n is the lead parameter |
+| Σ_L, Σ_R | lead self-energies. A bare Σ is a summation |
+| Ĝ = t·G | dimensionless Green function; Ĝ^(j) is the prefix inverse (M^(j)/t)⁻¹ |
+| χ_j, ψ_j | left and right prefix chain blocks Ĝ^(j)_j1 and Ĝ^(j)_1j |
+| θ_j | ψ_{j−1} P_j χ_{j−1} |
+| P_j, W_j, Z | W/Z propagator, W/Z variable, closing matrix |
+| SC_j | Schur complement of slice j in M^(j)/t, so that W_j = I + SC_j |
+| A_mid, A_e | exact dyadic midpoint matrix and enclosure error, A = A_mid + A_e |
+| ε_A | validated upper bound of ‖A_e‖_F |
+| Y_κ | approximate inverse at certification point κ |
+| Ξ_κ | exact residual I − A_mid(s_κ)·Y_κ |
+| ω_κ | validated bound of ‖I − A(s_κ)Y_κ‖₂ |
+| a_κ, h_κ, b, r_κ | validated bounds of ‖A(s_κ)⁻¹‖₂, of ‖A(s_κ)‖₂ and of ‖A1‖₂; certified radius |
+| ū(·), ℓ | rigorous rational upper square root, with ℓ = 256 bits |
+| ξ_n | radicand of the lead root |
+| r_0 | common Taylor radius (§2.4 item 3) |
+| n_tot | matrix dimension N·N_y |
+| D_m(s), D*_m(s) | double and exact (oracle) discrepancy of the designated block X_m, on R_W |
+| η_X, ν_X, ν_X,m | observed correct-code noise; SNR noise level; mutant-specific apparatus tolerance level |
+| Mag_m(s) | magnitude scale of the oracle monomials of mutant m (§4.3) |
+| τ_id | identity threshold (§4.7) |
+| C_k, q, μ, μ_est | Taylor coefficients; asymptotic order; first-order remainder constant and its estimate |
+| T_m, deg_m, α, β, ζ | majorant constants (§5.2) |
+| φ(s) | local log-log slope |
+| dev(s) | crossover deviation |
+| Ω_asym | weak-coupling window |
+| ϑ_i | OLS weights |
+| p̂, p̂* | double and exact OLS slopes |
+| Fact 1–7, Hyp1–4, Asm1–3, Gap1–6 | facts, hypotheses, assumptions, previous gaps |
+| set XP, set HO | exploratory and held-out configuration sets |
+| WZ solver, orig solver, Ref(·) | solvers under test and the direct-inverse reference |
+
+## R. Revision log
+
+Revision 1 (vs `01bf018`):
+
+| # | change | audit item |
+|---|---|---|
+| R1.1 | Removed the restriction q ∈ {1, 2, 3}. q is any finite integer ≥ 1 (identity theorem), identified from Taylor coefficients computed by truncated Neumann-series algebra with a precision-scaling zero test, up to K_max = 12 | 1 |
+| R1.2 | A non-integer finite-scale slope estimate is not INVALID. INVALID requires a contradiction between exact computations or with a theorem. Unresolved order is DESIGN INSUFFICIENT | 1 |
+| R1.3 | Added a continuous-interval certificate (Neumann-radius covering of [0, 1]). Its inverse-norm bound was validated only from R2.1 on. Analytic claims are restricted to the certified interval; R_W statements are pointwise | 2 |
+| R1.4 | Error quantities are classified as rigorous/validated, empirical, heuristic or fixed criterion (§4.6). Exceeding a heuristic bound alone is an anomaly (DESIGN INSUFFICIENT), never FAIL | 3 |
+| R1.5 | FAIL is split into FAIL-W (W/Z accuracy, the 1e-10 criterion) and FAIL-D (a diagnostic hypothesis falsified; not evidence of a W/Z defect) | 3 |
+| R1.6 | Specification-derived oracle; clean-room transcription; review gate R0 | 4 |
+| R1.7 | Every mutant's exact code change is documented (§4.2) | 4 |
+| R1.8 | Claims are separated by class (the physical scope is class R plus the class-D controls; class H is a separate stress-test outcome) | 5 |
+| R1.9 | Sampling is conditional on the acceptance filter | 6 |
+| R1.10 | Legacy diagnostic set removed | scope |
+| R1.11 | Fixed asymptote points replaced by Taylor coefficients | 1 |
+| R1.12 | Coverage counted per class | 5 |
+
+Revision 2 (vs `b62ed42`):
+
+| # | change |
+|---|---|
+| R2.1 | Validated approximate-inverse certificate with an exactly computed residual. It replaces an mp value inflated by (1 + 1e-30), which was not a proof |
+| R2.2 | Every bound is stated in the spectral norm, computed through ‖·‖₂ ≤ ‖·‖_F with exact Frobenius norms |
+| R2.3 | Special case b = 0 |
+| R2.4 | Certificate failure and cost policy; no silent empirical fallback |
+| R2.5 | Mandatory certificate self-tests; R0 extended to the certificate code |
+| R2.6 | Taylor disk from the validated certificate. The oracles (except M10) are polynomials in inverse blocks, so no series inversion is needed |
+| R2.7 | Validated reference residuals |
+| R2.8 | The zero test is labelled non-validated |
+| R2.9 | Ratio-test tail bound, with proof |
+| R2.10 | λ-enclosure radius ≤ 2⁻²⁵⁵ |
+| R2.11 | ū defined piecewise, ū(0) = 0 |
+| R2.12 | "ε_A = 0 iff A_e = 0" replaced by the implication ε_A = 0 ⟹ A_e = 0 |
+
+Revision 3 (vs `f101224`; R0 review items E1–E17). **No sample count, grid, fitting window, mutant definition, threshold
+value or the 1e-10 criterion is changed.** Every change to a decision rule is listed explicitly here and in §6.
+
+| # | review item | change | rule change? |
+|---|---|---|---|
+| R3.1 | E1 | Coverage uses certified points only. An uncertified point is discarded, never given radius 0 (§2.4 item 3) | no (clarification) |
+| R3.2 | E2 | Common Taylor radius r_0 := min over all matrices of r_0,A = 1/(2β), β = max_A a_A,0·b_A (§2.4, Fact 3, §5.2) | no |
+| R3.3 | E3 | Lead perturbation A_e specified separately for the full M (N ≥ 2), for N = 1, and for prefix matrices (§2.4.1) | no |
+| R3.4 | E5 | The validated Y is the **exact** dyadic value of the mpmath result. Its mantissa equals the working precision, with no further rounding (§2.4.1, §4.7) | no |
+| R3.5 | E6 | Self-test T5 (exact-rational assembly, floating-point intermediates prohibited) | adds a precondition |
+| R3.6 | E9 | ε_A explanation corrected. The one-way implication is kept. The example "A_e = 0 with ε_A > 0" is shown to be unreachable in this design and is not claimed to be realizable | no |
+| R3.7 | E10 | M9 product written as an explicit ordered product (§4.2) | no |
+| R3.8 | E11 | Rationale of §4.7 item 3 corrected: diagonal rounding is O(ε), independent of s, with effect O(ε/gap) | no |
+| R3.9 | E4 | The two conflicting tail-comparison criteria of §5.2 (ii) are replaced by one criterion | **yes**: the redundant "relative 1e-40" is removed; the precision allowance's reference scale is defined (Mag_m) |
+| R3.10 | E7 | Mutant-specific apparatus tolerance ν_X,m. **Double-vs-oracle and double-vs-transcription excess becomes a mutant-apparatus anomaly (DESIGN INSUFFICIENT), no longer INVALID.** Oracle-vs-transcription (mp vs mp) disagreement remains INVALID. The first-deviation check (also mp vs mp), previously listed without an explicit outcome, is now explicitly INVALID | **yes** |
+| R3.11 | E8 | Agreement checks compare matrices directly, not discrepancy norms | **yes** (stricter) |
+| R3.12 | E12 | A correct-code error reliably measured above 1e-10 is FAIL-W regardless of the judgeability gate. An error above 1e-10 that cannot be measured reliably → DESIGN INSUFFICIENT. The 1e-10 value is unchanged | **yes** (stricter) |
+| R3.13 | E13 | Defined: identity threshold τ_id, meaningful-candidate pair, judgeable case, reliably measured | no |
+| R3.14 | E14 | R_W is the lattice for D*, φ_exact, p̂*, SNR* and dev(s); ‖C_q‖ comes from L. The noise-trend window, previously "over Ω_asym" (undefined for a per-configuration control), is defined as all grid s ≤ 2⁻¹², per configuration and block, i.e. the mutant-independent part of Ω_asym | clarification; the window choice is flagged for R0 |
+| R3.15 | E15 | Energy rounding is half-to-even in exact rationals. A maximum redraw-attempt count, with its consequence | **adds a rule**; the cap value is flagged as not derived (§9) |
+| R3.16 | E16 | Notation disambiguated (§N). Labels renamed: R1.x/R2.x/R3.x, Fact/Hyp/Asm/Gap, sets XP/HO, WZ/orig solver, Ref(·) | no |
+| R3.17 | E17 | Predicted risks added: q ≥ 2 pairs and zero-test scaling (§9) | no |
+| R3.18 | review §F | Self-tests T1–T4 fully specified; T5 added (§2.4.2) | adds preconditions |
+| R3.20 | E2 | s = 0 must itself be certified for every matrix, since the Taylor disk is built from the s = 0 certificate (previously implicit) | filter condition made explicit |
+| R3.19 | (consequence of R3.12) | W_j references are computed in the validated Schur form W_j = I + SC_j, which is algebraically identical to I + (Ĝ^(j)_jj)⁻¹ (§4.2, §4.7) | no |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -23,503 +135,913 @@ Verified from `coupled_blocks.py` and `wz_mutants.py` at `63e046d`:
 
 | item | exact definition found |
 |---|---|
-| coupling parameter s | `V_j(s) = v0 · s · M_j` with v0 = 4 (`coupled_blocks.V`). **s multiplies the entire potential**, including the diagonal terms μ_j I, α_j A, … (not only the off-diagonal coupling). Values used: s ∈ {1, 2⁻⁴, 2⁻⁸, 2⁻¹²} |
+| coupling parameter s | `V_j(s) = v0 · s · M_j` with v0 = 4. **s multiplies the entire potential**, including the diagonal and identity terms. Values used: s ∈ {1, 2⁻⁴, 2⁻⁸, 2⁻¹²} |
 | W/Z input | Δ_j = (E·I − diag(E_perp) − V_j(s))·dx² in double; leads from `lead_from_delta(fl(E − E_perp)·dx²)`; dx = 1/8, t = 32, L_y = 1 |
-| mutant discrepancy D_mut | **max over the four endpoint blocks** of ‖X_mut − X_ref‖_F / ‖Ĝ_full(s)‖₂, against C(R_W) |
-| slope | `np.polyfit(ln s, ln D_mut, 1)` over the 4 scales (unweighted OLS) |
+| mutant discrepancy D_mut | max over the four endpoint blocks of ‖X_mut − X_ref‖_F / ‖Ĝ_full(s)‖₂, against the R_W reference |
+| slope | `np.polyfit(ln s, ln D_mut, 1)` over the 4 scales |
 | "D ≫ τ_end" | D ≥ 100·τ_end |
-| mutants | `wz_mutants.MUTANTS`: M1–M16 plus M4L and M4R. Pure order mutants: M1, M2, M3, M5, M6, M7, M8, M15. `MIN_N` per mutant; M11 only on N = 1 |
+| mutants | `wz_mutants.MUTANTS` (M1–M16, M4L, M4R). Pure order mutants M1, M2, M3, M5, M6, M7, M8, M15. `MIN_N` per mutant |
 
-Gaps in the previous design (documented, not repaired retroactively):
-- G1. The fitting procedure (unweighted OLS over all 4 scales) and the meaning of "≫" existed only in code, not in the
-  predictions document.
-- G2. D_mut took a **maximum over blocks**. The block that attains the maximum can switch between s values, which makes
-  ln D_mut piecewise and its slope not the slope of any single analytic quantity.
-- G3. D_mut was normalized by ‖Ĝ_full(s)‖₂, which itself depends on s, so the fitted quantity carried an s-dependent
-  normalization.
-- G4. The scale grid (4 points, spanning s = 1 to 2⁻¹²) mixed a possible strong-coupling regime with the weak-coupling regime
-  in one fit, with no rule for detecting a crossover.
-- G5. "Coupling strength" was not separated into commuting (diagonal) and non-commuting (off-diagonal) parts. Both scale
-  with s.
-- G6. No exact (noise-free) mutant discrepancy was computed, so algebraic signal and rounding noise could not be separated.
+Previous gaps, documented and not repaired retroactively:
+- Gap1. The fit procedure and "≫" existed only in code.
+- Gap2. The maximum over blocks can switch block between s values.
+- Gap3. The normalization depended on s.
+- Gap4. One fit spanned both coupling regimes, with no crossover rule.
+- Gap5. The commuting and non-commuting parts of V both scale with s.
+- Gap6. No noise-free signal was computed.
 
-v2 keeps the **same definition of s** (an overall multiplier of a fixed potential matrix, V_j(s) = s·V_j(1)) and the same W/Z
-definitions. It addresses G1–G6 by explicit, preregistered definitions.
+v2 keeps **the same definition of s** (V_j(s) = s·V_j(1)) and the same W/Z definitions.
 
-## 1. Research questions and hypotheses
+## 1. Research questions, mathematical facts, hypotheses
 
-| RQ | question | how it is answered |
+| RQ | question | answered by |
 |---|---|---|
-| RQ1 | Is the deviation from the expected law near s = 1 a nonlinear/crossover effect rather than numerical noise? | compare the exact (noise-free) local slope with the double-precision local slope at every grid point; locate the crossover with a preregistered definition (§5.4) |
-| RQ2 | Does the asymptotic law emerge at weak coupling? | the exact asymptotic order q from a high-precision asymptote check (§5.2), and the double-precision slope in a preregistered weak-coupling window (§5.3) |
-| RQ3 | Is the scaling stable across independently generated matrices? | the held-out set of 120 freshly generated configurations (§2); every meaningful pair must satisfy the rules |
-| RQ4 | Can genuine ordering errors be distinguished from numerical noise? | exact signal D* vs measured noise η; SNR rules; diagonal and equivalent controls; perturbation-driven non-ordering control (M9) |
-| RQ5 | Can the scaling criterion be fixed without tuning to the previous slopes? | every threshold is derived in §5–§6 from precision bounds or algebra; none is derived from any previously observed slope |
+| RQ1 | Is the deviation near s = 1 a crossover rather than numerical noise (in the new population)? | exact vs double local slopes; a preregistered crossover definition (§5.4) |
+| RQ2 | Does the asymptotic law emerge at weak coupling? | the exact order q from Taylor coefficients (§5.2); the double slope in Ω_asym (§5.3) |
+| RQ3 | Is the scaling stable across independent matrices? | 120 held-out configurations; every meaningful class-R pair must satisfy the rules |
+| RQ4 | Can ordering errors be distinguished from noise? | the oracle signal vs measured noise; SNR rules; controls (class D, M12, M9) |
+| RQ5 | Can the criterion be fixed without tuning to previous slopes? | all thresholds derived from precision arguments or algebra; non-derived values are flagged (§9) |
 
-**Mathematical facts** (provable; checked numerically as validity conditions, not as hypotheses):
-- F1. Every mutant output and every reference block is a rational function of s, analytic on the grid interval as long as
-  all inverted matrices stay invertible (enforced by the manifest conditioning rule, §2.4).
-- F2. At s = 0 the device is clean, so every Δ_j and Λ is diagonal. Every pure order mutant therefore coincides exactly with
-  the correct algorithm: D*(0) = 0.
-- F3. From F1 and F2, for a pure order mutant the exact discrepancy of a block satisfies D*(s) = ‖s^q C_q + O(s^{q+1})‖ for
-  some integer q ≥ 1 (or D* ≡ 0), so the exact local slope tends to q as s → 0.
-  - At first order the commutators reduce to [W⁰, X¹] with W⁰ diagonal. Only the off-diagonal entries of the first-order
-    terms enter, with weights (w⁰_a − w⁰_b), and w⁰_a ≠ w⁰_b because the E_perp,n are distinct. So the first-order
-    coefficient C_1 depends only on the off-diagonal part of V(1).
-  - **Whether C_1 ≠ 0 (q = 1) for a given configuration is not guaranteed** (symmetry can cancel it) and is determined
-    numerically per pair.
-- F4. In class D (diagonal V at all s), pure order mutants satisfy D*(s) ≡ 0 for all s.
-- F5. M12 is algebraically equivalent to the correct code (commuting functions of one matrix), so D*(s) ≡ 0 for all s.
-- F6. M9 (stale P) is not an ordering mutant, but D*(0) = 0: at s = 0 the clean device has W_j = w* (the lead fixed point),
-  so W_2 = W_1. It therefore scales with s in every class, **including D**. This is the control showing that s-scaling alone
-  does not identify an ordering error.
-- F7. The remaining structural mutants (M4, M4L, M4R, M10, M13, M14, M16) have D*(0) ≠ 0 generically (q = 0). M11 is off-path
-  for every N ≥ 2.
+Lattice structure:
+- L(s) is the exact lattice with V(s) = sV(1) and exact inputs.
+- Every prefix and full matrix of L is **affine** in s: M_L(s) = A0 + s·A1, with A1 = −blockdiag(V_j(1)) (physical units).
+- The leads do not depend on s.
+- R_W(s) (double Δ_fl(s) taken as exact) is **not** affine in s, because of diagonal rounding.
 
-**Empirical hypotheses** (can fail; tested on the held-out set):
-- H1 (attribution): at every grid point where the signal is resolvable (SNR ≥ 1e3), the double-precision local slope equals
-  the exact local slope to within 0.01. Any deviation from q near s = 1 is therefore algebraic (crossover), not numerical.
-- H2 (asymptotic emergence): in the preregistered weak-coupling window, the double-precision OLS slope agrees with the
-  exact asymptotic order q to within 0.02, and with the exact-data slope over the same points to within 0.005.
-- H3 (accuracy across s): the correct W/Z implementation reproduces the exact Green blocks at rounding level (within its own
-  bounds and ≤ 1e-10) at every grid point of every held-out configuration.
-- H4 (distinguishability): in class D and for M12, the double-precision discrepancy of every pure order mutant stays within
-  the noise tolerance at every s. For every meaningful order mutant, the double result tracks the exact signal within the
-  noise tolerance.
+**Mathematical facts** (validity conditions, not hypotheses):
+- **Fact 1 (rationality and analyticity).**
+  - On L(s), every reference block, every intermediate of the correct algorithm and every mutant output is rational in s,
+    and analytic wherever all inverted matrices are invertible.
+  - The correct algorithm inverts W_1 − I = SC_1, I − W_j = −SC_j and Z = SC_N (Schur complements of the prefix matrices
+    M^(j)/t and of M/t). Since det M^(j) = det M^(j−1)·det(t·SC_j), these are invertible wherever **every prefix matrix
+    M^(j) (j = 1..N−1) and the full M are invertible**.
+  - All mutants except M10 invert only these matrices, their negatives or their transposes.
+  - M10 inverts Z − (Λ − I), which is checked only pointwise.
+  - **The grid conditioning check does not prove invertibility between grid points.** Interval claims rely only on the
+    certificate of §2.4.
+- **Fact 2.** At s = 0 every Δ_j and Λ is diagonal. Pure order mutants coincide exactly with the correct algorithm.
+- **Fact 3 (order of vanishing).** Let F_m(s) be the discrepancy of the designated block X_m (mutant minus exact reference)
+  on L(s). On the common certified disk |s| ≤ r_0 (§2.4 item 3), F_m(s) = Σ_{k≥0} s^k C_k.
+  - For pure order mutants, C_0 = 0 (Fact 2).
+  - By the identity theorem, either F_m ≡ 0, or a finite smallest k = q with C_q ≠ 0 exists. Then
+    ‖F_m(s)‖_F = s^q ‖C_q‖_F (1 + O(s)) as s → 0⁺.
+  - **No upper bound on q is proven.** q is identified computationally and can be unresolved.
+- **Fact 4.** In class D, F_m ≡ 0 for every pure order mutant.
+- **Fact 5.** M12 is algebraically equivalent to the correct code: F_m ≡ 0.
+- **Fact 6.** For M9, C_0 = 0: at s = 0 the clean device has W_j = w*, so the stale and current P coincide (on L and on R_W,
+  because Δ_fl(0) = δ_lead,fl).
+- **Fact 7.** For M4, M4L, M4R, M10, M13, M14 and M16, generically C_0 ≠ 0 (q = 0).
 
-**Hypothesis for description only** (not a decision criterion): q = 1 for most ordering pairs in classes R and H. q = 2 is
-possible where a symmetry cancels C_1. The distribution of q is reported.
+**Empirical hypotheses** (tested on held-out data, per class; all exact quantities are on R_W, §4.4):
+- **Hyp1 (attribution):** at every grid point resolvable for both neighbours (SNR* ≥ 1e3), |φ_double − φ_exact| ≤ 0.01.
+- **Hyp2 (asymptotic emergence):** in Ω_asym, |p̂ − q| ≤ 0.02 and |p̂ − p̂*| ≤ 0.005.
+- **Hyp3 (W/Z accuracy):** every correct-code accuracy quantity is ≤ 1e-10 at every grid point (the fixed criterion).
+- **Hyp4 (distinguishability):** the double results of class-D order mutants and of M12 stay within the noise tolerance.
+  Structural mutants are detected wherever resolvable.
 
-## 2. Configurations: generation, classes, exploratory vs held-out
+Descriptive only: the distribution of q, the crossover scale s_× and the regime model.
 
-### 2.1 Fixed lattice (unchanged physics conventions)
+## 2. Configurations, generation and the conditioning filter
 
-- dx = 1/8 (t = 32), L_y = 1.
-- E_perp,n from `stationary.transverse_basis(1.0, N_y)` (doubles).
+### 2.1 Fixed lattice
+
+- dx = 1/8, t = 32, L_y = 1.
+- E_perp,n from `stationary.transverse_basis(1.0, N_y)`.
 - Clean leads.
-- W/Z and production definitions exactly as in `PREDICTIONS_coupled_blocks.md` §1 and §4.
+- W/Z and production definitions as in `PREDICTIONS_coupled_blocks.md` §1 and §4.
 
 ### 2.2 Dimensions and classes
 
-- N_y ∈ {2, 3, 4}.
-- N ∈ {2, 3, 4, 6}. N = 1 is excluded: no order mutant is on its code path. N = 6 gives 4 loop iterations; all assembled
-  matrices are ≤ 24 × 24.
+- N_y ∈ {2, 3, 4} and N ∈ {2, 3, 4, 6}. N = 1 has no order mutant on its code path. All matrices are ≤ 24 × 24.
 - Classes:
-  - **R:** real symmetric V_j.
-  - **H:** complex Hermitian V_j. This breaks time-reversal symmetry, is outside `wz_rgf.py`'s documented real-symmetric
-    scope, and is algebra-only for this project.
-  - **D:** diagonal V_j (control).
+  - **class R:** real symmetric. This is the documented physical scope of `wz_rgf.py`.
+  - **class H:** complex Hermitian. This is an algebraic stress test only.
+  - **class D:** diagonal (control).
 
 ### 2.3 Random matrix generation (exact dyadic values)
 
-Root entropies are fixed now, before any generation:
+Root entropies (fixed): set XP **202611110001**; set HO **202611110002**; bootstrap **202611110003**.
 
-| set | role | root entropy |
-|---|---|---|
-| X | exploratory | 202611110001 |
-| C | confirmatory / held-out | 202611110002 |
+Per configuration index idx (manifest order of §2.6), the generator is
+`numpy.random.Generator(numpy.random.PCG64(numpy.random.SeedSequence(entropy=ROOT, spawn_key=(idx, attempt))))`.
 
-Per configuration index k (0-based, in the manifest order of §2.5):
-- The generator is `numpy.random.Generator(numpy.random.PCG64(numpy.random.SeedSequence(entropy=ROOT, spawn_key=(k, attempt))))`.
-- `attempt` = 0, 1, 2, … is incremented only by the deterministic rejection rule of §2.4.
-
-The draw order is fixed and must not change:
+Fixed draw order:
 1. `n_open = gen.integers(1, N_y + 1)`.
-2. `u = gen.random()` (energy fraction; §2.4).
-3. For j = 1..N, in order:
-   - `R_j = gen.integers(-8, 9, size=(N_y, N_y))`;
-   - `I_j = gen.integers(-8, 9, size=(N_y, N_y))` (drawn for every class, so the stream is class-independent; used only for
-     class H).
+2. `u = gen.random()`.
+3. For j = 1..N:
+   - `Jr_j = gen.integers(-8, 9, size=(N_y, N_y))`;
+   - `Ji_j = gen.integers(-8, 9, size=(N_y, N_y))` (always drawn).
 
-Matrix construction (exact in double):
-- B_j = (R_j + i·I_j·[class H])/8, so every entry is a multiple of 1/8 in [−1, 1].
-- V_j(1) = v0 · (B_j + B_jᴴ)/2 with **v0 = 8**. Entries are multiples of 1/2 in [−8, 8].
-- Class D: zero every off-diagonal entry of V_j(1) after symmetrization.
-- Classes R and D: V_j(1) is real. Class H: Hermitian with a nonzero imaginary part.
-- V_j(s) = s·V_j(1), with s from the dyadic grid (§3), so it is exact.
+Matrix construction:
+- B_j = (Jr_j + i·Ji_j·[class H])/8.
+- V_j(1) = v0·(B_j + B_jᴴ)/2 with **v0 = 8**. Entries are multiples of 1/2 in [−8, 8].
+- Class D: zero the off-diagonal entries.
+- V_j(s) = s·V_j(1), exact for dyadic s.
 
-Why v0 = 8 (design rationale, not tuned to any result):
-- At s = 1 it gives |V dx²| ≤ 1/8 entrywise and ‖V dx²‖₂ ≲ N_y/8 ≤ 0.5.
-- That is comparable to the channel spacings of δ (≈ 0.05–1), so s = 1 lies in a strong-coupling regime. This is required
-  to probe RQ1.
+v0 = 8 places s = 1 in a strong-coupling regime (a design choice for RQ1, not tuned).
 
-### 2.4 Energy rule and deterministic rejection
+### 2.4 Acceptance filter (deterministic; on failure, increment `attempt` and redraw everything)
 
-- Window: E ∈ (E_perp,n_open, E_upper), with E_upper = E_perp,n_open+1, or E_perp,1 + 64·(2 − δ_min) if n_open = N_y.
-- E = round(64·(E_lo + u·(E_upper − E_lo)))/64 (a dyadic grid of 1/64).
-- Accept only if every channel satisfies |δ_n| ≥ δ_min = 0.02 and δ_n ≤ 2 − δ_min, with δ_n = (E − E_perp,n)dx².
-- **Conditioning rule (design-time, from direct inverses only, never from any recursion or solver).** On every grid point
-  s, the following must all be ≤ 1e3:
-  - cond₂(M(s)),
-  - cond₂(M^(j)(s)) for j < N,
-  - cond₂(I − W_j(s)), with W_j taken from the prefix inverses,
-  - cond₂(Z_N(s)) = cond₂([(M/t)⁻¹]_NN⁻¹).
-- On failure of any rule, increment `attempt` and redraw everything for that k.
-- No selection on commutator size, slopes or mutant signals is allowed.
+1. **Energy rule.**
+   - The window is E ∈ (E_perp,n_open, E_upper), with E_upper = E_perp,n_open+1, or E_perp,1 + 64·(2 − δ_min) if
+     n_open = N_y.
+   - E = rhe(64·(E_lo + u·(E_upper − E_lo)))/64, evaluated in **exact rational arithmetic** from the double values of
+     E_lo, E_upper and u. rhe is round-half-to-even to the nearest integer.
+   - Every channel must satisfy |δ_n| ≥ δ_min = 0.02 and δ_n ≤ 2 − δ_min, where δ_n = (E − E_perp,n)dx².
+2. **Grid conditioning** (direct inverses only; empirical filter). At every grid point s, on both L(s) and R_W(s), each of the
+   following must be ≤ 1e3: cond₂(M), cond₂(M^(j)), cond₂(SC_j) (from prefix inverses), cond₂(Z), and cond₂(Z − (Λ − I))
+   (the M10 matrix).
+3. **Continuous-interval invertibility certificate on [0, 1]** (validated, on L(s); method in §2.4.1).
+   - Matrices: every A(s) ∈ {M_L(s), M_L^(j)(s), j = 1..N−1}, each affine, A(s) = A(s_κ) + (s − s_κ)A1.
+   - At a certification point s_κ, §2.4.1 either returns validated rational bounds a_κ ≥ ‖A(s_κ)⁻¹‖₂, h_κ ≥ ‖A(s_κ)‖₂ and
+     b ≥ ‖A1‖₂, or reports s_κ as **uncertified**.
+   - **Neumann step** (operator 2-norm; real or complex s): if |s − s_κ|·a_κ·b < 1, then A(s) is invertible and
+     ‖A(s)⁻¹‖₂ ≤ a_κ/(1 − |s − s_κ| a_κ b).
+   - **Half radius:** r_κ = 1/(2a_κ b), an exact rational (a_κ > 0 because ω_κ < 1 implies Y_κ ≠ 0). On |s − s_κ| ≤ r_κ:
+     ‖A(s)⁻¹‖₂ ≤ 2a_κ, ‖A(s)‖₂ ≤ h_κ + r_κ b, and cond₂(A(s)) ≤ 2a_κ(h_κ + r_κ b).
+   - **b = 0** (equivalently A1 = 0, §2.4.1 step 7):
+     - A(s) ≡ A(s_κ) for all s, and r_κ := +∞ is used only in the coverage comparisons, never multiplied by b.
+     - One certified point certifies all of [0, 1], with bounds a_κ and h_κ.
+     - The expression 1/(2a_κ b) is never evaluated.
+   - **Certification points and coverage (certified points only):**
+     - Initial points: s = 0, the 81 grid points (§3) and s = 1, all exact dyadics.
+     - Every point is evaluated by §2.4.1. **Uncertified points are discarded. They are never assigned a radius, in
+       particular not r = 0, which would wrongly assert invertibility at that point.**
+     - Let s_(1) < … < s_(K) be the certified points. Coverage of [0, 1] holds iff all of:
+       - s_(1) − r_(1) ≤ 0;
+       - s_(K) + r_(K) ≥ 1;
+       - s_(i+1) − s_(i) ≤ r_(i) + r_(i+1) for every consecutive certified pair.
+       These are exact rational comparisons, with +∞ handled symbolically.
+     - Every uncovered gap (between consecutive certified points, or at an end) is bisected at its dyadic midpoint. New
+       uncertified midpoints are discarded likewise. The limits are a depth of 30 per gap and 2000 certification points per
+       matrix.
+   - **Accept only if [0, 1] is covered for every matrix A.** Then every listed matrix is invertible for **every** s ∈ [0, 1],
+     with the recorded validated bounds. Record the validated continuous cond bound and the minimum r_κ.
+   - **Common Taylor radius (Fact 3, §5.2).** For each matrix A, its s = 0 certificate (which must be certified; otherwise
+     0 has no Taylor disk and the configuration fails the filter, even if 0 is covered by a neighbouring point; logged as
+     R3.20) gives r_0,A = 1/(2a_A,0 b_A), or +∞ if b_A = 0. Define
+     **r_0 := min_A r_0,A = 1/(2β)** with β := max_A a_A,0 b_A (r_0 = +∞ iff β = 0).
+     - Every matrix entering any oracle is invertible on the complex disk |s| ≤ r_0, and its Neumann series converges there
+       absolutely, with |s|·a_A,0 b_A ≤ 1/2.
+   - **Not certified continuously:** R_W(s) (pointwise checks only) and the M10 matrix (pointwise only).
 
-### 2.5 Configuration sets
+#### 2.4.1 Validated method for the inverse-norm bound
 
-Order of generation: for set X, then set C, the configuration index k enumerates N_y ∈ (2, 3, 4) → class ∈ (R, H, D) →
-N ∈ (2, 3, 4, 6) → draw d.
+**Exact representation of the inputs.**
+- Every double is a dyadic rational: E, E_perp,n, V_j(1), s, dx² = 2⁻⁶ and t = 32.
+- Every entry of A(s) is an exact dyadic rational, except the lead terms tλ_n (from −Σ = tλ). Here γ_n = 1 − δ_n is exact and:
+  - open channel (|γ_n| < 1): λ_n = γ_n + i√ξ_n with ξ_n = 1 − γ_n²;
+  - closed channel (γ_n > 1): λ_n = γ_n − √ξ_n with ξ_n = γ_n² − 1.
+  - γ_n < −1 and |γ_n| = 1 are excluded by the energy rule, so ξ_n > 0 is an exact rational.
+- **Enclosure.**
+  - Bounds (exact `math.isqrt`): lo_n = isqrt(⌊ξ_n·4^ℓ⌋)/2^ℓ ≤ √ξ_n ≤ hi_n = (isqrt(⌈ξ_n·4^ℓ⌉) + 1)/2^ℓ.
+  - Width: 2^−ℓ ≤ hi_n − lo_n ≤ 2^(1−ℓ), because isqrt(n + 1) ≤ isqrt(n) + 1.
+  - The midpoint μ̃_n = (lo_n + hi_n)/2 replaces √ξ_n, giving λ̃_n, with a rigorous radius
+    e_n := (hi_n − lo_n)/2 ∈ [2^−(ℓ+1), 2^−ℓ] ⊂ (0, 2⁻²⁵⁵] on the imaginary (open) or real (closed) part.
+- **Lead perturbation, per matrix type** (A = A_mid + A_e; A_e is diagonal and s-independent):
+  - full M, N ≥ 2: slice 1 and slice N each contribute A_e,nn = t(λ_n − λ̃_n), with |A_e,nn| ≤ t·e_n.
+    ε_A := ū(2·Σ_n (t e_n)²).
+  - full M, N = 1: one block receives both leads, A_e,nn = 2t(λ_n − λ̃_n). ε_A := ū(Σ_n (2t e_n)²).
+  - prefix M^(j), 1 ≤ j ≤ N − 1: only slice 1 (left lead). ε_A := ū(Σ_n (t e_n)²).
+  - In every case ‖A_e‖_F ≤ ε_A.
+  - The lead roots are those of the lattice concerned: δ_L for L; δ_lead,fl for R_W.
+  - R_orig has no enclosed lead (σ_code are doubles), so A_e = 0 and ε_A = ū(0) = 0.
+- A1 is exactly dyadic and s-independent.
 
-| set | classes R, H | class D | configurations |
-|---|---|---|---|
-| X (exploratory) | 3 N_y × 2 classes × 4 N × 2 draws = 48 | 3 N_y × 4 N × 1 draw = 12 | 60 |
-| C (held-out, confirmatory) | 3 × 2 × 4 × 4 draws = 96 | 3 × 4 × 2 draws = 24 | 120 |
+**Approximate inverse with an exactly computed residual.**
+1. **Y_κ** is the approximate inverse of A_mid(s_κ) computed by mpmath at working precision p bits (dps 60, p = 203; dps 120
+   on retry, p = 402).
+   - Y_κ is defined as **the exact dyadic value of each mpmath entry** (mpf/mpc values are dyadic with ≤ p-bit mantissas).
+   - There is **no further rounding**: the mantissa precision of Y_κ equals the working precision.
+   - So the validated object is exactly the matrix used in every subsequent comparison (§4.7). How Y_κ was obtained is
+     irrelevant to rigor.
+2. **Ξ_κ** = I − A_mid(s_κ)·Y_κ, computed **exactly** in dyadic integer arithmetic (Python integers or `fractions.Fraction`;
+   no floating point).
+3. Exact rationals: f_Ξ = ‖Ξ_κ‖_F² (complex entries: re² + im²), f_Y = ‖Y_κ‖_F², f_mid = ‖A_mid(s_κ)‖_F² and
+   f_1 = ‖A1‖_F².
+4. **Upper square root** for rationals f ≥ 0, piecewise: ū(0) := 0; ū(f) := (isqrt(⌈f·4^ℓ⌉) + 1)/2^ℓ for f > 0.
+   - For f > 0: with N_f = ⌈f·4^ℓ⌉ ≥ f·4^ℓ, isqrt(N_f) + 1 > √N_f ≥ 2^ℓ√f, so ū(f) > √f > 0.
+   - So ū(f) ≥ √f for all f ≥ 0, and ū(f) = 0 iff f = 0. The branch is decided by an exact comparison with 0.
+5. **ω_κ** := ū(f_Ξ) + ε_A·ū(f_Y). Since I − A(s_κ)Y_κ = Ξ_κ − A_e·Y_κ,
+   ‖I − A(s_κ)Y_κ‖₂ ≤ ‖Ξ_κ‖_F + ‖A_e‖_F‖Y_κ‖_F ≤ ω_κ.
+6. If ω_κ < 1 (an exact comparison):
+   - A(s_κ)Y_κ = I − R′ with ‖R′‖₂ ≤ ω_κ < 1, so A(s_κ) is invertible, and A(s_κ)⁻¹ = Y_κ(I − R′)⁻¹.
+   - Then ‖A(s_κ)⁻¹‖₂ ≤ ‖Y_κ‖₂/(1 − ω_κ) ≤ **a_κ := ū(f_Y)/(1 − ω_κ)**.
+   - This uses the operator 2-norm (‖I‖₂ = 1). Frobenius norms are used only as upper bounds of 2-norms.
+7. **h_κ** := ū(f_mid) + ε_A ≥ ‖A(s_κ)‖₂, and **b** := ū(f_1) ≥ ‖A1‖₂.
+   - Since A1 is exact, f_1 = 0 iff A1 = 0, so **b = 0 iff A1 = 0**.
+   - b is computed per matrix: a prefix whose slices 1..j all have V(1) = 0 takes the b = 0 branch even if the full matrix
+     does not.
+   - Zero-branch consequences:
+     - f_Ξ = 0 gives ω_κ = ε_A·ū(f_Y), which is valid.
+     - f_Y = 0 means Y_κ = 0, so Ξ_κ = I, ω_κ ≥ √n_tot ≥ 1, and the point is uncertified.
+     - f_mid = 0 would give Ξ_κ = I and an uncertified point, so this branch never produces a bound (it is vacuous).
+   - **On ε_A:**
+     - ε_A = 0 ⟹ A_e = 0, because ‖A_e‖_F ≤ ε_A. **The converse is not claimed.** ε_A is built from the enclosure radii, not
+       from the actual error.
+     - In this design the converse situation cannot occur. Every enclosed lead has e_n ≥ 2^−(ℓ+1) > 0, and A_e ≠ 0 as well:
+       - λ̃_n = λ_n would require √ξ_n to equal the midpoint (2k + 1)/2^(ℓ+1) for an integer k, i.e.
+         ξ_n = (2k + 1)²/4^(ℓ+1), with a denominator of 2^514;
+       - but ξ_n is built from E (multiples of 1/64), the doubles E_perp,n and dx² = 2⁻⁶, so its denominator is at most
+         about 2^130;
+       - and when √ξ_n is itself dyadic (e.g. γ_n = 0, ξ_n = 1), the midpoint misses by 2^−(ℓ+1).
+     - So ε_A > 0 and A_e ≠ 0 for L and R_W, while ε_A = 0 and A_e = 0 for R_orig.
+     - Every use of ε_A needs only ‖A_e‖_F ≤ ε_A.
+   - No division by ū(·) occurs. The only divisions are by 1 − ω_κ > 0 and by 2a_κ b with a_κ, b > 0.
+8. If ω_κ ≥ 1: retry once with Y_κ at dps 120. If it is still ≥ 1, s_κ is **uncertified** and is discarded (§2.4 item 3).
 
-There is also an optional legacy diagnostic set (G), excluded from every decision:
-- the 4 previous scaling base configurations (e2b/R/N3, e2b/R/N4, e3b/R/N3, e3b/R/N4, with their original V_j(1) and
-  energies) on the v2 grid;
-- it serves RQ1 descriptively only, and **does not re-score or alter the previous experiment's decision**;
-- it may be dropped at implementation time without consequence.
+**Rounding coverage.** Steps 2–7 are exact rational arithmetic. The only approximations are the two square-root enclosures,
+which are rigorous by construction. No floating-point value enters an inequality except through Y_κ, which is used as an
+exact dyadic matrix. Rigor rests on:
+- (i) the inequalities above;
+- (ii) Python's exact integer arithmetic and `math.isqrt`;
+- (iii) implementation correctness, addressed by T1–T5 and R0.
+
+**Validity on the interval.** Given validated a_κ, b and h_κ, the Neumann step holds for every real or complex s with
+|s − s_κ| ≤ r_κ. Coverage is decided exactly, so the bounds hold for every s ∈ [0, 1].
+
+**Alternative considered.**
+- Directed-rounding interval arithmetic (`mpmath.iv`, real `ivmpf` and complex `ivmpc`) would also be valid.
+- It is not selected, because:
+  - it depends on library directed rounding for complex operations;
+  - wrapping inflates enclosures with n_tot;
+  - it still needs a validated interval-matrix norm.
+- It may serve as an optional cross-check of a_κ, with no decision role.
+
+**Failure and cost policy.**
+- If [0, 1] is not covered for some matrix within the depth and point budget, the configuration fails the acceptance filter
+  and is redrawn. This is recorded.
+- If the certificate is infeasible for the manifest as a whole, no empirical fallback is allowed. A new design revision is
+  required.
+4. **Prohibited selection.** No selection on commutators, mutant signals, slopes or any solver output.
+5. **Redraw cap.**
+   - At most **attempt = 0 … 9999** (10,000 attempts) per configuration index. This value is a design choice, not derived;
+     see §9.
+   - If the cap is reached for any idx, manifest generation **aborts**. No partial manifest is committed, no index is
+     skipped and no sample count is reduced.
+   - The experiment is then **not run**, and its outcome is **DESIGN INSUFFICIENT (pre-run: the preregistered sample cannot
+     be drawn under the filter)**. Any continuation requires a new design revision.
+
+#### 2.4.2 Certificate and assembly self-tests (T1–T5)
+
+All five tests are **deterministic**: fixed exact inputs, exact arithmetic, no random draws. They must all pass **before the
+manifest is generated**. Any failure means the certificate code is not used and the manifest is not generated. Each test is
+part of the R0 review.
+
+**T1 — validated inverse bound.**
+- **Property.** For an exact matrix A with known inverse:
+  - ω < 1 implies a ≥ ‖A⁻¹‖₂;
+  - h ≥ ‖A‖₂ and b ≥ ‖A1‖₂;
+  - ω ≥ 1 yields "uncertified" and **no** bound.
+- **Inputs (exact):**
+  - (a) A = diag(2, −3, 1/2);
+  - (b) A = 2·Perm, with Perm the 4 × 4 cyclic permutation;
+  - (c) A = [[1+i, 1/2],[0, 1−i]];
+  - (d) Y deliberately poor: Y = A⁻¹/2 for case (a), so Ξ = I/2 and ‖Ξ‖_F = √3/2 < 1, giving a valid but loose bound; and
+    Y = A⁻¹/2 for case (b), n_tot = 4, ‖Ξ‖_F = 1, which must be uncertified;
+  - (e) Y = 0, which must be uncertified;
+  - (f) the full-M and prefix lead-enclosure paths, using an L-lattice matrix at s = 0 with N_y = 2 and N ∈ {1, 2, 6} (N = 1
+    tests the 2t·e_n rule), plus a 24 × 24 case (N_y = 4, N = 6).
+- **Independent reference:**
+  - for (a)–(e): exact closed forms of ‖A⁻¹‖₂ and ‖A‖₂. For the 2 × 2 case, the squared singular values satisfy
+    σ²_max = (F + √(F² − 4|det|²))/2 with F = ‖·‖_F². The check a ≥ σ_max is then done exactly via
+    (2a² − F)² ≥ F² − 4|det|² with 2a² − F ≥ 0.
+  - for (f): an mpmath SVD at dps 300, accepted only as a numerical reference with margin 10^−290·σ_ref. This is the
+    identity-threshold convention 10^−(dps−10).
+- **Success:** every returned bound ≥ the reference (exactly, or beyond the stated margin for (f)); every case predicted
+  uncertified is reported uncertified; ω, a and h are computed as exact rationals (checked by type).
+- **Failure:** any bound below the reference; any certification with ω ≥ 1; any floating-point value inside an inequality.
+- **Edge cases:** exact inverse (Ξ = 0, so ω = ε_A·ū(f_Y)); ε_A = 0 (no leads); N = 1.
+
+**T2 — no certification across singularities.**
+- **Property.** No certified interval or disk contains a point where the matrix is singular. For a family singular on
+  [0, 1], coverage is reported failed and the configuration is rejected.
+- **Inputs (exact affine families):**
+  - (a) A(s) = diag(1 − 2s, 1): singular at 1/2, a dyadic point that is also a bisection midpoint;
+  - (b) A(s) = diag(1 − 3s, 1): singular at 1/3, non-dyadic;
+  - (c) A(s) = diag(s, 1): singular at 0;
+  - (d) A(s) = diag(1 − s, 1): singular at 1;
+  - (e) 24 × 24: A(s) = I − 3s·e_1e_1ᵀ, singular at 1/3;
+  - (f) A(s) = [[1 − 2s, 2⁻¹⁰],[−2⁻¹⁰, 1 − 2s]]: invertible on the real line, singular at s = 1/2 ± i·2⁻¹¹;
+  - (g) a constant singular matrix (b = 0, A0 = diag(0, 1)).
+- **Independent reference:** the exact singular points. For each certified point check r_κ < |s_κ − s_sing| exactly. For the
+  complex singular points (f), compare squares: r_κ² < (s_κ − 1/2)² + 2⁻²².
+- **Success:**
+  - (a)–(e) and (g): coverage fails and no certified interval contains the singular point;
+  - (f): every certified disk excludes both complex singular points. Coverage of the real interval may succeed, and the
+    Taylor radius r_0 at s = 0 must satisfy r_0 < |s_sing|.
+- **Failure:** any certified interval or disk that contains a singular point, or coverage reported for (a)–(e) or (g).
+- **Edge cases:** a singular point coinciding with an initial grid point (a), with an endpoint (c, d), or with no dyadic
+  point at all (b, e).
+
+**T3 — lead-root enclosure.**
+- **Property:**
+  - lo_n² ≤ ξ_n ≤ hi_n² (exact);
+  - 2^−ℓ ≤ hi_n − lo_n ≤ 2^(1−ℓ);
+  - correct branch: open λ is imaginary-part enclosed with |λ| = 1, checked exactly as γ_n² + lo_n² ≤ 1 ≤ γ_n² + hi_n²;
+    closed λ ∈ (0, 1);
+  - e_n > 0;
+  - A_e ≠ 0 in every case (§2.4.1 step 7).
+- **Inputs (exact rational δ):**
+  - 1/50, −1/50, 99/50 (= 2 − δ_min), 1 (γ = 0, ξ = 1: exact dyadic square, open branch), 1/2, −1/2;
+  - −1/4 (γ = 5/4, ξ = 9/16, √ξ = 3/4: exact dyadic square, closed branch). An open-branch ξ = 1/4 is unreachable for
+    rational γ (it would need γ² = 3/4), so it is not used;
+  - δ_n values for one fixed N_y = 4 configuration specified in the test file by explicit integers.
+- **Independent reference:** the exact rational inequalities above (no floating point). Supplementary: an mpmath dps-300
+  evaluation of λ_n lies in the enclosure.
+- **Success:** all exact inequalities hold; the branch is correct; e_n > 0; λ̃_n ≠ λ_n.
+- **Failure:** any violated inequality, a wrong branch, e_n = 0, or a midpoint equal to the root.
+- **Edge cases:** exact dyadic squares, ξ_n close to 0 (δ = ±0.02), the band edge δ = 1.98.
+
+**T4 — the b = 0 path.**
+- **Property:**
+  - ū(0) = 0 exactly, and ū(f)² > f for f > 0;
+  - a matrix with A1 = 0 is certified on [0, 1] from a single point, with r = +∞;
+  - neither 1/(2a_κ b) nor r_κ·b is evaluated when b = 0;
+  - a prefix matrix with b = 0 is handled while the full matrix has b ≠ 0.
+- **Inputs:**
+  - ū at f ∈ {0, 1, 2, 1/4, 2⁻⁶⁰⁰};
+  - A(s) = diag(2, 3) with A1 = 0;
+  - an N = 2, N_y = 2 L-lattice configuration with V_1(1) = 0 and V_2(1) ≠ 0 (fixed integers).
+- **Independent reference:** exact arithmetic. **Instrumentation:** the implementation raises an exception if 1/(2a_κ b) or
+  r_κ·b is evaluated with b = 0. The test asserts that no exception occurs and that the b = 0 flag is set for the right
+  matrices.
+- **Success:** all of the above hold.
+- **Failure:** ū(0) ≠ 0, an instrumented exception, a wrong b = 0 flag, or more than one certification point used for a
+  constant matrix.
+- **Edge cases:** f = 0; tiny f > 0; prefix-only b = 0.
+
+**T5 — exact-rational assembly** (A_mid(s), A1, and the R_W and R_orig reference matrices).
+- **Property:**
+  - the certificate and the validated references are assembled **exactly** from the exact rational values of the inputs:
+    - L: E, E_perp,n, V(1), s, t, dx² and the enclosure midpoints;
+    - R_W: the double Δ_fl taken exactly;
+    - R_orig: the production double arrays `E*eye − H[j]` and σ_code taken exactly;
+  - **no floating-point intermediate is permitted anywhere**.
+- **Inputs:**
+  - three fixed configurations (N_y = 2, 3, 4; N = 1, 2, 6), given by explicit integer arrays Jr_j and Ji_j and explicit
+    dyadic E;
+  - s ∈ {0, 1, 3/4, 2⁻⁴⁰, 3·2⁻⁴²}.
+- **Independent reference:** a second assembly routine, written separately from the definition M = E − H − Σ_L ⊕ Σ_R using
+  `fractions.Fraction` only.
+- **Type checks:** the assembly accepts only `int`/`Fraction` inputs and must raise on any `float`. The test passes a float
+  and expects rejection.
+- **Exactness check:** A_mid(2⁻⁴⁰) − A_mid(0) = −2⁻⁴⁰·blockdiag(V(1)) exactly. This term would be lost if s·V_aa were
+  added to E − E_perp in double.
+- **Success:** entrywise exact equality with the independent assembly; no float object in any intermediate; float input
+  rejected; the exactness check holds.
+- **Failure:** any mismatch, any float intermediate, or acceptance of a float input.
+- **Edge cases:** N = 1 (both leads on one block); prefix matrices; s = 0; the smallest grid s.
+
+### 2.5 Conditional sampling (explicit limitation)
+
+The accepted configurations are draws **conditional on passing §2.4**.
+
+Consequences:
+- Every claim refers to that conditional population only.
+- Poorly conditioned, near-singular, resonant, bound-state-adjacent and near-threshold (|δ_n| < 0.02) devices are
+  systematically excluded. Nothing can be inferred about them.
+
+Recorded and reported, never used to choose thresholds:
+- the rejection log;
+- the rejection rate per stratum (N_y, class, N);
+- the validated minimum r_κ per configuration;
+- the validated continuous cond bound per configuration.
+
+### 2.6 Configuration sets
+
+Index order: N_y ∈ (2, 3, 4) → class ∈ (R, H, D) → N ∈ (2, 3, 4, 6) → draw d.
+
+| set | class R | class H | class D | total |
+|---|---|---|---|---|
+| XP (exploratory) | 3 × 4 × 2 = 24 | 24 | 3 × 4 × 1 = 12 | 60 |
+| HO (held-out) | 3 × 4 × 4 = 48 | 48 | 3 × 4 × 2 = 24 | 120 |
 
 ## 3. Coupling grid
 
-- **Grid:** s ∈ {2⁻ᵏ : k = 0..40} ∪ {3·2⁻⁽ᵏ⁺²⁾ : k = 0..39}, i.e. 1, 0.75, 0.5, 0.375, 0.25, …, 2⁻⁴⁰.
-  - That is 81 points, with alternating steps of 4/3 and 3/2 (about 6.6 points per decade).
-  - Every point is dyadic, so s·V_j(1) is exact in double. This is why non-dyadic values such as 10⁻ᵏ or 2^(−k/2) are not
-    used.
-  - s = 1 is a diagnostic point.
-- **Lower edge 2⁻⁴⁰ ≈ 9.1e-13 (justified by precision, not convenience):**
-  - The double-precision noise level used for SNR is N_X(s) ≥ τ_abs ≥ 1e-13·‖Ĝ_full‖₂ (§4.3).
-  - For an order-1 signal D* ≈ |C_1|·s with |C_1| ≤ 1 (the expected scale for dimensionless Ĝ with ‖Ĝ‖ = O(1) and
-    ‖V dx²‖ ≤ 0.5; an assumption), SNR falls below 10 before s = 2⁻⁴⁰.
-  - The grid therefore deliberately extends **past** the detectability limit, so that the transition into the noise floor
-    is observed (RQ4), rather than ending where signals are still strong.
-  - Going further down is pointless in double: also at 2⁻⁴⁰, the diagonal part of s·V dx² (~5e-14) is still represented
-    in Δ_fl with relative rounding ~1e-3, which the represented lattice R_W accounts for exactly (§4.4).
-- **Exact asymptote points (mp only, not double):** s ∈ {2⁻⁹⁰, 2⁻⁹⁵, 2⁻¹⁰⁰}, evaluated on the exact lattice L(s) at dps 120.
-  - These give q and |C_q| without any double rounding.
-  - At these s the double representation cannot carry the perturbation, so they are never used for double-precision data.
-- **Crossover detection:** see §5.4. It uses the exact profile on the full grid. The grid density (≈ 6.6/decade) resolves a
-  10 % deviation from first-order behaviour to within a factor 1.5 in s.
-- **No grid choice uses previous slopes.** The previous grid points (1, 2⁻⁴, 2⁻⁸, 2⁻¹²) are contained in this grid only
-  because the grid is dense.
+- **Grid:** s ∈ {2⁻ᵏ : k = 0..40} ∪ {3·2⁻⁽ᵏ⁺²⁾ : k = 0..39}. That is 81 dyadic points (about 6.6 per decade). s = 1 is a
+  diagnostic point.
+- **Lower edge:**
+  - ν_X ≥ τ_abs ≥ 1e-13·‖Ĝ_full‖₂ (§4.5). For an order-1 signal with |C_1| ≤ 1 (Asm2, used only for sizing), SNR* < 10
+    before 2⁻⁴⁰. The grid therefore extends past the detectability limit.
+  - At 2⁻⁴⁰ the diagonal s-part of Δ_fl is still represented, with relative rounding ~1e-3. R_W accounts for this exactly.
+- **Asymptotic order:** from Taylor coefficients (§5.2), not from grid points.
+- **Crossover:** §5.4. No grid choice uses previous slopes.
 
-## 4. Quantities, references and numerical controls
+## 4. Quantities, references, mutant oracle and numerical controls
 
 ### 4.1 Solvers and exact computations per (configuration, s)
 
-- **A:** `wz_rgf.wz_endpoint_blocks` and `wz_fisher_lee` (read-only).
-  - Plus the instrumented copy `wz_mutants.wz_instrumented` (unchanged file from `63e046d`), which must be bit-identical
-    at the four endpoint blocks.
-  - Double mutants come from the same file, unmodified.
-- **B:** production `stationary.scattering_matrix(E, dev, min_closed=0)` on a directly built `Device`, for an accuracy
-  comparison only.
-- **C (reference):**
-  - The direct mpmath inverse of the full block-tridiagonal matrix, assembled from its definition. Σ_L and Σ_R are added
-    as two separate operations at slices 1 and N.
-  - Built for the represented lattices L(s), R_W(s) and R_orig(s) exactly as in `PREDICTIONS_coupled_blocks.md` §4, at
-    dps 60.
-  - Prefix references come from the same routine without Σ_R.
-  - No recursion code is used for C.
-- **D\* (exact mutant signal):** a **new mpmath transcription** of every mutant, run on R_W(s) at dps 60 (the same lattice
-  the double code sees) and on L(s), compared with C of the same lattice.
-  - Agreement of the transcription with the double mutants at SNR-adequate points is a validity condition (§4.5), which
-    guards against transcription errors.
-  - Residual risk: both are written by the same author (§9).
+- **WZ solver:** `wz_rgf.wz_endpoint_blocks` and `wz_fisher_lee` (read-only).
+  - Plus the instrumented copy `wz_mutants.wz_instrumented` (unchanged from `63e046d`), which must be bit-identical at the
+    four endpoint blocks.
+  - The double mutants come from `wz_mutants.py`, unmodified.
+- **orig solver:** production `stationary.scattering_matrix(E, dev, min_closed=0)` on a directly built `Device`. Accuracy is
+  reported only; no decision weight.
+- **Ref(·):** the direct mpmath inverse of the full block-tridiagonal matrix, assembled exactly (T5), with Σ_L and Σ_R added
+  separately.
+  - Built for L, R_W and R_orig at dps 60, with escalation to dps 120.
+  - Prefix references: the same routine without Σ_R.
+  - No recursion code is used.
+- **Oracle D*_oracle:** the closed forms of §4.2 from the exact prefix and full inverses, on R_W (primary) and on L.
+- **Transcription:** a clean-room mpmath transcription of every mutant (§4.3), on R_W and L.
 
-### 4.2 Fitted error quantity (fixes G2 and G3)
+### 4.2 Exact algebraic change of every mutant, and the specification-derived oracle
 
-For each mutant m, a single designated block X_m is fixed in advance (the endpoint block it reaches first):
+Notation (exact, from direct inverses of R_W or L, in Ĝ units):
+- Ĝ^(j)_ab is a block of (M^(j)/t)⁻¹, and Ĝ_ab is an endpoint block of (M/t)⁻¹.
+- P_j = −Ĝ^(j)_jj, and P_1 := (I − W_1)⁻¹ = −Ĝ^(1)_11.
+- χ_j = Ĝ^(j)_j1, ψ_j = Ĝ^(j)_1j, θ_j = ψ_{j−1}P_jχ_{j−1}.
+- Z⁻¹ = Ĝ_NN.
+- **W_j = I + SC_j**, with SC_1 = A_11/t (slice 1 including the left lead) and SC_j = A_jj/t − Ĝ^(j−1)_{j−1,j−1} for j ≥ 2.
+  This is algebraically identical to I + (Ĝ^(j)_jj)⁻¹, and is the form used for validated references (§4.7).
+- Σ_j sums over the loop slices j = 2..N−1.
 
-| mutants | X_m |
+Correct code (`wz_mutants.py`, `mutant=None`, identical to `wz_rgf.wz_endpoint_blocks`):
+- init: `W = 2Δ_1 + Lm`; `G11 = solve(W − I, I)`; `Gj1 = G1j = G11`.
+- loop: `W = 2Δ_j + solve(I − W, W)`; `P = solve(I − W, I)`; `G11 = G11 − G1j@P@Gj1`; `Gj1 = P@Gj1`; `G1j = G1j@P`.
+- closing: `Z = 2Δ_N + Lm + solve(I − W, W)`; `Zi = solve(Z, I)`; `G11 = G11 + G1j@Zi@Gj1`; `GN1 = −Zi@Gj1`;
+  `G1N = −G1j@Zi`; `GNN = Zi`.
+
+| mutant | exact code change (`wz_mutants.py`) | designated block X_m | oracle: exact mutant value of X_m |
+|---|---|---|---|
+| M1 | `Gj1 = Gj1@P` | Ĝ_N1 | −Z⁻¹ Ĝ^(1)_11 P_2 P_3 ⋯ P_{N−1} (indices increasing left to right) |
+| M2 | `G1j = P@G1j` | Ĝ_1N | −(P_{N−1} P_{N−2} ⋯ P_2 Ĝ^(1)_11) Z⁻¹ |
+| M3 | M1 and M2 | Ĝ_N1 | as M1 |
+| M4 | chains updated first, then `G11 = G11 − G1j@P@Gj1` | Ĝ_11 | Ĝ_11 − Σ_j ψ_{j−1}(P_j³ − P_j)χ_{j−1} |
+| M4L | `Gj1 = P@Gj1` before the G11 update; `G1j` after | Ĝ_11 | Ĝ_11 − Σ_j ψ_{j−1}(P_j² − P_j)χ_{j−1} |
+| M4R | `G1j = G1j@P` before the G11 update; `Gj1` after | Ĝ_11 | as M4L |
+| M5 | `G11 = G11 − Gj1@P@G1j` | Ĝ_11 | Ĝ_11 − Σ_j (χ_{j−1}P_jψ_{j−1} − θ_j). The j = 2 term is 0 |
+| M6 | `GN1 = −(Gj1@Zi)` | Ĝ_N1 | −χ_{N−1} Z⁻¹ |
+| M7 | `G1N = −(Zi@G1j)` | Ĝ_1N | −Z⁻¹ ψ_{N−1} |
+| M8 | `G11 = G11 + Gj1@Zi@G1j` (closing) | Ĝ_11 | Ĝ_11 + χ_{N−1}Z⁻¹ψ_{N−1} − ψ_{N−1}Z⁻¹χ_{N−1}. Zero change at N = 2 |
+| M9 | `P = solve(I − W_old, I)` before the W update | Ĝ_N1 | −Z⁻¹·(P_{N−2} P_{N−3} ⋯ P_2 P_1)·Ĝ^(1)_11: the ordered product Π_{k=N−2 down to 1} P_k, indices decreasing left to right. For N = 3 it is the single factor P_1, giving −Z⁻¹P_1Ĝ^(1)_11 |
+| M10 | `Z = 2Δ_N + solve(I − W, W)` (Lm dropped) | Ĝ_NN | (Z − (Λ − I))⁻¹ |
+| M12 | `solve((I−W).T, W.T).T` for (I − W)⁻¹W (loop and Z) | Ĝ_11 | Ĝ_11 (algebraic identity) |
+| M13 | `G11 = G11 + G1j@P@Gj1` (loop) | Ĝ_11 | Ĝ_11 + 2Σ_j θ_j |
+| M14 | init `G11 = solve(I − W, I)` | Ĝ_11 | Ĝ_11 − 2Ĝ^(1)_11 (and Ĝ_N1 → −Ĝ_N1, Ĝ_1N → −Ĝ_1N) |
+| M15 | M6 + M7 | Ĝ_N1 | as M6 |
+| M16 | closing: GN1, G1N first; `G11 = G11 + G1N@Zi@GN1` | Ĝ_11 | Ĝ^(N−1)_11 + ψ_{N−1}Z⁻³χ_{N−1} |
+| M11 | N = 1 boundary `2Δ_1 + Lm` | — | off-path for every N ≥ 2 |
+
+The oracle values follow from the code changes by exact algebra, using the identities between recursion intermediates and
+prefix-reference quantities (verified at ≤ 1e-50, §4.7 item 5). The oracle uses **no recursion code**.
+
+### 4.3 Independent mutant reference, apparatus accounting, and shared-error checks
+
+Three implementations of each mutant output:
+1. the double mutant (`wz_mutants.py`);
+2. the clean-room mpmath transcription;
+3. the oracle (§4.2).
+
+**Clean-room transcription and review gate R0:**
+- The transcription is written from §4.2's "exact code change" column and the correct-code listing only, without reading
+  `wz_mutants.py`. Otherwise it is written by an independent implementer. Authorship is recorded.
+- **R0 (mandatory before any solver run)** is an independent reviewer's sign-off in `REVIEW_coupling_scaling_v2.md`
+  (identity, date, commit) covering:
+  - (a) §4.2's change column against `wz_mutants.py`;
+  - (b) each oracle formula, by independent derivation;
+  - (c) the oracle implementation;
+  - (d) the transcription;
+  - (e) the certificate and validated-residual code and T1–T5.
+  - Running without a committed R0 sign-off → INVALID.
+- The design-level R0 review of `f101224` (CONDITIONAL PASS) verified (a) and (b) against the document. It does not replace
+  the implementation-level sign-off of (c)–(e).
+
+**Mutant-specific magnitude scale and apparatus tolerance** (heuristic, same form as the inherited τ_end):
+- Mag_m(s) := Σ over the monomials of the oracle formula of X_m of |coefficient|·Π‖factor‖₂. The factors are exact
+  reference blocks on R_W at s.
+- τ_abs,m(s) := max(τ_abs(s), c·n_tot·ε·max(cond₂(M), K_Schur)·Mag_m(s)), with c = 10 and K_Schur as in τ_end
+  (`PREDICTIONS_coupled_blocks.md` §5).
+- ν_X,m(s) := max(η_X(s), τ_abs,m(s), ε·‖X_ref(s)‖_F).
+- No new numerical constant is introduced. The factor 10 and c = 10 are inherited.
+
+**Agreement checks (matrices compared directly; R3.11):**
+
+| check | quantity | tolerance | on violation |
+|---|---|---|---|
+| oracle vs transcription (mp vs mp), designated block | ‖X_m^transcription − X_m^oracle‖_F | ≤ 1e-50·‖Ĝ_full‖₂ | **INVALID** (global) |
+| double vs oracle, designated block, at every grid point with SNR*_m ≥ 10 | ‖X_m^double − X_m^oracle‖_F | ≤ 10·ν_X,m | **mutant-apparatus anomaly** → the pair is excluded from detection claims, and DESIGN INSUFFICIENT for its scope |
+| double vs transcription, all four endpoint blocks, every grid point | max over blocks of ‖X^double − X^transcription‖_F | ≤ 10·ν_X,m | mutant-apparatus anomaly (as above) |
+
+Rationale for the classification (R3.10):
+- A double-vs-oracle excess can come from legitimate rounding amplification in a structural mutant (e.g. P³, Z⁻³) that
+  ν_X,m underestimates, so it must not invalidate the whole experiment.
+- It can also come from an implementation error in `wz_mutants.py`. Either way it blocks PASS (DESIGN INSUFFICIENT), so no
+  unexplained disagreement can pass.
+- Oracle-vs-transcription disagreement involves no double rounding and indicates an apparatus error → INVALID.
+
+**First-deviation check:** the transcription's first deviating intermediate equals the prefix-level closed form at the slice
+where the mutant first acts (e.g. M1: Ĝ^(1)_11 P_2 in place of P_2 Ĝ^(1)_11), within 1e-50·‖Ĝ_full‖₂. Violation → INVALID.
+
+**Residual risk:** an error in §4.2's change column itself, shared by all three implementations, is detectable only by R0
+item (a).
+
+### 4.4 Fitted error quantity and lattice
+
+- D_m(s) = ‖X_m^double(s) − X_m^ref(s)‖_F (absolute, Ĝ units).
+- D*_m(s) = ‖X_m^oracle(s) − X_m^ref(s)‖_F.
+- **All on R_W(s)**, the lattice the double code sees. **R_W is the lattice for D*, φ_exact, p̂*, SNR* and dev(s).**
+- L is used only for the Taylor coefficients C_k, q and ‖C_q‖, and for control §4.7 item 3.
+- All four blocks are recorded as secondary data.
+
+### 4.5 Noise and SNR (unchanged rule; notation updated)
+
+- η_X(s) = ‖X^correct,double − X^ref‖_F (empirical, R_W).
+- ν_X(s) = max(η_X, τ_abs, ε·‖X_ref‖_F), with τ_abs = τ_end·‖Ĝ_full‖₂ (heuristic).
+- SNR*_m(s) = D*_m(s)/ν_X(s).
+
+| SNR*_m | meaning |
 |---|---|
-| M1, M3, M6, M15, M9 | Ĝ_N1 |
-| M2, M7 | Ĝ_1N |
-| M5, M8, M4, M4L, M4R, M13, M14, M16 | Ĝ_11 |
-| M10 | Ĝ_NN |
+| ≥ 10 | detection-eligible |
+| ≥ 1e3 | regression-usable |
+| < 10 | **no claim; never interpreted as harmless** |
 
-- Fitted quantity: the **absolute** Frobenius discrepancy in dimensionless Ĝ units,
-  D_m(s) = ‖X_m^mut,double(s) − X_m^ref(s)‖_F, and its exact counterpart D*_m(s) = ‖X_m^mut,mp(s) − X_m^ref(s)‖_F.
-- Absolute rather than relative, because ‖X_ref(s)‖ depends on s and would add a spurious s-dependence. The asymptotic order
-  is unaffected either way, since ‖X_ref(s)‖ → ‖X_ref(0)‖ > 0.
-- No maximum over blocks enters any fit. All four blocks are recorded and reported as secondary data.
+- **Detection:** D_m ≥ 10·ν_X **and** the double-vs-oracle matrix agreement of §4.3 holds.
 
-### 4.3 Noise estimation and SNR
+### 4.6 Classification of every error quantity and threshold
 
-- **Observed noise:** η_X(s) = ‖X^correct,double(s) − X^ref(s)‖_F (the correct W/Z code, same block).
-- **Conservative noise level:** N_X(s) = max(η_X(s), τ_abs(s), ε·‖X_ref(s)‖_F), where:
-  - τ_abs = τ_end·‖Ĝ_full‖₂;
-  - τ_end is the endpoint bound of `PREDICTIONS_coupled_blocks.md` §5 (with c = 10, n = N·N_y, K_Schur and g from the
-    references at that s).
-- **Exact SNR:** SNR*(s) = D*_m(s) / N_X(s).
-- Thresholds (fixed):
+| quantity | nature | role |
+|---|---|---|
+| 1e-10 accuracy criterion (endpoint, prefix, W_j, P_j, ΔS) | **fixed criterion**, unchanged | FAIL-W when reliably measured (§6) |
+| judgeability gate τ_end ≤ 1e-11 | heuristic | decides only whether heuristic-bound comparisons are made. A non-judgeable case without a reliably measured > 1e-10 error → DESIGN INSUFFICIENT |
+| τ_end, τ_pre, τ_W, τ_P, τ_S, U/Q/symmetry bounds, τ_abs,m | heuristic | exceedance → anomaly → DESIGN INSUFFICIENT; never FAIL |
+| reference accuracy ‖A⁻¹ − Y‖₂ ≤ ‖Y‖₂·ω/(1 − ω) (§2.4.1 applied to the reference Y) | **validated** | ω/(1 − ω) > 1e-55 → escalation (dps 120), then INVALID |
+| certificate bounds (§2.4) | **validated**, conditional on T1–T5 and R0 | acceptance filter |
+| Taylor tail majorant (§5.2 (ii)) | **validated** (from validated a, b) | INVALID criterion with B_prec |
+| B_prec precision allowance (§5.2 (ii)) | non-validated (mp rounding) | INVALID criterion |
+| zero test (§5.2) | non-validated numerical classification | order identification |
+| dps-100 and `lu_solve` cross-checks | empirical | INVALID on disagreement |
+| η_X | empirical | noise |
+| SNR levels, detection factor, apparatus factor 10 | design constants (inherited) | detection / anomaly |
+| slope tolerances 0.01, 0.02, 0.005; window adequacy 0.02 | derived from Asm1 plus empirical noise | FAIL-D; window adequacy → DESIGN INSUFFICIENT |
+| zero-test thresholds | design constants (not derived; §9) | order identification |
+| conditioning ≤ 1e3; δ_min = 0.02; redraw cap 10,000 | design constants (the cap is not derived; §9) | filter |
 
-| SNR* | meaning |
-|---|---|
-| ≥ 10 | detection-eligible: a detection claim may be made |
-| ≥ 1e3 | regression-usable: relative noise ≤ 1e-3, so the noise-induced error of a centred local slope is ≤ 2·1e-3/ln 2 ≈ 3e-3 |
-| < 10 | **below the noise floor: no claim of any kind. This is never interpreted as "harmless" or "not a bug"** |
+### 4.7 Represented-lattice and reference controls (violation → INVALID unless stated)
 
-- **Detection** at s means D_m(s) ≥ 10·N_X(s) **and** |D_m(s) − D*_m(s)| ≤ 10·N_X(s).
+1. Off-diagonal Δ_fl(s) entries are bitwise −s·V_off(1)·dx². The diagonal rounding of the s-part is recorded.
+2. e_glob(Ref(R_W) − Ref(L)) and e_glob(Ref(R_orig) − Ref(L)) are ≤ 10·cond₂(M)·ε.
+3. |D*_m,R_W(s) − D*_m,L(s)|/D*_m,L(s) ≤ 1e-6 wherever D*_m,L ≥ 1e-30.
+   - **Rationale (corrected, R3.8).** R_W differs from L by the rounding of fl(E − E_perp) and of fl(·) − s·V_aa on the
+     diagonal of Δ_fl. This perturbation is O(ε·|Δ|) in absolute size and **does not shrink with s**.
+   - It is diagonal, so it commutes with the s = 0 structure. It changes the commutator-driven discrepancy only through the
+     diagonal spectrum, by a relative O(ε/gap), where gap is the smallest separation of the unperturbed diagonal values.
+   - The off-diagonal parts are exact (item 1).
+   - The tolerance 1e-6 is far above the expected O(1e-14). The estimate is heuristic and the check is empirical.
+4. **Validated references.**
+   - (a) For the full and prefix systems of L and R_W at **every** grid point, the reference inverse is the exact dyadic Y of
+     §2.4.1 step 1 (no further rounding; R3.4), and ω/(1 − ω) ≤ 1e-55.
+     - Lead enclosure: as in §2.4.1. R_orig has A_e = 0.
+     - R_orig is validated at every grid point if the runtime allows; otherwise at k ≡ 0 (mod 4) only, with the remaining
+       points labelled empirical (no decision weight).
+     - **Validated W_j and P_j references:**
+       - P_j = −(Ĝ^(j)_jj) is a block of a validated inverse.
+       - W_j = I + SC_j (§4.2) uses only the exact A_jj/t (with the enclosed lead term for j = 1) and a block of the
+         validated (j−1)-prefix inverse.
+       - The validated bound of each therefore follows from §2.4.1 plus the enclosure radius.
+     - **Validated S reference:** S_ref = 2i√(s_n s_n′)·Ĝ_nn′ − δ_nn′ on open channels, with s_n = Im λ_n = √ξ_n enclosed
+       in [lo_n, hi_n] (§2.4.1). Computed with the midpoints and the reference Y, its error bound is
+       |ΔS_ref,nn′| ≤ 2·ū(hi_n hi_n′)·err_Ĝ,nn′ + 2·|Ĝ^Y_nn′|^up·(ū(hi_n hi_n′) − l̄(lo_n lo_n′)), evaluated in exact rationals.
+       - err_Ĝ is the validated block error of §2.4.1 (t·‖Y‖₂·ω/(1 − ω) bounds every entry).
+       - l̄(f) := isqrt(⌊f·4^ℓ⌋)/2^ℓ ≤ √f is the rigorous lower square root.
+       - |·|^up is an exact rational upper bound of the modulus: ū of re² + im².
+     - If any of these bounds is not computed at a point, measurements against that reference at that point are **not
+       reliable** (§6).
+   - (b) dps-100 agreement within 1e-55 at k ≡ 0 (mod 4), s = 1, 2⁻⁴⁰ and on the duplicate set.
+   - (c) `mp.lu_solve` vs `mp.inverse` at s ∈ {1, 2⁻¹², 2⁻⁴⁰}.
+   - Escalation to dps 120 on failure; INVALID if it persists.
+5. Prefix and closing identities hold at ≤ 1e-50·‖Ĝ_full‖₂.
+6. The instrumented copy is bit-identical to `wz_endpoint_blocks` at every execution.
+7. Determinism: the first 5 configurations of XP and of HO, over the full grid with `OPENBLAS_NUM_THREADS=1`, are run twice
+   and must be bit-identical.
+8. Manifest hash and R0 sign-off: §8.
 
-### 4.4 Represented-lattice controls
-
-1. Off-diagonal entries of Δ_fl(s) are bitwise equal to −s·V_off(1)·dx² (exact).
-2. The diagonal representation error of the s-dependent part is recorded at every s.
-3. e_glob(C(R_W) − C(L)) and e_glob(C(R_orig) − C(L)) are ≤ 10·cond₂(M)·ε, as before.
-4. |D*_{R_W}(s) − D*_L(s)| / D*_L(s) ≤ 1e-6 wherever D*_L ≥ 1e-30.
-   - Justification: the lattices differ by O(ε) in commuting diagonal parts, which perturb C_1 only by relative O(ε). The
-     diagonal rounding of the s-part enters at O(s²) (§1, F3).
-   - Violation → INVALID.
-5. At the mp asymptote points the lattice is L(s), stated explicitly. No double data exist there.
-
-### 4.5 Reference checks and precision escalation
-
-- (a) ‖M·(Ĝ/t) − I‖_max ≤ 1e-55 at every grid point (full and prefix systems).
-- (b) Agreement at dps 100 within 1e-55 at every 4th grid point (k ≡ 0 mod 4), at s = 1, at s = 2⁻⁴⁰, and at every point of
-  the duplicate set.
-- (c) Column-wise `mp.lu_solve` vs `mp.inverse` within 1e-55 at s ∈ {1, 2⁻¹², 2⁻⁴⁰}.
-- (d) mp asymptote points at dps 120 are checked against dps 160 within 1e-90 (relative to D*).
-- Escalation: if (a) or (b) fails, recompute that point at dps 120. If it still fails, the run is **INVALID**. No silent
-  repair.
-- Analytic-identity checks (any violation → INVALID):
-  - D*(s) ≤ 10^(−(dps−10)) relative to ‖Ĝ‖ for every pure order mutant in class D, for M12 everywhere, and for M5 at N = 3
-    and M8 at N = 2 (F4, F5, previous §6 structural identities);
-  - D*(s) → 0 as s → 0 for pure order mutants and M9 (from the asymptote points: D*(2⁻¹⁰⁰) ≤ 2⁻⁹⁰·‖Ĝ‖);
-  - the prefix and closing identities of the previous §1 hold at ≤ 1e-50.
-- Apparatus consistency: at every point with SNR* ≥ 10, |D_m − D*_m| ≤ 10·N_X(s). Otherwise the double mutant and the mp
-  transcription disagree → **INVALID**.
-- The instrumented copy is bit-identical to `wz_endpoint_blocks` at every execution (else INVALID).
-- **Determinism:** the first 5 configurations of each set (X and C) are run twice over the full grid, single-threaded BLAS
-  (`OPENBLAS_NUM_THREADS=1`), and must be bit-identical (else INVALID).
+**Identity threshold:** τ_id(s; dps) := 10^−(dps−10)·‖Ĝ_full(s)‖₂ (the convention of the original design). A computed matrix
+discrepancy ≤ τ_id counts as **zero within precision**. It is used in §5.1 (ordering-zero) and §5.2 (iii).
 
 ## 5. Scaling analysis (all procedures fixed before data collection)
 
-### 5.1 Meaningfulness classification per (configuration, mutant)
+### 5.1 Meaningfulness classification per (configuration, mutant); exact rules only
 
-Classification is by exact rules only, never by double results:
-- off_path: N < `wz_mutants.MIN_N[m]` (and M11 always).
-- identical_by_algebra: M5 at N = 3, and M8 at N = 2.
-- equivalent: M12.
-- class_D_order: a pure order mutant in class D.
-- **ordering-meaningful:** a pure order mutant in class R or H, on path, not identical, with D*(2⁻¹⁰⁰) > 0 (beyond the
-  identity threshold of §4.5).
-- perturbation-control: M9 (all classes).
-- structural: M4, M4L, M4R, M10, M13, M14, M16.
+A **meaningful-candidate pair** is a (configuration, mutant) pair with:
+- a pure order mutant (M1, M2, M3, M5, M6, M7, M8, M15);
+- a class R or class H configuration;
+- the mutant on path (N ≥ `MIN_N[m]`);
+- not identical_by_algebra.
 
-Only ordering-meaningful pairs enter the scaling decision. Identical, equivalent and class_D_order pairs are **never** counted
-as detections. Expected count of ordering-meaningful pairs (on-path, non-identical order mutants per N: N = 2 → 3, N = 3 → 7,
-N = 4 → 8, N = 6 → 8): 26 per (N_y, class, draw) quadruple, i.e. **312 in set X and 624 in set C**, before exclusions.
+The classification is assigned before the order classification.
 
-### 5.2 Exact asymptotic order
-
-- q̂ = ln(D*_L(2⁻⁹⁰)/D*_L(2⁻¹⁰⁰)) / ln(2¹⁰).
-- It must lie within 1e-3 of an integer q ∈ {1, 2, 3}. Otherwise → **INVALID**: F3 requires an integer, so a non-integer
-  indicates a reference or transcription error.
-- |C_q| = D*_L(2⁻¹⁰⁰) / (2⁻¹⁰⁰)^q.
-- For structural mutants, q = 0 is expected and |C_0| = lim D*.
-
-### 5.3 Weak-coupling window and regression (fixes G1 and G4)
-
-**Window (fixed):** W_asym = {grid s ≤ 2⁻¹²} ∩ {SNR*(s) ≥ 1e3}.
-- The upper edge follows from the first-order remainder. With D* = |C_q| s^q (1 + ρ s + …), the local slope deviates from q
-  by ≈ ρ s / (1 + ρ s).
-- Assume ρ ≤ ρ_max = 25. This is a heuristic bound from ‖V(1) dx²‖₂ ≤ 0.5 times an amplification ≤ 50 consistent with the
-  conditioning rule cond ≤ 1e3; it is not a theorem. Then the model error is ≤ 0.01 requires s ≤ 4e-4, and the first dyadic
-  grid point below that is 2⁻¹² ≈ 2.4e-4.
-- (That this edge coincides with the previous experiment's smallest scale is a consequence of the bound, not a choice made
-  from its results.)
-- The assumption is checked exactly per pair: window adequacy in the regression rules below.
-
-**Regression (fixed):** unweighted OLS of y = ln D_m(s) on x = ln s over **all** points of W_asym, plus the same OLS on
-D*_m over the same points:
-- Validity requirements, all of which must hold, else the pair is not regression-valid:
-  - ≥ 8 points;
-  - x span ≥ ln(100) (two decades);
-  - no point removed except by the preregistered SNR rule.
-- Estimates: the double slope p̂ and the exact slope p̂*.
-- **Window adequacy:** |p̂* − q| ≤ 0.02, and every exact centred local slope in W_asym is within 0.02 of q. Failure → pair
-  "window-inadequate" (design insufficiency, not a W/Z result).
-- **H2 criterion:** |p̂ − q| ≤ 0.02 and |p̂ − p̂*| ≤ 0.005.
-  - Derivation: model error ≤ 0.01 (above), noise contribution ≤ 2·1e-3/ln(100) ≈ 4e-4, and a safety factor of about 2.
-  - 0.005 ≫ 4e-4 bounds the pure noise effect.
-- **Uncertainty.** The residuals are deterministic rounding, not random noise, so no probabilistic confidence interval is
-  claimed for a single pair. Reported per pair:
-  - (i) a deterministic worst-case interval p̂ ± δp_det, with δp_det = Σ_i |w_i|·|ln(D_i/D*_i)| and w_i the OLS weights;
-  - (ii) the OLS standard error, as a descriptor only.
-- Across configurations: the median, min and max of p̂ − q per mutant and class, and a nonparametric bootstrap over
-  configurations (10⁴ resamples, seed 202611110003) for the median, as a descriptive 95 % percentile interval.
-- **Outliers:** none are removed. A grid point is excluded from a fit only by the SNR rule. Any point failing a validity
-  check makes the run INVALID; it is never silently dropped.
-
-### 5.4 Local slopes, crossover and regime comparison (RQ1)
-
-- Exact and double local slopes at interior grid points: σ(s_k) = ln(D(s_{k+1})/D(s_{k−1})) / ln(s_{k+1}/s_{k−1}).
-- The local slope near s = 1 is the one-sided σ(1) = ln(D(1)/D(0.5))/ln 2 (exact and double).
-- **H1 criterion:** |σ_double(s) − σ_exact(s)| ≤ 0.01 at every grid point where SNR* ≥ 1e3 for both neighbours, including
-  s ∈ [2⁻⁴, 1].
-- **Crossover** (primary, model-based, exact data): r(s) = D*_{R_W}(s) / (|C_q| s^q) − 1. The crossover scale is
-  s_× = the largest grid s such that |r(s')| ≤ 0.1 for every grid s' ≤ s. Reported per pair; s_× = 1 means no crossover in
-  range.
-- **Secondary crossover:** the largest s with |σ_exact(s') − q| ≤ 0.05 for all s' ≤ s.
-- **Regime model comparison** (descriptive; fixed now), on the exact profile over the full grid:
-  - M_a, pure power law: ln D* = a + q ln s.
-  - M_b, first-order-corrected: ln D* = a + q ln s + ln|1 + b s|.
-  - M_c, second-order-corrected: ln D* = a + q ln s + ln|1 + b s + c s²|.
-  - Fit by least squares in ln D*. Select the simplest model whose maximum absolute log residual is ≤ 0.01 (a 1 % relative
-    description error).
-  - If even M_c exceeds 0.01, label "strongly nonlinear in range".
-  - No model choice affects any PASS/FAIL rule. It describes where the strong-coupling regime lies.
-- **Answer rule for RQ1:**
-  - If H1 holds, any deviation of σ from q near s = 1 is attributed to the algebra (a crossover), because the exact profile
-    contains no rounding.
-  - If H1 fails, the deviation is at least partly numerical.
-
-### 5.5 Controls in the scaling analysis
-
-| control | requirement |
+| category | rule |
 |---|---|
-| class_D_order and M12 | D*(s) ≡ 0 (validity); double D_m ≤ 10·N_X at every s (H4) |
-| M9 (perturbation control) | q from the asymptote reported; expected q ≥ 1 in all classes including D. This demonstrates that "D ∝ s" is not specific to ordering errors |
-| structural mutants | detected (SNR* ≥ 10 and detection) at every s (expected q = 0) |
-| noise-trend control | OLS slope of ln max(η_X, ε‖X_ref‖_F) vs ln s over W_asym in [−0.25, 0.25] for the correct code, for every held-out configuration and designated block. Otherwise the noise model is inadequate → design insufficient |
+| off_path | N < `MIN_N[m]`, or m = M11 |
+| identical_by_algebra | M5 at N = 3; M8 at N = 2 |
+| equivalent | M12 |
+| class_D_order | a pure order mutant in class D |
+| ordering-meaningful | a meaningful-candidate pair with resolved finite order q ≥ 1 (§5.2) |
+| ordering-zero | a meaningful-candidate pair whose C_0..C_K_max all test zero **and** whose D*_m(s) ≤ τ_id at every grid point; excluded from detection claims and counted against coverage |
+| order-unresolved | a meaningful-candidate pair whose zero test is ambiguous, or whose order exceeds K_max |
+| perturbation-control | M9 |
+| structural | M4, M4L, M4R, M10, M13, M14, M16 |
 
-## 6. Preregistered decision rules (precedence: INVALID > FAIL > DESIGN INSUFFICIENT > PASS)
+Identical, equivalent, class_D_order and ordering-zero pairs are **never** counted as detections.
 
-The decision is made on **set C (held-out) only**. Set X results are reported but cannot produce PASS.
+Expected meaningful-candidate pairs:
+- per N: N = 2 → 3, N = 3 → 7, N = 4 → 8, N = 6 → 8, i.e. 26 per (N_y, class, draw);
+- set HO: class R 312, class H 312;
+- set XP: class R 156, class H 156.
 
-**INVALID** if any of the following holds, in any set:
-- a reference check, escalation, analytic identity, represented-lattice control (§4.4–§4.5), apparatus-consistency check,
-  instrumented-copy identity or determinism check fails;
-- the manifest hash at run time differs from the hash committed before the run (§8);
-- q̂ is non-integer (§5.2).
+### 5.2 Identification of the asymptotic order
 
-**FAIL** if, on set C, any of the following holds:
-- **H3:**
-  - a correct-code A endpoint, prefix, W_j or P_j error, or ΔS, exceeds 1e-10 (where τ ≤ 1e-11);
-  - **or** exceeds its own §5 bound of `PREDICTIONS_coupled_blocks.md`, applied at each s. (Stricter than the previous
-    design, where the latter was only "anomalous". This is a deliberate tightening, not a weakening.)
-- **H1:** any ordering-meaningful pair violates the local-slope agreement.
-- **H2:** any regression-valid, window-adequate ordering-meaningful pair violates |p̂ − q| ≤ 0.02 or |p̂ − p̂*| ≤ 0.005.
-- **H4:** any class_D_order or M12 pair has D_m > 10·N_X at some s.
-- A structural mutant is not detected at some s with SNR* ≥ 10.
+**Taylor coefficients (on L).**
+- Each prefix and full inverse is expanded by the Neumann series A(s)⁻¹ = Σ_k (−s)^k (A0⁻¹A1)^k A0⁻¹, truncated at
+  K_max = 12.
+- Every oracle except M10 is a **polynomial** in these blocks (Z⁻³ = Ĝ_NN³; P_1 = −Ĝ^(1)_11; W_j appears in no oracle), so
+  only Cauchy products are needed.
+- M10's series is not computed (its matrix is not certified; M10 is structural and outside the scaling decision).
+- The coefficients are computed in floating mp arithmetic at dps 100 and dps 200, so they are approximate.
+- Convergence holds on |s| ≤ r_0 = 1/(2β) (§2.4 item 3).
 
-**DESIGN INSUFFICIENT** if no INVALID or FAIL condition holds and, on set C, any of the following holds:
-- any ordering-meaningful pair is not regression-valid (too few SNR-adequate points or too little span);
-- any ordering-meaningful pair is window-inadequate;
-- the noise-trend control fails;
-- fewer than 90 % of the expected 624 ordering-meaningful pairs exist after the exact classification (coverage);
-- any of the 8 pure order mutants has fewer than 20 ordering-meaningful held-out pairs.
+**Zero test (non-validated classification; thresholds unchanged).** With z_k(dps) = ‖C_k‖_F / ‖Ĝ_full(0)‖₂:
+- C_k is **nonzero** if z_k(200) ≥ 1e-60 and |z_k(100) − z_k(200)| ≤ 1e-20·z_k(200);
+- C_k is **zero** if z_k(100) ≤ 1e-80 and z_k(200) ≤ 1e-170;
+- otherwise C_k is **unresolved**.
+- q = the smallest k with C_k nonzero, provided every C_j (j < k) tests zero.
+- An unresolved C_j (j ≤ q), or all C_0..C_12 zero while D*_m is not ≤ τ_id on the grid, makes the pair
+  **order-unresolved** → DESIGN INSUFFICIENT for the pair. It is never INVALID because the order is large or the coefficients
+  are tiny.
+- (Predicted risk: §9 item 11.)
 
-**PASS** only if none of the above applies. The PASS claim is limited to: "for 120 independently generated held-out small
-coupled devices (N_y ≤ 4, N ≤ 6, equal lead widths, clean leads, three potential classes), the correct W/Z recursion
-reproduces the exact Green blocks at rounding level over 81 coupling values, and every meaningful ordering mutant's
-discrepancy follows its exact algebraic scaling down to the resolvable noise floor, with the asymptotic order emerging in the
-preregistered weak-coupling window."
+**Consistency checks** (genuine contradictions → INVALID):
+- (i) **Pure order mutants and M9:** C_0 must test zero (Fact 2, Fact 6). Nonzero → INVALID. Unresolved → DESIGN INSUFFICIENT
+  for the pair.
+- (ii) **Series vs direct evaluation (single criterion; R3.9).**
+  - The check point s* = 2⁻⁶⁰ if 2⁻⁶⁰ ≤ r_0, otherwise s* = r_0·2⁻²⁰.
+  - At dps 100, compute the truncated series S_K(s*) = Σ_{k ≤ K_max} C_k s*^k and the direct oracle discrepancy F_dir(s*)
+    from mp inverses of L(s*).
+  - **INVALID iff ‖S_K(s*) − F_dir(s*)‖_F > B_tail(s*) + B_prec(s*).** Here:
+    - **B_tail (validated majorant).**
+      - Each block series of a matrix A in Ĝ units has coefficients with ‖·‖₂ ≤ t·a_A,0·(a_A,0 b_A)^k. With the convention
+        0⁰ = 1, b_A = 0 gives zero coefficients for k ≥ 1.
+      - Write F_m as a sum of monomials of degree ≤ deg_m in such blocks, with T_m = the sum of the absolute values of the
+        scalar coefficients (read off §4.2, including the reference block; e.g. M13 has coefficient 2 per loop term).
+      - With α = max(1, max_A t·a_A,0) and x = |s*|β ≤ 1/2, the coefficients are majorized by T_m·α^deg_m·(1 − x)^(−deg_m).
+      - The tail beyond K_max is bounded by B_tail = T_m·α^deg_m·C(K_max + deg_m, deg_m − 1)·x^(K_max+1)/(1 − ζx), with
+        ζ = (K_max + deg_m + 1)/(K_max + 2).
+      - Proof: the coefficients of (1 − x)^(−d) are C(k + d − 1, d − 1), and their consecutive-term ratio (k + d)/(k + 1)·x
+        decreases in k, so for k ≥ K_max + 1 it is ≤ ζx.
+      - Requires ζx < 1, checked exactly. If it fails, s* is halved until it holds.
+      - If β = 0, then x = 0 and B_tail = 0.
+      - Evaluated in exact rationals.
+    - **B_prec (non-validated precision allowance)** := 10^−(dps−10)·Mag_m(s*) at dps = 100. Mag_m(s*) (§4.3) is the
+      magnitude of the oracle monomials before cancellation, i.e. the scale on which mp rounding acts. This defines the
+      reference scale of the previous "10^(−(dps−10)) relative" allowance.
+  - The previous additional "relative 1e-40" requirement is removed as conflicting (R3.9).
+- (iii) **Class D and M12:** every coefficient must test zero and D*_m ≤ τ_id at every grid point (Fact 4, Fact 5). Otherwise
+  → INVALID.
 
-Further interpretation rules:
-- A mutant pair below the noise floor (SNR* < 10) at some s carries **no** information about harm at that s.
-- Class-D and M12 non-detections are expected by algebra and are **not** detections.
-- The exploratory phase never relaxes any threshold (§8.2).
+**Finite-scale slopes** are never used to identify q and are never INVALID.
+
+### 5.3 Weak-coupling window and regression (unchanged rules)
+
+**Window:** Ω_asym = {grid s ≤ 2⁻¹²} ∩ {SNR*_m(s) ≥ 1e3} (per pair, on R_W).
+- Edge rationale: the local slope deviates from q by ≈ μs/(1 + μs). Under **Asm1: μ ≤ 25** (heuristic), a model error ≤ 0.01
+  requires s ≤ 4e-4, so the edge is 2⁻¹².
+- μ_est = ‖C_{q+1}‖/‖C_q‖ (from L) is reported. Since |μ_eff| ≤ μ_est (Cauchy–Schwarz), it is an upper estimate. It is not
+  used to move the window.
+
+**Regression:** unweighted OLS of ln D_m (double) and ln D*_m (exact, R_W) on ln s over all Ω_asym points.
+- **Validity:** ≥ 8 points; ln-span ≥ ln 100; no removal except by the SNR rule.
+- **Window adequacy** (exact R_W data; otherwise DESIGN INSUFFICIENT for the pair): |p̂* − q| ≤ 0.02, and every exact centred
+  φ in Ω_asym is within 0.02 of q.
+- **Hyp2:** |p̂ − q| ≤ 0.02 and |p̂ − p̂*| ≤ 0.005.
+- **Uncertainty:** the deterministic interval p̂ ± Σ_i |ϑ_i|·|ln(D_i/D*_i)| (ϑ_i the OLS weights); the OLS SE is descriptive.
+  Across configurations: median, min and max, plus a seeded bootstrap (10⁴ resamples) of the median.
+- **Outliers:** none are removed.
+
+### 5.4 Local slopes, crossover and regimes (RQ1; exact quantities on R_W)
+
+- φ(s_k) = ln(D(s_{k+1})/D(s_{k−1})) / ln(s_{k+1}/s_{k−1}), exact and double. The one-sided φ(1) uses s = 1 and 0.5.
+- **Hyp1:** |φ_double − φ_exact| ≤ 0.01 wherever both neighbours have SNR*_m ≥ 1e3, including s ∈ [2⁻⁴, 1].
+- **Crossover:**
+  - dev(s) = D*_m,R_W(s)/(‖C_q‖_L s^q) − 1;
+  - s_× = the largest grid s with |dev(s′)| ≤ 0.1 for all grid s′ ≤ s;
+  - secondary: the largest s with |φ_exact − q| ≤ 0.05 below it.
+- **Regime models** (descriptive): ln D* = a + q ln s + ln|1 + Σ_{i=1}^{mreg} b_i s^i| for mreg = 0, 1, 2. Select the smallest
+  mreg with max |log residual| ≤ 0.01; otherwise "strongly nonlinear in range". No decision depends on this.
+- **RQ1 answer rule:** if Hyp1 holds, any departure of φ from q near s = 1 is algebraic (a crossover). Otherwise it is at least
+  partly numerical. This applies to the new population only (see the header on the previous slopes).
+
+### 5.5 Controls
+
+- **class_D_order and M12:** the double D_m ≤ 10·ν_X at every s (Hyp4). (The matrix agreement of §4.3 applies in addition.)
+- **M9:** q reported (expected ≥ 1 in all classes including D).
+- **Structural mutants:** detected at every s with SNR*_m ≥ 10 (Hyp4).
+- **Noise-trend control (window defined, R3.14):**
+  - For each configuration and each of the four endpoint blocks X of the **correct** code: OLS slope of
+    ln max(η_X(s), ε‖X_ref(s)‖_F) on ln s over **all grid points s ≤ 2⁻¹²** (57 points; no SNR filter, because the SNR
+    filter is mutant-specific and the correct-code noise is mutant-independent).
+  - It must lie in [−0.25, 0.25]; otherwise → DESIGN INSUFFICIENT.
+  - The s ≤ 2⁻¹² edge is the mutant-independent part of Ω_asym.
+
+## 6. Preregistered decision rules
+
+Decisions use **set HO only**. Set XP is reported and can never yield PASS.
+
+Two outcomes:
+- **Physical-scope decision:** class R plus the class-D controls.
+- **Algebraic stress-test outcome:** class H.
+
+The class-H outcome never enters the physical-scope decision and must not be cited as validation within the documented scope
+of `wz_rgf.py`. INVALID applies globally.
+
+Precedence: **INVALID > FAIL-W > FAIL-D > DESIGN INSUFFICIENT > PASS**.
+
+Definitions:
+- **Judgeable case:** a (configuration, s) point with τ_end ≤ 1e-11. Judgeability governs only the heuristic-bound
+  comparisons (anomalies).
+- **Reliably measured** (for a correct-code quantity at a point): the validated reference bound of §4.7 item 4 (a) is
+  available for that quantity at that point. The quantity is reliably measured to exceed 1e-10 when
+  **(measured error) − (validated reference error bound) > 1e-10**.
+
+**INVALID** (global): any of
+- a §4.7 control failure;
+- an oracle-vs-transcription or first-deviation failure (§4.3);
+- a missing R0 sign-off;
+- a manifest hash mismatch;
+- a §5.2 consistency contradiction (C_0 nonzero where a theorem requires zero; series-vs-direct criterion (ii) exceeded;
+  class-D or M12 coefficients or grid discrepancies not zero within τ_id);
+- a determinism mismatch.
+
+**FAIL-W** (W/Z accuracy; per scope): any correct-code WZ-solver endpoint, prefix, W_j or P_j error, or ΔS, **reliably
+measured** to exceed **1e-10**, **regardless of judgeability** (R3.12). For the physical scope this covers class R and
+class D. This is the only W/Z failure criterion; the value 1e-10 is unchanged.
+
+**FAIL-D** (a diagnostic hypothesis falsified; **not** evidence of a W/Z defect): any of
+- Hyp1 violated for an ordering-meaningful pair;
+- Hyp2 violated for a regression-valid, window-adequate ordering-meaningful pair;
+- Hyp4 violated (a class-D order mutant or M12 above 10·ν_X; a structural mutant undetected where SNR*_m ≥ 10).
+
+**DESIGN INSUFFICIENT** (per scope, unless marked global): any of
+- an anomaly (a heuristic bound exceeded in a judgeable case while ≤ 1e-10);
+- a non-judgeable case (without a reliably measured > 1e-10 error);
+- **a correct-code error measured above 1e-10 that is not reliably measured** (validated reference bound unavailable) (R3.12);
+- **a mutant-apparatus anomaly** (§4.3; R3.10);
+- an order-unresolved meaningful-candidate pair;
+- an ordering-meaningful pair that is not regression-valid or not window-adequate;
+- a failed noise-trend control;
+- coverage below requirement: ordering-meaningful pairs fewer than 90 % of the expected count (class R: 312; class H: 312),
+  or fewer than 10 per pure order mutant;
+- an unresolved C_0 (§5.2 (i));
+- **(global, pre-run)** manifest generation aborted at the redraw cap (§2.4 item 5).
+
+**PASS** (per scope): none of the above.
+
+Physical-scope PASS claim:
+
+> For 48 independently generated held-out class-R devices (N_y ≤ 4, N ≤ 6, equal lead widths, clean leads), conditional on
+> the §2.4 acceptance filter, the correct W/Z recursion meets the 1e-10 criterion and its heuristic error estimates at
+> 81 coupling values, and every meaningful ordering mutant's discrepancy follows its exactly identified asymptotic order
+> down to the resolvable noise floor, with class-D controls and the M12 negative control behaving as required.
+
+Class-H PASS claim: the same statement, as an **algebraic stress test** only.
+
+Interpretation:
+- SNR*_m < 10 carries no information about harm.
+- Class-D, M12, identical and ordering-zero non-detections are not detections.
+- FAIL-D says nothing about W/Z correctness.
+- No outcome says anything about the previous experiment's slopes.
 
 ## 7. Scope
 
-This experiment **can** establish, for small deterministic coupled devices:
-- whether the previous strong-coupling slope deviation is reproduced as an algebraic crossover on new matrices;
-- whether the asymptotic order emerges;
+**Can establish** (conditional on §2.4, in the new population):
+- whether a strong-coupling crossover explains slope departures near s = 1;
+- whether the exactly identified asymptotic order emerges in double precision;
 - whether ordering errors are separable from rounding noise down to a quantified floor;
-- whether the correct W/Z code is accurate across a dense coupling range.
+- whether the correct W/Z code meets the 1e-10 criterion across a dense coupling range.
 
-It **cannot** establish, and will not claim:
-- general validation of W/Z for arbitrary devices;
-- long-device stability (N ≤ 6 only);
-- near-threshold behaviour (|δ_n| ≥ 0.02);
+Class R results refer to the documented physical scope. Class H results are algebraic stress tests. Class D results are
+controls.
+
+**Cannot establish:**
+- general W/Z validation;
+- long-device stability (N ≤ 6);
+- near-threshold behaviour;
+- poorly conditioned, resonant or near-singular devices;
 - unequal lead widths;
-- disordered-system validation (no disorder ensembles are included);
-- any resolution of the B1 configuration F failure;
-- any change to the previous experiment's DESIGN INSUFFICIENT decision.
+- disordered systems;
+- anything about B1 configuration F;
+- any change to, or explanation of, the previous experiment's DESIGN INSUFFICIENT decision or its 0.78–0.79 slopes;
+- validation within the physical scope from class-H data.
 
 ## 8. Reproducibility and protocol
 
-### 8.1 Files (planned; none exist yet)
+### 8.1 Planned files (none exist yet)
 
 All under `experiments/wz_rgf_diagnostic/`:
-- `coupling_scaling_v2_manifest.py` (generator; §2.3–§2.4);
+- `coupling_scaling_v2_manifest.py`;
+- `coupling_scaling_v2_certify.py` (§2.4.1 and T1–T5);
 - `coupling_scaling_v2.py` (driver);
-- `wz_mutants_mp.py` (mp transcription of the mutants);
-- outputs in a new directory `results_coupling_scaling_v2/`:
-  - `manifest_X.json`, `manifest_C.json`: per configuration, the set, k, attempt, N_y, class, N, E, n_open, the integer
-    arrays R_j and I_j, V_j(1) as exact rationals, the rejection log, and the numpy/python versions;
+- `wz_mutants_oracle.py`;
+- `wz_mutants_mp.py` (clean-room transcription);
+- `REVIEW_coupling_scaling_v2.md` (R0 sign-off);
+- directory `results_coupling_scaling_v2/`:
+  - `manifest_XP.json`, `manifest_HO.json`: per configuration, the set, idx, attempt, N_y, class, N, E, n_open, the
+    integer arrays Jr_j and Ji_j, V_j(1) as exact rationals, the rejection log, the certificate (points, radii, cond bound,
+    r_0), and the versions;
   - `manifest.sha256`;
-  - `results_X.json`, `results_C.json`;
-  - `points_X.csv`, `points_C.csv`: one row per (configuration, s), with every accuracy metric of A and B, conditioning and
-    κ values, the reference checks, and per mutant D_m, D*_m (R_W and L) for all four blocks, η_X, N_X, SNR* and the
-    category;
-  - `pairs_X.csv`, `pairs_C.csv`: one row per (configuration, mutant), with category, q̂, |C_q|, p̂, p̂*, δp_det, OLS SE,
-    number of points, span, window adequacy, s_× (both definitions), the selected regime model, σ(1) exact and double, and
-    the H1/H2/H4 flags;
-  - `coupling_scaling_v2_report.md`;
-  - `previous_files.sha256` (§8.3).
+  - `results_XP.json`, `results_HO.json`;
+  - `points_XP.csv`, `points_HO.csv`: per (configuration, s), the metrics of both solvers, conditioning, commutator norms,
+    the reference checks, and per mutant D_m, D*_m (oracle and transcription, R_W and L) for all four blocks, η_X, ν_X,
+    ν_X,m, SNR*_m, the agreement results and the category;
+  - `pairs_XP.csv`, `pairs_HO.csv`: per pair, category, C_0..C_12 norms at both precisions, the zero-test results, q, μ_est,
+    p̂, p̂*, the interval, OLS SE, points, span, adequacy, s_× (both), the regime model, φ(1) exact and double, and the
+    Hyp1/Hyp2/Hyp4 flags;
+  - `coupling_scaling_v2_report.md` (separate class R, class H and class D sections);
+  - `previous_files.sha256`.
 
 ### 8.2 Phases
 
-1. **This design is committed** (the only action of this step).
+1. This design is committed.
 2. **Implementation and manifest freeze:**
-   - Write the code, generate both manifests, and commit them together with `manifest.sha256` **before any solver or
-     reference run**.
-   - Manifest generation may compute only the conditioning rule of §2.4.
-3. **Exploratory run (set X; optional legacy set G):**
-   - Publish its report.
-   - At most one amendment may be committed afterwards, before the confirmatory run. It may only:
-     - fix implementation bugs;
-     - address feasibility (runtime, memory);
-     - add diagnostics.
-   - It may **not** change any threshold, window, grid, SNR level, tolerance, coverage requirement or decision rule. Any
-     such change requires a new experiment ID.
-4. **Confirmatory run (set C), then the decision by §6.** No further amendment is allowed.
+   - Write the code.
+   - **T1–T5 must pass before the manifest is generated.**
+   - Generate the manifests (filter and certificate only; redraw cap §2.4 item 5) and commit them with `manifest.sha256`
+     before any solver or reference run.
+   - Complete R0 (items (a)–(e)) and commit its sign-off.
+3. **Exploratory run (set XP):**
+   - Publish the report.
+   - At most one amendment may follow, limited to bug fixes, feasibility and added diagnostics. No threshold, window, grid,
+     SNR level, tolerance, coverage, K_max, cap or decision rule may change; any such change requires a new experiment ID.
+   - An amendment touching the oracle, the transcription or the certificate requires a new R0 sign-off.
+4. **Confirmatory run (set HO)**, then both decisions by §6.
 
 ### 8.3 Preserving the previous experiment
 
-- Before any run, record sha256 of every existing file under `experiments/wz_rgf_diagnostic/` (excluding `__pycache__`) in
-  `previous_files.sha256`. Verify it after every phase.
-- Any change → INVALID.
-- New code imports `wz_rgf.py` and `wz_mutants.py` read-only and writes only to `results_coupling_scaling_v2/`.
+- Before any run, record the sha256 of every existing file under `experiments/wz_rgf_diagnostic/` (excluding
+  `__pycache__`) in `previous_files.sha256`. Verify it after every phase; any change → INVALID.
+- Code imports `wz_rgf.py` and `wz_mutants.py` read-only and writes only to `results_coupling_scaling_v2/`.
 
 ### 8.4 Independent reproduction
 
-1. Fresh clone at the recorded commit.
+1. Fresh clone.
 2. Set `OPENBLAS_NUM_THREADS=1`.
-3. Run the generator and verify `manifest.sha256`. Because numpy `Generator.integers` streams are not guaranteed stable
-   across numpy versions, the frozen manifest, not the RNG, is authoritative.
+3. Verify `manifest.sha256` (the frozen manifest is authoritative).
 4. Run the driver.
-5. Compare all numeric outputs, excluding timestamps and paths, against the committed results. Equality is expected bitwise
-   on the same platform and numpy/BLAS build. On another build, double-precision values may differ at rounding level, and
-   the decision must be unchanged.
-6. Record python, numpy, scipy and mpmath versions and the BLAS configuration.
+5. Bitwise identity on the same build. On another build, values may differ at rounding level and the decisions must be
+   unchanged.
+6. Record the versions.
 
-Estimated cost (uncertain; to be measured in the exploratory phase):
-- 180 configurations × 81 points ≈ 14,600 point executions with mp references (≤ 24×24), plus mp mutant transcriptions.
-- Plus 540 asymptote evaluations and about 810 duplicate executions.
-- Roughly 2–6 h single-threaded.
-- Parallelization is allowed only over configurations, with a fixed output order, single-threaded BLAS and the determinism
-  check.
+Cost: uncertain; to be measured in the exploratory phase. Escalations to dps 120 are expected to be common (§9 item 13).
+Parallelization is allowed only over configurations, with fixed output ordering.
 
-## 9. Assumptions and unresolved design questions
+## 9. Assumptions, non-derived values and predicted risks
 
-Assumptions, labelled:
-- A1 (heuristic): ρ ≤ 25 for the window edge (§5.3). Checked exactly per pair; failure → design insufficient.
-- A2 (heuristic): |C_1| ≤ 1, used only to argue that the grid extends past the noise floor. It is not used in any decision.
-- A3 (heuristic): the τ bounds of the previous §5. They become hard FAIL criteria here, so a too-optimistic τ would produce
-  FAIL rather than pass.
+Assumptions:
+- **Asm1 (heuristic):** μ ≤ 25 for the window edge. Checked by window adequacy.
+- **Asm2 (heuristic):** |C_1| ≤ 1, used only for grid sizing.
+- **Asm3 (heuristic):** the inherited τ bounds and their mutant-specific form τ_abs,m. Exceedance is an anomaly, never FAIL.
 
-Open questions for review before implementation:
-1. **Strictness:**
-   - Should exceeding the heuristic τ bound (below 1e-10) be FAIL, as chosen here, or a separate "anomalous" outcome?
-   - Should coverage require 100 % of ordering-meaningful pairs to be regression-valid? It currently does (any non-valid
-     pair → DESIGN INSUFFICIENT). This makes DESIGN INSUFFICIENT more likely.
-2. **mp transcription independence:** the transcription of the mutants is written by the same author as `wz_mutants.py`. A
-   shared conceptual error would pass the apparatus check. An independent transcription, or a review, may be required.
-3. **Designated blocks X_m:** the choice is structural. Alternatives (e.g. all four blocks fitted separately, with each
-   required to pass) are stricter and would multiply the coverage requirements.
-4. **v0 = 8 and the entry range [−8, 8]:** the strength is chosen so that s = 1 is strong coupling. A different strength
-   changes where the crossover lies, but not the asymptotic order.
-5. **Legacy set G:** include it (RQ1 diagnostic only) or drop it entirely, to avoid any appearance of revisiting the
-   previous experiment.
-6. **Runtime** may force a coarser dps-100 cross-check schedule. That would be a permitted feasibility amendment only if it
-   does not touch any decision threshold.
-7. **Production solver B** is included for accuracy only. Confirm whether its comparison should carry any decision weight.
-   Currently it carries none.
-8. **H3 at very small s:** the correct-code bound τ is evaluated per s. At s → 0 the device approaches the clean diagonal case
-   tested before. No new risk is expected, but this is not proven.
+Values that are **not derived** from the protocol (flagged as required; not silently justified):
+1. **Zero-test thresholds** (1e-60, 1e-80, 1e-170, 1e-20). Inherited design constants.
+2. **K_max = 12.** Inherited search depth.
+3. **Redraw cap 10,000** (R3.15). Introduced in Revision 3 because a finite cap was required. No derivation exists; it should
+   be confirmed by the reviewer before the manifest freeze. Its only effect is to abort, never to change the sample.
+4. **Bisection depth 30 and 2000 points per matrix.** Inherited feasibility constants.
+5. **The use of Mag_m(s*) as the reference scale of B_prec, and of Mag_m in τ_abs,m** (R3.9, R3.10). Definitional choices
+   in the form of the inherited heuristic, with no new numerical constant. Flagged for R0.
+
+Remaining ambiguities and limitations:
+6. **The certificate is on L(s) only.** R_W statements are pointwise. L uses the double E and E_perp,n as exact values.
+7. **The certificate is validated conditional on implementation correctness** (T1–T5, R0). A bug missed by both would
+   invalidate it.
+8. **Non-validated steps that remain:** the zero test, B_prec, the dps-100 and `lu_solve` cross-checks, the grid conditioning
+   filter, and all heuristic bounds.
+9. **Validated statements available:**
+   - nonzero coefficients could be proven by a validated enclosure (optional, no decision role);
+   - only C_0 = 0 for order mutants and M9 is a theorem;
+   - vanishing of C_1 … C_{q−1} for q ≥ 2 rests on the zero test.
+10. **M10's matrix** is checked pointwise only.
+11. **Predicted risk — zero-test scaling (R3.17).**
+    - z_k is normalized by ‖Ĝ_full(0)‖₂ only. The coefficient scale grows like β^k, and within the filter β^12 can reach
+      about 1e36.
+    - The rounding residue of a truly zero coefficient at dps 100 (about 1e-100·β^k) can then exceed 1e-80, classifying it
+      "unresolved". The pair becomes order-unresolved → DESIGN INSUFFICIENT.
+    - This affects only pairs with q ≥ 2, where C_1, …, C_{q−1} must test zero; C_0 and C_1 are at safe scales.
+    - Not corrected here, because the remedy (normalizing by the validated majorant) changes a threshold. It requires a new
+      decision.
+12. **Predicted risk — q ≥ 2 pairs (R3.17).**
+    - Ω_asym is fixed at s ≤ 2⁻¹² with SNR*_m ≥ 1e3, which needs D* ≳ 1e-10·‖Ĝ‖.
+    - For q = 2, D* ≈ |C_2|s², so two decades of span require |C_2| on the order of 10 or more. Such pairs are expected to be
+      **not regression-valid**.
+    - Since every ordering-meaningful pair must be regression-valid, **a single q ≥ 2 pair is predicted to produce DESIGN
+      INSUFFICIENT**. This prediction is retained deliberately; it is unfavourable.
+13. **Escalation frequency.** At dps 60, ‖Ξ‖_F can be close to the 1e-55 limit for n_tot = 24 and cond ≤ 1e3. dps-120
+    escalation will be frequent (cost, not validity).
+14. **Strictness choices** (preregistered, not derived): coverage ≥ 90 %; 100 % of ordering-meaningful pairs regression-valid
+    and window-adequate; anomaly → DESIGN INSUFFICIENT; mutant-apparatus anomaly → DESIGN INSUFFICIENT.
+15. **v0 = 8** positions the crossover. A different strength moves s_× but not q.
+16. **Determinism** is required only within the same build.
+17. **The previous slopes.** v2 cannot attribute the previous 0.78–0.79 slopes. The previous configurations are excluded and
+    the previous fitted quantity differs. This limitation is deliberate (scope hygiene, R1.10). Re-evaluating the previous
+    configurations as a descriptive set would require an explicit decision.
