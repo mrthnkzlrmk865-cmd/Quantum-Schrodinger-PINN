@@ -1,6 +1,6 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 3.3 (minimal, document-only; on top of Revision 3.2 `f16e7c2`; earlier: Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
+Revision 3.4 (document-only; on top of Revision 3.3 `4d471b0`; earlier: Revision 3.2 `f16e7c2`, Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
 independent R0 design review of `f101224` (verdict: CONDITIONAL PASS). Earlier revisions:
 - Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
 - Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
@@ -51,6 +51,13 @@ Standing status:
 | ū(·), ℓ | rigorous rational upper square root, with ℓ = 256 bits |
 | ξ_n | radicand of the lead root |
 | r_0 | common Taylor radius (§2.4 item 3) |
+| l̄(·) | rigorous rational lower square root (§2.4.1 step 4) |
+| η_A, β̃_i, E_m | per-matrix reference-error bound; per-block norm bound; polynomial error bound (§5.6) |
+| U_m(s), G_lo(s) | upper bound on D*_true and lower bound on G_true, rigorous by construction; validation pending T1–T6 and R0 (§5.6) |
+| D*_true(s), G_true(s) | exact-lattice R_W oracle discrepancy and ‖Ĝ_full‖₂ (not computed; enclosed) (§5.6) |
+| SNR_ideal(s) | idealised exact-level ratio D*_true/(10⁻¹³·G_true) (§5.6) |
+| S_test | the 43 preregistered design-grid points with s ≤ 2⁻¹⁹ (§5.6) |
+| THRESHOLD | the exact rational `Fraction(1, 10**10)` (§5.6, T6.7) |
 | n_tot | matrix dimension N·N_y |
 | D_m(s), D*_m(s) | double and exact (oracle) discrepancy of the designated block X_m, on R_W |
 | η_X, ν_X, ν_X,m | observed correct-code noise; SNR noise level; mutant-specific apparatus tolerance level |
@@ -168,6 +175,17 @@ is changed.**
 |---|---|---|
 | Rev3.3-1 | §5.6 majorant test: it may conclude infeasibility only if r_0 ≥ 2⁻¹⁹ (so the span-derived necessary point s ≤ 2⁻¹⁹ lies inside the certified Taylor disk) and the evaluated grid subset is verified nonempty. If r_0 < 2⁻¹⁹ → INCONCLUSIVE, not infeasible. This replaces the unjustified "every grid s ≤ min(2⁻¹⁹, r_0)" conclusion | no (the diagnostic test has no decision role) |
 | Rev3.3-2 | §5.6 heading "Mathematically impossible" renamed "Majorant-based infeasibility under the stated conditions"; the caveats are unchanged | no |
+
+Revision 3.4 (vs `4d471b0`; final-audit corrections C1–C5). **No threshold, grid point, mutant definition, sampling rule or
+decision rule is changed.**
+
+| # | change | rule change? |
+|---|---|---|
+| Rev3.4-1 | §5.6: the L-majorant infeasibility claim is replaced by the pointwise certificate on R_W (U_m, G_lo, exact comparison; INCONCLUSIVE otherwise). It no longer depends on the 1e-30 restriction, §4.7 item 3, r_0 or the zero test. The L-majorant is retained as "L-lattice estimate only", with no R_W claim. The conclusion is restricted to the 43 preregistered design-grid points (C1) | no (diagnostic, no decision role) |
+| Rev3.4-2 | √N_y replaced by ū(N_y); l̄ defined in §2.4.1 step 4 (the §4.7 S-reference bullet now refers to it); the threshold is the exact rational `Fraction(1, 10**10)` | no |
+| Rev3.4-3 | Exact-level (SNR_ideal) and rule-level claims separated (C5); eligibility versus certificate inequality distinguished with respect to the zero test (C2); the diagnostic's non-decision role stated | no (clarification) |
+| Rev3.4-4 | Self-test T6 added (§2.4.2), including C3 (exact threshold type) and C4 (supplementary irrational case reported as a numerical cross-check only). Precondition references updated from T1–T5 to T1–T6 (§2.4.1, §4.3, §8.1, §8.2, §9 item 7) | adds a precondition |
+| Rev3.4-5 | Notation table and §4.6 row added. The certificate's status is "Designed; validation pending T1–T6 and R0" | no |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -385,6 +403,7 @@ v0 = 8 places s = 1 in a strong-coupling regime (a design choice for RQ1, not tu
 4. **Upper square root** for rationals f ≥ 0, piecewise: ū(0) := 0; ū(f) := (isqrt(⌈f·4^ℓ⌉) + 1)/2^ℓ for f > 0.
    - For f > 0: with N_f = ⌈f·4^ℓ⌉ ≥ f·4^ℓ, isqrt(N_f) + 1 > √N_f ≥ 2^ℓ√f, so ū(f) > √f > 0.
    - So ū(f) ≥ √f for all f ≥ 0, and ū(f) = 0 iff f = 0. The branch is decided by an exact comparison with 0.
+   - **Lower square root:** l̄(f) := isqrt(⌊f·4^ℓ⌋)/2^ℓ for rationals f ≥ 0 (l̄(0) = 0) satisfies 0 ≤ l̄(f) ≤ √f.
 5. **ω_κ** := ū(f_Ξ) + ε_A·ū(f_Y). Since I − A(s_κ)Y_κ = Ξ_κ − A_e·Y_κ,
    ‖I − A(s_κ)Y_κ‖₂ ≤ ‖Ξ_κ‖_F + ‖A_e‖_F‖Y_κ‖_F ≤ ω_κ.
 6. If ω_κ < 1 (an exact comparison):
@@ -418,7 +437,7 @@ which are rigorous by construction. No floating-point value enters an inequality
 exact dyadic matrix. Rigor rests on:
 - (i) the inequalities above;
 - (ii) Python's exact integer arithmetic and `math.isqrt`;
-- (iii) implementation correctness, addressed by T1–T5 and R0.
+- (iii) implementation correctness, addressed by T1–T6 and R0.
 
 **Alternative considered.**
 - Directed-rounding interval arithmetic (`mpmath.iv`, real `ivmpf` and complex `ivmpc`) would also be valid.
@@ -429,9 +448,9 @@ exact dyadic matrix. Rigor rests on:
 - It may serve as an optional cross-check of a_κ, with no decision role.
 
 
-#### 2.4.2 Certificate and assembly self-tests (T1–T5)
+#### 2.4.2 Certificate, assembly and pointwise-certificate self-tests (T1–T6)
 
-All five tests are **deterministic**: fixed exact inputs, exact arithmetic, no random draws. They must all pass **before the
+All six tests are **deterministic**: fixed exact inputs, exact arithmetic, no random draws. They must all pass **before the
 manifest is generated**. Any failure means the certificate code is not used and the manifest is not generated. Each test is
 part of the R0 review.
 
@@ -549,6 +568,66 @@ part of the R0 review.
   input by an assembly function.
 - **Edge cases:** N = 1 (both leads on one block); prefix matrices; s = 0; the smallest grid s.
 
+**T6 — pointwise infeasibility certificate (§5.6).** Not implemented or executed. No pass is claimed.
+- **Independent reference implementation.** A separate module sharing no code with the certificate module, providing:
+  - (i) exact `Fraction` Gaussian elimination for A⁻¹;
+  - (ii) the §4.2 mutant recursions (code-change column) executed in exact rationals;
+  - (iii) exact positive-semidefiniteness tests by rational LDLᴴ, deciding ‖X‖₂ ≤ c exactly as c²I − XᴴX ⪰ 0, and the strict
+    counterpart.
+- **Exact test lattices** (true inverse exact, because the lead roots are rational):
+  - closed channels with λ ∈ {1/2, 1/3, 2/5} (e.g. γ = 5/4 gives λ = 1/2);
+  - open channels from Pythagorean pairs (e.g. γ = 3/5 gives λ = 3/5 + 4i/5). Here √ξ = 4/5 is not dyadic, so A_e ≠ 0 is
+    exercised while the truth is known exactly;
+  - N_y ∈ {1, 2}, N ∈ {2, 3, 4} (N = 4 for M5);
+  - dyadic V(1) with nonzero off-diagonal entries.
+- **T6.1 (polynomial evaluation).** For M1, M2, M3, M5, M6, M7, M8 and M15, at every N where the mutant is on path, F_m
+  evaluated on the exact blocks must equal, **exactly**, the exact mutant recursion's designated block minus the exact
+  reference block. This also checks the polynomial forms. Any mismatch is a failure.
+- **T6.2 (reference-error propagation).** Inputs: Y = A⁻¹ + Δ with Δ = 2⁻⁴⁰·e₁e₁ᵀ (rank one, so ‖Δ‖₂ = ‖Δ‖_F exactly), and
+  Y = A⁻¹. Success: η_A ≥ t‖Δ‖₂ exactly, and E_m ≥ ‖F_m(B) − F_m(B̃)‖₂ by the exact PSD test. Failure: any bound violated.
+- **T6.3 (full and prefix certificates).** For every prefix j = 1..N−1 and the full matrix: ω < 1, and
+  a_A = ū(f_Y)/(1 − ω) with a_A²I − A⁻ᴴA⁻¹ ⪰ 0 exactly. Failure: a violation, or a certificate returned with ω ≥ 1.
+- **T6.4 (lead-enclosure propagation).**
+  - On the rational-λ and Pythagorean lattices, A_e = A_true − A_mid is known exactly. Success: ε_A² ≥ ‖A_e‖_F², and
+    ω²I − RᴴR ⪰ 0 for R = I − A_true·Y. Failure: any violation.
+  - **Supplementary irrational-lead case (C4).** This case is checked against an mpmath dps-300 reference and is reported in
+    a separate field labelled **"numerical cross-check (not validated)"**.
+    - Disagreement is blocking: it must be investigated before the manifest freeze.
+    - Agreement is never reported or cited as an exact validation result, and does not contribute to any "validated" claim.
+    - The exact T6.4 checks are those on the rational-λ and Pythagorean lattices only.
+- **T6.5 (U_m against the oracle).** On the T6.1 lattices at several dyadic s: U_m ≥ 0 and U_m² ≥ D*_true² (exact).
+  Failure: any violation.
+- **T6.6 (G_lo against G).** On the T6.1 full matrices: G_lo²I − ĜᴴĜ is **not** positive definite (strict exact test), hence
+  G_lo ≤ ‖Ĝ‖₂. Failure: G_lo²I − ĜᴴĜ ≻ 0.
+- **T6.7 (exact comparison and threshold type; C3).**
+  - **Threshold.** The threshold is the module constant THRESHOLD, constructed from integers as `Fraction(1, 10**10)`.
+    The test asserts:
+    - `THRESHOLD == Fraction(1, 10**10)`;
+    - `THRESHOLD != Fraction(1e-10)`, which guards against importing the binary64 approximation of 1e-10;
+    - `type(THRESHOLD) is Fraction`.
+  - **Operand types.** The comparison function accepts only `int` or `Fraction` operands. Passing a `float`,
+    `numpy.floating`, or a `Fraction` built from a float in place of THRESHOLD must raise or be detected.
+  - **Comparison cases:**
+    - (a) D*_true far below 10⁻¹⁰·G gives "infeasible at point";
+    - (b) D*_true far above gives "not infeasible";
+    - (c) the synthetic exact equality U = THRESHOLD·G gives "not infeasible" (strict inequality).
+  - **Failure:** any wrong classification, any float accepted, or a threshold not equal to `Fraction(1, 10**10)`.
+- **T6.8 (INCONCLUSIVE paths).** Each of the following must return INCONCLUSIVE or not applicable, **never** infeasible and
+  never feasible:
+  - Y = 0;
+  - Y = A⁻¹/2 with n_tot ≥ 4 (ω ≥ 1);
+  - a missing prefix certificate;
+  - a test-only coarse enclosure (ℓ = 4, a harness parameter; the production ℓ = 256 is unchanged) making ω ≥ 1;
+  - a near-threshold lattice making U_m ≥ THRESHOLD·G_lo;
+  - M10 or an unsupported mutant requested;
+  - an evaluated set different from S_test, including an empty one.
+- **Edge cases:**
+  - N_y = 1;
+  - class D (F_m ≡ 0 exactly from exact blocks);
+  - the j = 2 terms of M5 vanish exactly;
+  - M8 at N = 2 (identical by algebra) is not applicable;
+  - S_test on the design grid has exactly 43 points.
+
 ### 2.5 Conditional sampling (explicit limitation)
 
 The accepted configurations are draws **conditional on passing §2.4**.
@@ -659,7 +738,7 @@ Three implementations of each mutant output:
   - (b) each oracle formula, by independent derivation;
   - (c) the oracle implementation;
   - (d) the transcription;
-  - (e) the certificate and validated-residual code and T1–T5.
+  - (e) the certificate, validated-residual and pointwise-certificate (§5.6) code, and T1–T6.
   - Running without a committed R0 sign-off → INVALID.
 - The design-level R0 review of `f101224` (CONDITIONAL PASS) verified (a) and (b) against the document. It does not replace
   the implementation-level sign-off of (c)–(e).
@@ -724,6 +803,7 @@ item (a).
 | τ_end, τ_pre, τ_W, τ_P, τ_S, U/Q/symmetry bounds, τ_abs,m | heuristic | exceedance → anomaly → DESIGN INSUFFICIENT; never FAIL |
 | reference accuracy ‖A⁻¹ − Y‖₂ ≤ ‖Y‖₂·ω/(1 − ω) (§2.4.1 applied to the reference Y) | **validated** | ω/(1 − ω) > 1e-55 → escalation (dps 120), then INVALID |
 | certificate bounds (§2.4) | **validated**, conditional on T1–T5 and R0 | acceptance filter |
+| pointwise infeasibility certificate U_m, G_lo (§5.6) | **Designed; validation pending T1–T6 and R0.** | reported only; no decision role |
 | Taylor tail majorant B_tail (§5.2 (ii)) | **validated** (from validated a, b) | series check; failure after dps-200 escalation → DESIGN INSUFFICIENT |
 | B_prec precision allowance (§5.2 (ii)) | non-validated (mp rounding) | series check only; never triggers INVALID by itself |
 | zero test (§5.2) | non-validated numerical classification | order identification |
@@ -759,7 +839,7 @@ item (a).
        in [lo_n, hi_n] (§2.4.1). Computed with the midpoints and the reference Y, its error bound is
        |ΔS_ref,nn′| ≤ 2·ū(hi_n hi_n′)·err_Ĝ,nn′ + 2·|Ĝ^Y_nn′|^up·(ū(hi_n hi_n′) − l̄(lo_n lo_n′)), evaluated in exact rationals.
        - err_Ĝ is the validated block error of §2.4.1 (t·‖Y‖₂·ω/(1 − ω) bounds every entry).
-       - l̄(f) := isqrt(⌊f·4^ℓ⌋)/2^ℓ ≤ √f is the rigorous lower square root.
+       - l̄ is the rigorous lower square root of §2.4.1 step 4.
        - |·|^up is an exact rational upper bound of the modulus: ū of re² + im².
      - If any of these bounds is not computed at a point, measurements against that reference at that point are **not
        reliable** (§6).
@@ -958,26 +1038,74 @@ at s = 2⁻¹² requires approximately |μ_eff| ≲ 0.0204·2¹² ≈ 84, where 
 therefore admissible only if ‖C_{q+1}‖ does not grow correspondingly (|μ_eff| ≤ μ_est = ‖C_{q+1}‖/‖C_q‖).
 
 **Classification.**
-- **Majorant-based infeasibility under the stated conditions (decidable per pair; reported, no decision role).**
-  - Using the validated majorant of §5.2 (ii), D*_m(s) ≤ B_q(s) := T_m α^deg_m Σ_{k≥q} C(k + deg_m − 1, deg_m − 1)(βs)^k.
-    This is valid for s ≤ r_0, and conditional on the zero-test classification C_0..C_{q−1} = 0, which is not validated.
-  - G(s) ≥ t/h, with h the validated bound on ‖M(s)‖₂.
-  - **Applicability condition: r_0 ≥ 2⁻¹⁹.** The span argument places the necessary SNR-qualified point at some grid
-    s ≤ 2⁻¹⁹. If r_0 ≥ 2⁻¹⁹, every grid point s ≤ 2⁻¹⁹ satisfies s ≤ r_0, so every candidate lies inside the certified
-    Taylor disk and the majorant bounds D*_m there.
-  - **Nonempty-subset check.** The evaluated set S_test := {grid s ≤ 2⁻¹⁹} must be verified to be nonempty before any
-    conclusion. Under the fixed grid it contains the 43 points 2⁻¹⁹ … 2⁻⁴⁰ (22 powers of two and 21 points of the form
-    3·2⁻ᵏ). A universal condition over an empty set is vacuous and must never yield an infeasibility conclusion.
-  - **Conclusion rule.** If r_0 ≥ 2⁻¹⁹, S_test ≠ ∅, and B_q(s) < 1e-10·t/h at every s ∈ S_test, the pair cannot be
-    regression-valid under the stated conditions.
-  - **If r_0 < 2⁻¹⁹:** report "INCONCLUSIVE — the certified Taylor disk does not cover the full region in which the
-    necessary SNR-qualified point may occur". A qualifying point may lie in (r_0, 2⁻¹⁹], where the majorant is not
-    certified. The pair is **not** classified as infeasible.
-  - This is a limitation of the diagnostic test only. It does not change the experiment's regression-validity rules, which
-    are evaluated directly on the exact R_W profile.
-  - The majorant and h are computed on L. Applying them to the R_W pair additionally relies on the empirical R_W ≈ L control
-    of §4.7 item 3.
-  - This test can only prove infeasibility; it can never establish feasibility.
+- **Pointwise infeasibility certificate on R_W (pure order mutants M1, M2, M3, M5, M6, M7, M8, M15; reported only, no
+  decision role).** The bounds are rigorous by construction. **Designed; validation pending T1–T6 and R0.**
+  - **Polynomial forms.** For each supported mutant, F_m is the §4.2 oracle minus the designated reference block. Blocks common
+    to both cancel symbolically. Coefficient magnitudes are 1:
+    - M1, M3: −Ĝ_NN·Ĝ^(1)_11·P_2⋯P_{N−1} − Ĝ_N1;
+    - M2: −P_{N−1}⋯P_2·Ĝ^(1)_11·Ĝ_NN − Ĝ_1N;
+    - M5: −Σ_{j=2}^{N−1}(χ_{j−1}P_jψ_{j−1} − ψ_{j−1}P_jχ_{j−1});
+    - M6, M15: −χ_{N−1}Ĝ_NN − Ĝ_N1;
+    - M7: −Ĝ_NNψ_{N−1} − Ĝ_1N;
+    - M8: χ_{N−1}Ĝ_NNψ_{N−1} − ψ_{N−1}Ĝ_NNχ_{N−1}.
+  - **Certificate quantities at each grid s** (all exact rationals). For every R_W matrix A (the full matrix and each prefix
+    used), with reference Y_A and ω_A < 1 (§4.7 item 4(a); the R_W lead enclosure is included via ε_A):
+    - η_A := t·ū(f_Y,A)·ω_A/(1 − ω_A);
+    - for each block B̃_i of t·Y_A, β̃_i := ū(‖B̃_i‖_F²), and η_i := η_A for the matrix containing the block;
+    - E_m := Σ_μ |c_μ|·[Π_{i∈μ}(β̃_i + η_i) − Π_{i∈μ} β̃_i];
+    - **U_m(s) := ū(‖F_m(B̃)‖_F²) + ū(N_y)·E_m**. Then U_m(s) ≥ D*_true(s) := ‖F_m(B)‖_F, with B the exact blocks of the R_W
+      lattice;
+    - **G_lo(s) := max(t/h_W, t·l̄(max_ab |Y_full,ab|²) − η_full)**, with h_W := ū(f_mid,W) + ε_A,W of the full R_W matrix and
+      l̄ from §2.4.1 step 4. Then 0 < G_lo(s) ≤ G_true(s) := ‖Ĝ_full(s)‖₂ of the exact R_W lattice.
+  - **Conclusion rule (C1).** Let S_test be the set of **preregistered design-grid points (§3) with s ≤ 2⁻¹⁹**. Under the
+    fixed grid this is exactly 43 points: 2⁻ᵏ for k = 19..40 and 3·2⁻ᵏ for k = 21..41.
+    - The implementation verifies that the evaluated set equals this preregistered set exactly (dyadic comparison). Any
+      deviation, including an empty set, gives INCONCLUSIVE.
+    - If U_m(s) < THRESHOLD·G_lo(s) at **every** s ∈ S_test, the pair is **infeasible at the exact level on the design
+      grid**. THRESHOLD is the exact rational `Fraction(1, 10**10)` = 10⁻¹⁰, constructed from integers, and the comparison
+      is an exact rational comparison. Otherwise the pair is INCONCLUSIVE.
+    - INCONCLUSIVE includes: any uncertified or missing reference; ω ≥ 1; a bound that is too large; an unsupported mutant
+      (including M10). INCONCLUSIVE is never read as feasibility.
+    - No statement is made about non-grid values of s. None is needed, because Ω_asym consists of design-grid points only
+      (§5.3).
+  - **What this proves (exact level; C5).** Define, for the exact R_W lattice, the idealised exact-level ratio
+    SNR_ideal(s) := D*_true(s)/(10⁻¹³·G_true(s)). This is the exact oracle discrepancy divided by the definitional minimum
+    of the noise level, evaluated with exact quantities.
+    - The certificate proves SNR_ideal(s) < 10³ at every s ∈ S_test, i.e. at every preregistered design-grid point with
+      s ≤ 2⁻¹⁹.
+    - Equivalently: even with exact evaluation and the noise level at its definitional minimum, the exact profile has no
+      design-grid point at s ≤ 2⁻¹⁹ that could anchor the span required by §5.3.
+    - The relevant constant is 10⁻¹⁰ = 10³ × 10⁻¹³, exactly.
+    - This statement does not involve, and makes no statement about, the recorded ν_X, η_X, G or SNR*_m.
+  - **What this does not prove.**
+    - It does not validate any recorded mpmath value (D*_m, ν_X, η_X, SNR*_m, G).
+    - It does not show that the recorded rule-level outcome is free of numerical evaluation error.
+    - It says nothing about the double-precision solvers or about L.
+    - In particular, a recorded SNR*_m ≥ 10³ at some s ∈ S_test does not contradict the certificate mathematically. It
+      indicates that the recorded value differs from the idealised exact-level quantity, and it is reported as a diagnostic
+      note.
+  - **Rule-level outcome.** Regression validity in the run is determined solely by §5.1–§5.3 from the recorded quantities,
+    and §6 uses only those. This diagnostic has no decision role: giving it one would change the preregistered rules.
+    A disagreement between this exact-level result and the recorded outcome is reported as a diagnostic note only.
+  - **Inputs and eligibility (C2).**
+    - The certificate inequality and its implication use **no** Taylor coefficient, no r_0, no zero-test output and no
+      L-to-R_W comparison. They hold for any supported pure order mutant pair, whatever its order.
+    - **Eligibility** for reporting under §5.6 is restricted to pairs classified ordering-meaningful with q ≥ 2 by §5.2,
+      whose zero test is non-validated. A misclassified q can change which pairs are reported. It cannot affect the validity
+      of an issued certificate.
+  - **Dependencies.** The certificate is conditional on:
+    - the correctness of the §4.2 oracle formulas and of the polynomial forms above (R0 (b); checked exactly by T6.1 on the
+      T6 test lattices only);
+    - implementation correctness (T1–T6, R0);
+    - §4.7 item 4(a) holding at every s ∈ S_test.
+- **L-lattice estimate only (supplementary; no claim about R_W; no decision role).**
+  - The validated L-lattice majorant of §5.2 (ii), D*_m,L(s) ≤ B_q(s) := T_m α^deg_m Σ_{k≥q} C(k + deg_m − 1, deg_m − 1)(βs)^k,
+    holds for s ≤ r_0. It is conditional on the zero-test classification C_0..C_{q−1} = 0, which is not validated.
+  - With h the validated bound on ‖M_L(s)‖₂, it may be reported whether B_q(s) < 10⁻¹⁰·t/h at every s ∈ S_test.
+    - This is reported only if r_0 ≥ 2⁻¹⁹ and the evaluated set equals S_test; otherwise INCONCLUSIVE.
+    - It is a statement about the L lattice only. **No conclusion about R_W, or about regression validity, is drawn from
+      it.** The L-to-R_W transfer is not available: §4.7 item 3 is empirical and silent where D*_m,L < 1e-30, and t/h
+      bounds G on L, not on R_W.
 - **Likelihood not assessed.** The design assumes and predicts no coefficient distribution, so no likelihood estimate is
   made for any q. In particular, no case is classified as "possible but unlikely".
 - **Possible under explicit coefficient conditions.** Regression validity requires, at leading order, both:
@@ -1092,7 +1220,8 @@ controls.
 
 All under `experiments/wz_rgf_diagnostic/`:
 - `coupling_scaling_v2_manifest.py`;
-- `coupling_scaling_v2_certify.py` (§2.4.1 and T1–T5);
+- `coupling_scaling_v2_certify.py` (§2.4.1, the §5.6 pointwise certificate, and T1–T6; T6's independent reference
+  implementation lives in a separate module);
 - `coupling_scaling_v2.py` (driver);
 - `wz_mutants_oracle.py`;
 - `wz_mutants_mp.py` (clean-room transcription);
@@ -1117,7 +1246,7 @@ All under `experiments/wz_rgf_diagnostic/`:
 1. This design is committed.
 2. **Implementation and manifest freeze:**
    - Write the code.
-   - **T1–T5 must pass before the manifest is generated.**
+   - **T1–T6 must pass before the manifest is generated.**
    - Generate the manifests (filter and certificate only; redraw cap §2.4 item 5) and commit them with `manifest.sha256`
      before any solver or reference run.
    - Complete R0 (items (a)–(e)) and commit its sign-off.
@@ -1166,7 +1295,7 @@ Values that are **not derived** from the protocol (flagged as required; not sile
 
 Remaining ambiguities and limitations:
 6. **The certificate is on L(s) only.** R_W statements are pointwise. L uses the double E and E_perp,n as exact values.
-7. **The certificate is validated conditional on implementation correctness** (T1–T5, R0). A bug missed by both would
+7. **The certificate is validated conditional on implementation correctness** (T1–T6, R0). A bug missed by both would
    invalidate it.
 8. **Non-validated steps that remain:** the zero test, B_prec, the dps-100 and `lu_solve` cross-checks, the grid conditioning
    filter, and all heuristic bounds.
