@@ -1,6 +1,6 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 3.2 (minimal, document-only; on top of Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
+Revision 3.3 (minimal, document-only; on top of Revision 3.2 `f16e7c2`; earlier: Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
 independent R0 design review of `f101224` (verdict: CONDITIONAL PASS). Earlier revisions:
 - Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
 - Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
@@ -159,6 +159,15 @@ decision rule is changed.**
 - the zero-test thresholds unchanged (§5.2);
 - the q ≥ 2 feasibility risk retained (§5.6, §9 item 12);
 - dps 200 as the final escalation level of the series check (§5.2 (ii)).
+
+Revision 3.3 (vs `f16e7c2`). This is a mathematical consistency correction of the §5.6 diagnostic test only. **No
+threshold, grid, sample count, mutant, fitting window, SNR condition, q classification, majorant formula or decision rule
+is changed.**
+
+| # | change | rule change? |
+|---|---|---|
+| Rev3.3-1 | §5.6 majorant test: it may conclude infeasibility only if r_0 ≥ 2⁻¹⁹ (so the span-derived necessary point s ≤ 2⁻¹⁹ lies inside the certified Taylor disk) and the evaluated grid subset is verified nonempty. If r_0 < 2⁻¹⁹ → INCONCLUSIVE, not infeasible. This replaces the unjustified "every grid s ≤ min(2⁻¹⁹, r_0)" conclusion | no (the diagnostic test has no decision role) |
+| Rev3.3-2 | §5.6 heading "Mathematically impossible" renamed "Majorant-based infeasibility under the stated conditions"; the caveats are unchanged | no |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -949,11 +958,23 @@ at s = 2⁻¹² requires approximately |μ_eff| ≲ 0.0204·2¹² ≈ 84, where 
 therefore admissible only if ‖C_{q+1}‖ does not grow correspondingly (|μ_eff| ≤ μ_est = ‖C_{q+1}‖/‖C_q‖).
 
 **Classification.**
-- **Mathematically impossible (decidable per pair; reported, no decision role).**
+- **Majorant-based infeasibility under the stated conditions (decidable per pair; reported, no decision role).**
   - Using the validated majorant of §5.2 (ii), D*_m(s) ≤ B_q(s) := T_m α^deg_m Σ_{k≥q} C(k + deg_m − 1, deg_m − 1)(βs)^k.
     This is valid for s ≤ r_0, and conditional on the zero-test classification C_0..C_{q−1} = 0, which is not validated.
   - G(s) ≥ t/h, with h the validated bound on ‖M(s)‖₂.
-  - If B_q(s) < 1e-10·t/h at every grid s ≤ min(2⁻¹⁹, r_0), the pair **cannot** be regression-valid.
+  - **Applicability condition: r_0 ≥ 2⁻¹⁹.** The span argument places the necessary SNR-qualified point at some grid
+    s ≤ 2⁻¹⁹. If r_0 ≥ 2⁻¹⁹, every grid point s ≤ 2⁻¹⁹ satisfies s ≤ r_0, so every candidate lies inside the certified
+    Taylor disk and the majorant bounds D*_m there.
+  - **Nonempty-subset check.** The evaluated set S_test := {grid s ≤ 2⁻¹⁹} must be verified to be nonempty before any
+    conclusion. Under the fixed grid it contains the 43 points 2⁻¹⁹ … 2⁻⁴⁰ (22 powers of two and 21 points of the form
+    3·2⁻ᵏ). A universal condition over an empty set is vacuous and must never yield an infeasibility conclusion.
+  - **Conclusion rule.** If r_0 ≥ 2⁻¹⁹, S_test ≠ ∅, and B_q(s) < 1e-10·t/h at every s ∈ S_test, the pair cannot be
+    regression-valid under the stated conditions.
+  - **If r_0 < 2⁻¹⁹:** report "INCONCLUSIVE — the certified Taylor disk does not cover the full region in which the
+    necessary SNR-qualified point may occur". A qualifying point may lie in (r_0, 2⁻¹⁹], where the majorant is not
+    certified. The pair is **not** classified as infeasible.
+  - This is a limitation of the diagnostic test only. It does not change the experiment's regression-validity rules, which
+    are evaluated directly on the exact R_W profile.
   - The majorant and h are computed on L. Applying them to the R_W pair additionally relies on the empirical R_W ≈ L control
     of §4.7 item 3.
   - This test can only prove infeasibility; it can never establish feasibility.
