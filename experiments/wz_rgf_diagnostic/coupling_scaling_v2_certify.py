@@ -2,10 +2,12 @@ r"""Production certificate module for the W/Z coupling-scaling experiment v2 (PR
 
 Scope of this file (Revision 3.7):
   * the production black-box API of §2.4.3.3 used by T6 (lead enclosure, A_mid assembly, eps_A, the point certificate of
-    §2.4.1 steps 2-7, the §5.6 pointwise infeasibility certificate, point_infeasible, conclude), and
-  * approx_inverse_Y, the §2.4.1 step 1 mpmath approximate inverse (the only place mpmath is used).
-NOT in this file yet: the T1-T5 self-tests and the §2.4.1 interval covering / Taylor radius r_0 machinery. Those are
-specified in §2.4.2 but are not implemented, so the manifest-freeze condition "T1-T5 pass" (§2.4.3.11) cannot be met.
+    §2.4.1 steps 2-7, eta_A and G_lo, the §5.6 pointwise infeasibility certificate, point_infeasible, conclude);
+  * approx_inverse_Y / certify_with_retry, the §2.4.1 step 1 and step 8 mpmath approximate inverse with retry (the only
+    place mpmath is used);
+  * the §2.4.1 binary64 import boundary and the exact L / R_W / R_orig assembly, A1 and b (T5).
+The §2.4 item 3 covering and the common Taylor radius live in coupling_scaling_v2_covering.py. The T1-T5 self-tests are in
+the cs2_t1t5 package and the T6 harness in cs2_t6_harness (independent of this module).
 
 Rules (§2.4.1, §2.4.3.3, §2.4.3.5):
   * Every number accepted or returned is int or Fraction (never bool); complex values are (re, im) pairs; matrices are
@@ -270,6 +272,37 @@ def F_poly(mutant, N, blocks):
     return F
 
 
+def _eta_from_cert(cert):
+    """eta_A := t * ub(f_Y) * omega / (1 - omega) (§5.6), from a certified point certificate."""
+    omega = cert["omega"]
+    return T_HOP * _ub(cert["f_Y"]) * omega / (1 - omega)
+
+
+def _g_lo_from(cert_full, Y_full):
+    """G_lo := max(t/h_W, t*lb(max_ab |Y_full,ab|^2) - eta_full) (§5.6); never clamped."""
+    h_W = cert_full["h"]
+    maxabs2 = max(_abs2(z) for r in Y_full for z in r)
+    eta_full = _eta_from_cert(cert_full)
+    G_lo = max(T_HOP / h_W, T_HOP * _lb(maxabs2) - eta_full)
+    return G_lo
+
+
+def eta_A_bound(A_mid, Y, eps_A_value):
+    """Per-matrix reference-error bound eta_A (§5.6) for any certified matrix, independent of mutants."""
+    c = certify_point(A_mid, Y, eps_A_value)
+    if c["status"] != "certified":
+        raise ValueError("eta_A is defined only for a certified matrix (omega < 1)")
+    return _eta_from_cert(c)
+
+
+def G_lo_bound(A_mid_full, Y_full, eps_A_full):
+    """Full-matrix lower bound G_lo (§5.6), independent of mutants."""
+    c = certify_point(A_mid_full, Y_full, eps_A_full)
+    if c["status"] != "certified":
+        raise ValueError("G_lo is defined only for a certified full matrix (omega < 1)")
+    return _g_lo_from(c, _mat(Y_full, "Y_full"))
+
+
 def _required_prefixes(mutant, N):
     return list(range(1, N)) if mutant in ("M1", "M2", "M3", "M5") else [N - 1]
 
@@ -293,10 +326,7 @@ def pointwise_certificate(mutant, N, N_y, refs):
     if any(c["status"] != "certified" for c in certs.values()):
         return _inconclusive("uncertified_reference", omega=omegas)
     t = (T_HOP, Fraction(0))
-    eta = {}
-    for k, c in certs.items():
-        omega = c["omega"]
-        eta[k] = T_HOP * _ub(c["f_Y"]) * omega / (1 - omega)
+    eta = {k: _eta_from_cert(c) for k, c in certs.items()}
     blocks, owner = {}, {}
     tYf = _mscale(t, _mat(refs["full"][1]))
     blocks["G_NN"], blocks["G_N1"], blocks["G_1N"] = _blk(tYf, N, N, N_y), _blk(tYf, N, 1, N_y), _blk(tYf, 1, N, N_y)
@@ -323,10 +353,7 @@ def pointwise_certificate(mutant, N, N_y, refs):
         E_m += abs(c) * (prod_up - prod)
     F = F_poly(mutant, N, blocks)
     U_m = _ub(_fro2(F)) + _ub(Fraction(N_y)) * E_m
-    h_W = certs["full"]["h"]
-    maxabs2 = max(_abs2(z) for r in _mat(refs["full"][1]) for z in r)
-    eta_full = eta["full"]
-    G_lo = max(T_HOP / h_W, T_HOP * _lb(maxabs2) - eta_full)
+    G_lo = _g_lo_from(certs["full"], _mat(refs["full"][1]))
     base = dict(eta=eta, beta=beta, E_m=E_m, U_m=U_m, G_lo=G_lo, omega=omegas)
     if U_m < 0:
         return _inconclusive("invalid_upper_bound", **base)
@@ -381,12 +408,177 @@ def approx_inverse_Y(A_mid, dps=60):
             M[i, k] = ctx.mpc(ctx.mpf(re.numerator) / re.denominator, ctx.mpf(im.numerator) / im.denominator)
     X = ctx.inverse(M)
 
-    def exact(x):
-        # mpf._mpf_ = (sign, man, exp, bc); value = (-1)^sign * man * 2^exp. (.man_exp drops the sign.)
-        sign, man, e, _bc = ctx.mpf(x)._mpf_
-        if man == 0 and e != 0:
-            raise ValueError("non-finite mpmath value")
-        v = Fraction(man) * (Fraction(2) ** e) if e >= 0 else Fraction(man, 2 ** (-e))
-        return -v if sign else v
+    return tuple(tuple((_mpf_to_fraction(ctx, ctx.re(X[i, k])), _mpf_to_fraction(ctx, ctx.im(X[i, k])))
+                       for k in range(len(A))) for i in range(len(A)))
 
-    return tuple(tuple((exact(ctx.re(X[i, k])), exact(ctx.im(X[i, k]))) for k in range(len(A))) for i in range(len(A)))
+
+def _mpf_to_fraction(ctx, x):
+    """Exact dyadic value of an mpf: mpf._mpf_ = (sign, man, exp, bc), value = (-1)^sign * man * 2^exp.
+    NaN and +/-inf (man == 0 with a special exponent) raise ValueError; nothing is approximated or mapped to zero.
+    (mpf.man_exp is NOT used: in mpmath 1.3.0 it drops the sign.)"""
+    sign, man, e, _bc = ctx.mpf(x)._mpf_
+    if man == 0 and e != 0:
+        raise ValueError("non-finite mpmath value (NaN or infinity)")
+    v = Fraction(man) * (Fraction(2) ** e) if e >= 0 else Fraction(man, 2 ** (-e))
+    return -v if sign else v
+
+
+# ================================================================================================================
+# §2.4.1 "Exact representation of the inputs; the binary64 import boundary" and the exact assembly paths (T5)
+# ================================================================================================================
+DX2 = Fraction(1, 64)
+
+
+def import_binary64(x):
+    """The ONLY entry point for binary64 values: exact dyadic rational of a finite binary64 (Python float or a
+    numpy.floating). NaN and +/-inf raise ValueError; bool/int/str/complex raise TypeError."""
+    if isinstance(x, bool) or not isinstance(x, float):
+        try:
+            import numpy as _np  # only for the numpy.floating type check; no arithmetic
+            if isinstance(x, _np.floating) and not isinstance(x, _np.longdouble):
+                x = float(x)
+            else:
+                raise TypeError
+        except (ImportError, TypeError):
+            raise TypeError(f"import_binary64: binary64 value required, got {type(x).__name__}") from None
+    if x != x or x in (float("inf"), float("-inf")):
+        raise ValueError("import_binary64: NaN and infinities are rejected")
+    return Fraction(x)  # exact for every finite binary64
+
+
+def import_complex128(z):
+    """Exact (re, im) pair of a complex128 value; both parts go through import_binary64."""
+    if isinstance(z, bool) or not hasattr(z, "real") or not hasattr(z, "imag") or isinstance(z, (int, Fraction)):
+        raise TypeError(f"import_complex128: complex binary64 value required, got {type(z).__name__}")
+    return (import_binary64(float(z.real)), import_binary64(float(z.imag)))
+
+
+def import_matrix(Mx):
+    """Exact QMat of a 2-D array of binary64 (real or complex) values."""
+    out = []
+    for row in Mx:
+        r = []
+        for z in row:
+            if isinstance(z, complex) or (hasattr(z, "imag") and not isinstance(z, float) and z.imag != 0) or \
+                    type(z).__name__.startswith("complex"):
+                r.append(import_complex128(z))
+            else:
+                r.append((import_binary64(z), Fraction(0)))
+        out.append(tuple(r))
+    return tuple(out)
+
+
+def _check_exact_matrix_inputs(blocks, what):
+    return [_mat(B, what) for B in blocks]
+
+
+def assemble_L(E, E_perp, V1_blocks, s, kind, j=None, ell=ELL):
+    """L lattice, physical units: M = E*I - H(s) - Sigma~_L (+) Sigma~_R with H_jj = 2t I + diag(E_perp) + s V_j(1),
+    H_{j,j+1} = -t I and Sigma~ = -t lambda~ from the enclosure midpoints of gamma_n = 1 - (E - E_perp,n) dx^2.
+    Exact inputs only (imported rationals); a float raises TypeError."""
+    E = _q(E, "E")
+    Ep = [_q(e, "E_perp") for e in E_perp]
+    s = _q(s, "s")
+    V = _check_exact_matrix_inputs(V1_blocks, "V(1) block")
+    ny, N = len(Ep), len(V)
+    n = N if kind == "full" else int(j)
+    if kind not in ("full", "prefix") or (kind == "prefix" and not 1 <= n <= N - 1):
+        raise ValueError("bad kind / prefix index")
+    lam = [lead_enclosure(1 - (E - e) * DX2, ell)["lam_mid"] for e in Ep]
+    t = (T_HOP, Fraction(0))
+    size = n * ny
+    A = [[_Z] * size for _ in range(size)]
+    for b in range(n):
+        for p in range(ny):
+            for r in range(ny):
+                h = _cmul((s, Fraction(0)), V[b][p][r])
+                if p == r:
+                    h = _cadd(h, (2 * T_HOP + Ep[p], Fraction(0)))
+                A[b * ny + p][b * ny + r] = _csub((E, Fraction(0)) if p == r else _Z, h)
+        if b + 1 < n:
+            for p in range(ny):
+                A[b * ny + p][(b + 1) * ny + p] = t
+                A[(b + 1) * ny + p][b * ny + p] = t
+    for p in range(ny):
+        A[p][p] = _cadd(A[p][p], _cmul(t, lam[p]))                     # -Sigma_L = t lambda~
+        if kind == "full":
+            k = (n - 1) * ny + p
+            A[k][k] = _cadd(A[k][k], _cmul(t, lam[p]))                 # -Sigma_R (same block when N = 1)
+    return tuple(tuple(r) for r in A)
+
+
+def assemble_A1(V1_blocks, kind, j=None):
+    """A1 = dA/ds = -blockdiag(V_j(1)) over the slices of the matrix (Sigma does not depend on s)."""
+    V = _check_exact_matrix_inputs(V1_blocks, "V(1) block")
+    ny, N = len(V[0]), len(V)
+    n = N if kind == "full" else int(j)
+    size = n * ny
+    A = [[_Z] * size for _ in range(size)]
+    for b in range(n):
+        for p in range(ny):
+            for r in range(ny):
+                A[b * ny + p][b * ny + r] = _csub(_Z, V[b][p][r])
+    return tuple(tuple(r) for r in A)
+
+
+def eps_A_L(E, E_perp, N, kind, ell=ELL):
+    """eps_A of the L lattice (lead parameters gamma_n = 1 - (E - E_perp,n) dx^2)."""
+    E = _q(E, "E")
+    return eps_A([1 - (E - _q(e, "E_perp")) * DX2 for e in E_perp], N, kind, ell)
+
+
+def assemble_R_W(Delta_fl_blocks, dlead_fl, kind, j=None, ell=ELL):
+    """R_W lattice from the imported Delta_fl blocks and the imported lead deltas delta_lead,fl (gamma = 1 - delta)."""
+    gam = [1 - _q(d, "delta_lead") for d in dlead_fl]
+    return assemble_A_mid(Delta_fl_blocks, gam, kind, j, ell)
+
+
+def assemble_R_orig(A_orig_blocks, sigma_code, kind, j=None):
+    """R_orig from the imported production arrays E*eye - H[j] and sigma_code (no enclosure: eps_A = 0).
+    M = blocktridiag(A_orig_j; +t I) - Sigma_L on slice 1 - Sigma_R on slice N."""
+    B = _check_exact_matrix_inputs(A_orig_blocks, "A_orig block")
+    sig = [_qc(z, "sigma_code") for z in sigma_code]
+    ny, N = len(sig), len(B)
+    n = N if kind == "full" else int(j)
+    if kind not in ("full", "prefix") or (kind == "prefix" and not 1 <= n <= N - 1):
+        raise ValueError("bad kind / prefix index")
+    t = (T_HOP, Fraction(0))
+    size = n * ny
+    A = [[_Z] * size for _ in range(size)]
+    for b in range(n):
+        for p in range(ny):
+            for r in range(ny):
+                A[b * ny + p][b * ny + r] = B[b][p][r]
+        if b + 1 < n:
+            for p in range(ny):
+                A[b * ny + p][(b + 1) * ny + p] = t
+                A[(b + 1) * ny + p][b * ny + p] = t
+    for p in range(ny):
+        A[p][p] = _csub(A[p][p], sig[p])
+        if kind == "full":
+            k = (n - 1) * ny + p
+            A[k][k] = _csub(A[k][k], sig[p])
+    return tuple(tuple(r) for r in A)
+
+
+def b_bound(A1):
+    """b := ub(||A1||_F^2) >= ||A1||_2 (§2.4.1 step 7); b = 0 iff A1 = 0."""
+    return _ub(_fro2(_mat(A1, "A1")))
+
+
+def certify_with_retry(A_mid, eps_A_value):
+    """§2.4.1 steps 1-8: Y at dps 60; if omega >= 1 (or the mpmath inverse fails), retry once at dps 120; if still not
+    certified the point is 'uncertified' (no bound is returned)."""
+    last = None
+    for dps in (60, 120):
+        try:
+            Y = approx_inverse_Y(A_mid, dps)
+        except (ZeroDivisionError, ValueError, ArithmeticError):
+            last = dict(status="uncertified", reason=f"mpmath inverse failed at dps {dps}", a=None, dps=dps)
+            continue
+        c = certify_point(A_mid, Y, eps_A_value)
+        c["dps"] = dps
+        if c["status"] == "certified":
+            return c
+        last = c
+    return last

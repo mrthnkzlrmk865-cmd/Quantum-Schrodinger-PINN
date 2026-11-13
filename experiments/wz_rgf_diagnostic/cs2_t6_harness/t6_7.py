@@ -32,4 +32,21 @@ def run(prod, R=None):
     except TypeError:
         ok = True
     R.add("T6.7 float U rejected", ok, "INTERFACE-FAIL")
+    # production exact mpf conversion (used by approx_inverse_Y): signed values exact, specials rejected
+    import mpmath
+    ctx = mpmath.MPContext()
+    ctx.dps = 60
+    conv = getattr(prod, "_mpf_to_fraction", None)
+    R.add("production mpf conversion exists", conv is not None, "INTERFACE-FAIL")
+    if conv is not None:
+        R.add("production mpf conversion keeps sign: -3, -3/4, 0, 5, 2^-1000",
+              [conv(ctx, ctx.mpf(v)) for v in (-3, -0.75, 0, 5)] == [F(-3), F(-3, 4), F(0), F(5)]
+              and conv(ctx, ctx.mpf(2) ** -1000) == F(1, 2**1000), "CERT-VIOLATION")
+        for sp, w in ((ctx.nan, "NaN"), (ctx.inf, "+inf"), (-ctx.inf, "-inf")):
+            try:
+                conv(ctx, sp)
+                ok = False
+            except ValueError:
+                ok = True
+            R.add(f"production mpf conversion rejects {w}", ok, "CERT-VIOLATION")
     return R

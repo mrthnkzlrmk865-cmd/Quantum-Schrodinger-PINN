@@ -25,6 +25,10 @@ def write(out_dir, payload):
          "| stage | checks | failed | status |", "|---|---|---|---|"]
     for st in payload["stages"]:
         L.append(f"| {st['stage']} | {st.get('total', '-')} | {st.get('failed', '-')} | {st['status']} |")
+    if payload.get("t1t5"):
+        L += ["", "## T1-T5", "", "| test | checks | failed |", "|---|---|---|"]
+        for st in payload["t1t5"]:
+            L.append(f"| {st['stage']} | {st['total']} | {st['failed']} |")
     if payload.get("mutations"):
         L += ["", "## Mutation suite", "", "| id | detected | mechanism | description |", "|---|---|---|---|"]
         for r in payload["mutations"]:
