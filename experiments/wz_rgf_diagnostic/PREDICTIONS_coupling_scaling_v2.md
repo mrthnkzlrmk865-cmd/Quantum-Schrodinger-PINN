@@ -1,6 +1,6 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 3.6 (document-only; on top of Revision 3.5 `c4b02b0`; earlier: Revision 3.4 `79805f2`, Revision 3.3 `4d471b0`, Revision 3.2 `f16e7c2`, Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
+Revision 3.7 (document-only; on top of Revision 3.6 `caca972`; earlier: Revision 3.5 `c4b02b0`, Revision 3.4 `79805f2`, Revision 3.3 `4d471b0`, Revision 3.2 `f16e7c2`, Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
 independent R0 design review of `f101224` (verdict: CONDITIONAL PASS). Earlier revisions:
 - Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
 - Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
@@ -211,6 +211,13 @@ interfaces, mutation requirements and stopping rules, which are preconditions fo
 | Rev3.6-4 | Reference known-answer tests, mutation suite (must-detect list and non-detectable list), failure classes, stopping rules and manifest-freeze conditions (§2.4.3.7, §2.4.3.10, §2.4.3.11) | adds preconditions |
 | Rev3.6-5 | mpmath pinned to 1.3.0. Double-precision anchors (10·cond₂·ε, §4.7 item 2) are diagnostic only and never part of PASS | no |
 | Rev3.6-6 | T6.6 exact precondition: G_lo must be exact (`int` or `Fraction`, not `bool`) with G_lo ≥ 0, checked before the matrix predicate; `point_infeasible` also requires an exact U ≥ 0 (INVALID_UPPER_BOUND). The generic contract admits G_lo = 0 (never infeasible); the frozen-input invariant 0 < G_lo (§5.6) makes a production G_lo ≤ 0 a CERT-VIOLATION. Interface cases a–i; MU24–MU27, with a mutation audit. The §5.6 formulas and positivity statement are unchanged | adds a precondition (T6 only) |
+
+Revision 3.7 (vs `caca972`; P5 certificate-level preconditions). **No threshold, grid point, frozen T6 input, mutant
+definition, sampling rule (§2.3–§2.6), §6 decision rule, conclusion rule or status label is changed.**
+
+| # | change | rule change? |
+|---|---|---|
+| Rev3.7-1 | P5: N1–N3 are kept as exact conditions on the true quantities, but are no longer claimed to guarantee certificate outcomes. Added: N4 (U_m^ref < 10·THRESHOLD·G_lo^ref at every s ∈ S_test) and N5 (U_m^ref < THRESHOLD·G_lo^ref at 2⁻⁴⁰), computed by the reference from the §5.6 formulas; the derived N1′ self-check; and P5 value agreement (production U_m and G_lo must equal the reference values exactly). The MU18 and MU20 justifications now rest on N4, N5 and value agreement. N1–N5 are verified before P5 and before the mutation suite | adds preconditions (T6 only) |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -918,6 +925,14 @@ Its own exact complex type RC (a pair of `Fraction`). It rejects `float`, `compl
   in R0.
 - `rpoly.F_ref(mutant, N, blocks)`: the §5.6 polynomial forms. It is used only after it has been proved equal to
   `rmutants` − `rblocks` on every T6.1 input.
+- `rcert`: an independent implementation of the §5.6 certificate quantities for P5 (and for any frozen lattice that needs
+  them), using only reference modules and the reference's own ū and l̄.
+  - `U_ref(lattice, N, s, mutant)` and `G_lo_ref(lattice, N, s)` follow the §5.6 definitions on the frozen inputs:
+    A_mid (from `rlead.enclosure`), Y_T6 (`rlead.round_dyadic` of `rinv.inverse(A_mid)`), ε_A per matrix type, Ξ, ω,
+    η_A := t·ū(f_Y)·ω/(1 − ω), β̃_i := ū(‖B̃_i‖_F²), E_m := Σ_μ |c_μ|·[Π(β̃_i + η_i) − Π β̃_i] (with the monomials of
+    `rpoly`), U_m := ū(‖F_m(B̃)‖_F²) + ū(N_y)·E_m, h_W := ū(f_mid,W) + ε_A,W, and
+    G_lo := max(t/h_W, t·l̄(max_ab |Y_full,ab|²) − η_full).
+  - Every intermediate is an exact `Fraction`. `ω < 1` is required for every matrix used, otherwise PRECONDITION-UNMET.
 - `rpred`: `THRESHOLD_REF` (literal `Fraction(1, 10**10)`), `grid()` (the 81 §3 points), `S_TEST_REF` (grid points
   ≤ 2⁻¹⁹), and the exact predicates of §2.4.3.6. It includes `check_lower_bound(G)`, which is implemented independently of
   production:
@@ -974,7 +989,7 @@ All predicates are exact rational comparisons or `rpsd` decisions. Every truth c
 | T6.5 | U_m | D*² := fro2(`rmutants` − `rblocks`) | U_m ≥ 0 and U_m² ≥ D*² | CERT-VIOLATION |
 | T6.6 | G_lo | Ĝ = t·A_true⁻¹ | `check_lower_bound(G_lo)` first; the frozen-input invariant requires "POSITIVE"; then `is_pd(G_lo²I − ĜᴴĜ)` is false | INTERFACE-FAIL (type); CERT-VIOLATION (G_lo < 0: INVALID_LOWER_BOUND; G_lo = 0: ZERO_LOWER_BOUND; in both cases the predicate is not evaluated; or the predicate fails) |
 | T6.7 | `THRESHOLD`, `point_infeasible` | literal | value, `!= Fraction(1e-10)`, type; rejections; cases (a)–(c) | CERT-VIOLATION / INTERFACE-FAIL |
-| T6.8 | `pointwise_certificate`, `conclude` | the path preconditions | the expected status and reason; never "infeasible" | PATH-FAIL |
+| T6.8 | `pointwise_certificate`, `conclude` | the path preconditions; for P5 also U_m^ref and G_lo^ref (`rcert`) | the expected status and reason; never "infeasible"; for P5 also exact value agreement and the reference-predicted point statuses | PATH-FAIL; CERT-VIOLATION (P5_VALUE_MISMATCH) |
 
 - **T6.6 exact precondition, frozen-input invariant and interface cases.**
   - **Precondition.** G_lo must be `int` or `Fraction` (not `bool`) and must satisfy G_lo ≥ 0. This is checked, in that
@@ -1031,8 +1046,14 @@ All predicates are exact rational comparisons or `rpsd` decisions. Every truth c
   - **P4:** C8 (γ = 1025/1024, V = 0, N = 2), M6, enclosure `ell = 4` (ū and l̄ stay at ℓ = 256), Y_T6 computed from the
     ℓ = 4 A_mid → INCONCLUSIVE, "uncertified_reference" (the full matrix). The harness also requires the production ω of
     the full matrix to be ≥ 1 (§2.4.3.9).
-  - **P5 (near-threshold lattice):** X1n, N = 2, M6, Y_T6 → INCONCLUSIVE, "bound_not_below_threshold"; at s* = 2⁻¹⁹ the
-    point status must be "not_infeasible".
+  - **P5 (near-threshold lattice):** X1n, N = 2, M6, Y_T6 → INCONCLUSIVE, "bound_not_below_threshold".
+    - **Value agreement:** at every s ∈ S_test, the production U_m(s) and G_lo(s) must equal U_m^ref(s) and G_lo^ref(s)
+      exactly. Both are deterministic exact functions of the same frozen exact inputs (§5.6), so any difference means
+      production does not implement §5.6 (CERT-VIOLATION, reason P5_VALUE_MISMATCH).
+    - **Point statuses:** the expected point status at each s is the reference prediction
+      `expected_point_infeasible(U_m^ref(s), G_lo^ref(s), THRESHOLD)`. Recorded preflight prediction: "not_infeasible" at
+      the five points 2⁻¹⁹, 3·2⁻²¹, 2⁻²⁰, 3·2⁻²² and 2⁻²¹; "infeasible" at the other 38. If the reference prediction differs
+      from this recorded list, the result is PRECONDITION-UNMET (investigate before running P5).
   - **P6:** X0, N = 2, mutants M4, M4L, M4R, M9, M10, M11, M12, M13, M14, M16, Y_T6 → INCONCLUSIVE or "not applicable",
     reason "unsupported_mutant".
   - **P7:** X0, N = 2, M6, Y_T6, evaluated sets: ∅; S_test ∖ {2⁻⁴⁰}; S_test ∪ {2⁻⁴¹}; (S_test ∖ {2⁻¹⁹}) ∪
@@ -1045,14 +1066,44 @@ All predicates are exact rational comparisons or `rpsd` decisions. Every truth c
   - (N2) ρ(s) < 5/2 for every s ∈ S_test, i.e. `is_psd((D*²/((5/2)·THRESHOLD)²)·I − ĜᴴĜ)` is false;
   - (N3) ρ(2⁻⁴⁰) < 1/5.
 
-  Preflight: ρ(2⁻¹⁹) ≈ 2.33, which is also the maximum over S_test (ρ ≥ 1 also at 3·2⁻²¹ and 2⁻²⁰), and ρ(2⁻⁴⁰) ≈ 10⁻⁶.
-  - **Why INCONCLUSIVE is forced:** at s*, U_m ≥ D*_true ≥ THRESHOLD·G_true ≥ THRESHOLD·G_lo, so that point is not
-    infeasible.
-  - **Why the bound 5/2 matters:** it makes a threshold misread by a factor of 10 detectable. G_lo ≥ max_ab |Ĝ_ab| − (2η
-    + t·2^(1−ℓ)) ≥ ‖Ĝ‖₂/n_tot − (2η + t·2^(1−ℓ)), with n_tot = 4, using l̄(f) ≥ √f − 2^(1−ℓ) and
-    t·max_ab |Y_ab − (A⁻¹)_ab| ≤ η. So under a threshold of 10⁻⁹ every point would be infeasible.
-  - **Why (N3) matters:** it guarantees at least one infeasible point under the correct threshold, so an "any point"
-    conclusion rule is detectable.
+  Preflight (non-binding): ρ(2⁻¹⁹) ≈ 2.33, which is also the maximum over S_test (ρ ≥ 1 also at 3·2⁻²¹ and 2⁻²⁰), and
+  ρ(2⁻⁴⁰) ≈ 10⁻⁶.
+  - **Scope of N1–N3.** These are exact conditions on the true quantities D*_true and G_true. The certificate compares
+    U_m < THRESHOLD·G_lo instead, with U_m ≥ D*_true and G_lo ≤ G_true. Neither the gap U_m − D*_true nor the gap
+    G_true − G_lo is bounded by N1–N3. So:
+    - N2 alone does **not** guarantee that every point becomes infeasible under a threshold of 10⁻⁹;
+    - N3 alone does **not** guarantee an infeasible point under the correct threshold.
+
+    N2 keeps every S_test point inside the near-threshold window (ρ < 5/2 < 10). N3 places the truth at 2⁻⁴⁰ far below
+    threshold.
+  - **Certificate-level preconditions.** These are computed by the reference `rcert` from the frozen inputs and verified
+    by exact rational comparison before P5 and before the mutation suite run:
+    - **(N4)** U_m^ref(s) < 10·THRESHOLD·G_lo^ref(s) for every s ∈ S_test;
+    - **(N5)** U_m^ref(2⁻⁴⁰) < THRESHOLD·G_lo^ref(2⁻⁴⁰).
+
+    A failure of N1–N5 is PRECONDITION-UNMET, never a mutation result.
+  - **Exact preflight of N1–N5** (non-binding; `Fraction` and `isqrt`; re-proven by the reference): all five hold.
+    - max over S_test of U_m^ref/(THRESHOLD·G_lo^ref) ≈ 4.165, at 2⁻¹⁹ (N4 requires < 10);
+    - at 2⁻⁴⁰ the ratio is ≈ 2.0·10⁻⁶ (N5 requires < 1);
+    - the G_lo maximum is attained by the entry branch at every point;
+    - ω ≤ 3·10⁻⁷⁷ for both matrices.
+
+    The certificate ratio exceeds ρ (4.165 against 2.33 at 2⁻¹⁹), and 3·2⁻²² and 2⁻²¹ are not infeasible although ρ < 1
+    there. This illustrates why N2 and N3 alone were insufficient.
+  - **Why INCONCLUSIVE is forced (N1).** At s* = 2⁻¹⁹, U_m ≥ D*_true (§5.6), N1 gives D*_true ≥ THRESHOLD·G_true, and
+    G_true ≥ G_lo (§5.6). So U_m ≥ THRESHOLD·G_lo, U_m < THRESHOLD·G_lo is false, and that point is "not_infeasible".
+    Under the every-point rule the pair is INCONCLUSIVE.
+    - The same chain holds for the reference values. The reference therefore also checks the implied inequality (N1′)
+      U_m^ref(2⁻¹⁹) ≥ THRESHOLD·G_lo^ref(2⁻¹⁹), together with U_m^ref(s)² ≥ D*_true(s)² and
+      `is_pd(G_lo^ref(s)²I − ĜᴴĜ)` false at every P5 point. A failure is REF-SELFCHECK-FAIL.
+  - **Why MU18 is detected (N4 and value agreement).** The mutation changes only the threshold, to T′ = 10·THRESHOLD, so
+    U_m and G_lo are unchanged and equal the reference values. By N4, U_m(s) < T′·G_lo(s) at every s ∈ S_test. Every point
+    is infeasible, the evaluated set is S_test, and the every-point rule returns "infeasible" instead of INCONCLUSIVE. If
+    instead the mutant's own threshold check rejects T′, the run raises, which is also a PATH-FAIL. T6.7 detects MU18
+    independently.
+  - **Why MU20 is detected (N5 and value agreement).** At 2⁻⁴⁰, U_m = U_m^ref < THRESHOLD·G_lo^ref = THRESHOLD·G_lo, so
+    that point is infeasible. An "any point" rule therefore returns "infeasible", whereas the correct every-point rule
+    returns INCONCLUSIVE (N1).
 - **Edge cases:**
   - N_y = 1 (X0) and class D (XD) must give F_poly(B) = 0 exactly;
   - the j = 2 term of M5 must vanish exactly;
@@ -1089,7 +1140,8 @@ All predicates are exact rational comparisons or `rpsd` decisions. Every truth c
 - **Self-proofs on every T6 lattice:**
   - `rmutants(None)` equals the `rblocks` blocks exactly;
   - `F_ref` equals the recursion difference;
-  - ρ, ω and certification preconditions as stated per test.
+  - ρ, ω and certification preconditions as stated per test;
+  - for P5: N1–N5, N1′, U_m^ref² ≥ D*_true² and G_lo^ref ≤ G_true (by `rpsd`) at every s ∈ S_test.
 - **`rpred`:** `S_TEST_REF` is the 2⁻ᵏ (k = 19..40) and 3·2⁻ᵏ (k = 21..41) points, |S_TEST_REF| = 43, and it equals the
   grid points ≤ 2⁻¹⁹.
 
@@ -1199,9 +1251,9 @@ Every listed mutation must make at least one frozen T6 predicate fail (MUTATION-
 | MU15 | THRESHOLD = `Fraction(1e-10)` | T6.7 | assertion |
 | MU16 | THRESHOLD = 1e-10 (`float`) | T6.7 | type |
 | MU17 | U ≤ THRESHOLD·G_lo instead of < | T6.7 (c) | equality case |
-| MU18 | THRESHOLD = `Fraction(1, 10**9)` | T6.7; T6.8 P5 | P5: (N2) makes every point infeasible |
+| MU18 | THRESHOLD = `Fraction(1, 10**9)` | T6.7; T6.8 P5 | P5: by N4 and value agreement every point becomes infeasible, so the outcome is "infeasible" (or the run raises) instead of INCONCLUSIVE |
 | MU19 | S_TEST with k = 19..39 only (42 points) | edge case; T6.8 P7 | size and set equality |
-| MU20 | `conclude` uses "any point" instead of "every point" | T6.8 P5 | (N3) gives an infeasible point |
+| MU20 | `conclude` uses "any point" instead of "every point" | T6.8 P5 | by N5 and value agreement the point 2⁻⁴⁰ is infeasible, so the outcome is "infeasible"; the correct rule gives INCONCLUSIVE (N1) |
 | MU21 | `conclude` skips the evaluated-set check | T6.8 P7 | F_m ≡ 0 gives a vacuous "infeasible" |
 | MU22 | an unsupported mutant evaluated with the M6 polynomial | T6.8 P6 | reason must be "unsupported_mutant" |
 | MU23 | a missing prefix treated as zero blocks | T6.8 P3 | reason must be "missing_reference" |
@@ -1210,8 +1262,8 @@ Every listed mutation must make at least one frozen T6 predicate fail (MUTATION-
 | MU26 | `bool` accepted as an exact operand | T6.6 cases d, i | the mutant returns a value for (`True`, G) instead of raising `TypeError` |
 | MU27 | G_lo without the t/h_W branch of the §5.6 maximum | T6.6 aux (Y_half), frozen-input invariant | t·l̄(max_ab \|Y_ab\|²) − η ≤ ‖Ĝ‖_F/2 − 1.2·‖Ĝ‖_F < 0, so the mutant's G_lo is ≤ 0 (INVALID_LOWER_BOUND, or ZERO_LOWER_BOUND if clamped) while the unmutated G_lo ≥ t/h_W > 0 |
 
-The harness proves every listed witness (MU7–MU10) exactly before the mutation run; a missing witness is
-PRECONDITION-UNMET.
+The harness proves every listed witness (MU7–MU10), and the P5 preconditions N1–N5, exactly before the mutation run.
+A missing witness or a failed N1–N5 is PRECONDITION-UNMET, never a mutation result.
 
 **Mutation audit.** For each required mutation:
 - **Valid inputs.** Every detecting input satisfies the API preconditions (exact types, U ≥ 0, G_lo ≥ 0, a certified
@@ -1242,13 +1294,22 @@ recorded and not required, because tightness checks are deferred:
 | IMPORT-VIOLATION | the §2.4.3.5 import rules are broken | stop before any test |
 | KAT-FAIL / REF-SELFCHECK-FAIL | a §2.4.3.7 check fails | stop; no production result is read |
 | INTERFACE-FAIL | §2.4.3.3 types or fields violated | stop; T6 fails |
-| PRECONDITION-UNMET | a frozen input lacks its stated property | stop; inputs change only by a documented revision with an R0 note |
-| CERT-VIOLATION | a T6.1–T6.7 predicate fails, production and reference A_mid differ, or a production G_lo ≤ 0 on a frozen input (INVALID_LOWER_BOUND if < 0, ZERO_LOWER_BOUND if = 0; the T6.6 matrix predicate is not evaluated) | finish the deterministic run, record every violation, stop; after a fix, rerun T1–T6 in full |
+| PRECONDITION-UNMET | a frozen input lacks its stated property (including P5 N1–N5, and the recorded P5 status list) | stop; inputs change only by a documented revision with an R0 note |
+| CERT-VIOLATION | a T6.1–T6.7 predicate fails, production and reference A_mid differ, a P5 value mismatch (P5_VALUE_MISMATCH), or a production G_lo ≤ 0 on a frozen input (INVALID_LOWER_BOUND if < 0, ZERO_LOWER_BOUND if = 0; the T6.6 matrix predicate is not evaluated) | finish the deterministic run, record every violation, stop; after a fix, rerun T1–T6 in full |
 | PATH-FAIL | a T6.8 path gives a wrong outcome or reason, or raises | as CERT-VIOLATION |
 | MUTATION-SURVIVED | a §2.4.3.10 mutation passes every predicate | stop; T6 inputs are insufficient; documented revision required |
 | C4 outcomes | §2.4.2 (T6.4) | blocking outcomes block the freeze; never part of an exact predicate |
 
 No retry with changed inputs is allowed. The run is deterministic.
+
+**Order of execution:**
+1. ENV and import checks;
+2. reference known-answer tests and self-proofs, including N1′;
+3. every frozen-input precondition, including the P5 conditions N1–N5 and the mutation witnesses;
+4. T1–T5 and T6.1–T6.8 on the unmutated production;
+5. the mutation suite.
+
+A later stage runs only if every earlier stage passed.
 
 The manifest (§8.2) may be generated only when **all** of the following hold:
 1. ENV and import checks pass;
