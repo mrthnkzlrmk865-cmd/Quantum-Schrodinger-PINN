@@ -1,6 +1,6 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 3.4 (document-only; on top of Revision 3.3 `4d471b0`; earlier: Revision 3.2 `f16e7c2`, Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
+Revision 3.5 (document-only; on top of Revision 3.4 `79805f2`; earlier: Revision 3.3 `4d471b0`, Revision 3.2 `f16e7c2`, Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
 independent R0 design review of `f101224` (verdict: CONDITIONAL PASS). Earlier revisions:
 - Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
 - Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
@@ -186,6 +186,16 @@ decision rule is changed.**
 | Rev3.4-3 | Exact-level (SNR_ideal) and rule-level claims separated (C5); eligibility versus certificate inequality distinguished with respect to the zero test (C2); the diagnostic's non-decision role stated | no (clarification) |
 | Rev3.4-4 | Self-test T6 added (§2.4.2), including C3 (exact threshold type) and C4 (supplementary irrational case reported as a numerical cross-check only). Precondition references updated from T1–T5 to T1–T6 (§2.4.1, §4.3, §8.1, §8.2, §9 item 7) | adds a precondition |
 | Rev3.4-5 | Notation table and §4.6 row added. The certificate's status is "Designed; validation pending T1–T6 and R0" | no |
+
+Revision 3.5 (vs `79805f2`; T6.4 supplementary irrational-lead protocol). **No threshold, grid point, mutant definition,
+sampling rule, decision rule or status label is changed.** The case remains "numerical cross-check (not validated)".
+
+| # | change | rule change? |
+|---|---|---|
+| Rev3.5-1 | §2.4.2 T6.4: the one-line "mpmath dps-300 reference" is replaced by a reproducible protocol: preregistered dyadic inputs with an exact sensitivity rule; Stage 1 mpmath at dps 300, 400 and 500 with two inverse methods; Stage 2 exact-rational reference intervals Q1–Q8 under the stated, unverified assumption A1; interval-intersection convergence; exact classification; outcome precedence, blocking rules and reporting | no (supplementary, not validated; adds blocking conditions to T6.4 only) |
+| Rev3.5-2 | Q1 uses T3's closed convention lo_n ≤ √ξ_n ≤ hi_n, equivalent to \|√ξ_n − μ̃_n\| ≤ e_n | no |
+| Rev3.5-3 | Q8 compares the unsquared ‖F_m(B)‖_F; E_ref bounds ‖F_m(B) − F_m(B̂)‖_F directly (Frobenius telescoping) and is not multiplied by ū(N_y). The §5.6 U_m definition is unchanged | no |
+| Rev3.5-4 | Y_fine: exact A_mid⁻¹ rounded at 2⁻⁵¹² (ℓ_Y = 2ℓ), nearest, ties-to-even, real and imaginary parts independently, integer-only; resolution rationale stated | no |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -590,11 +600,142 @@ part of the R0 review.
 - **T6.4 (lead-enclosure propagation).**
   - On the rational-λ and Pythagorean lattices, A_e = A_true − A_mid is known exactly. Success: ε_A² ≥ ‖A_e‖_F², and
     ω²I − RᴴR ⪰ 0 for R = I − A_true·Y. Failure: any violation.
-  - **Supplementary irrational-lead case (C4).** This case is checked against an mpmath dps-300 reference and is reported in
-    a separate field labelled **"numerical cross-check (not validated)"**.
-    - Disagreement is blocking: it must be investigated before the manifest freeze.
-    - Agreement is never reported or cited as an exact validation result, and does not contribute to any "validated" claim.
-    - The exact T6.4 checks are those on the rational-λ and Pythagorean lattices only.
+  - **Supplementary irrational-lead case (C4; protocol of Revision 3.5).** This case is reported only in a separate field
+    labelled **"numerical cross-check (not validated)"**. No pass is claimed. No outcome of this case contributes to any
+    "validated" claim (§4.6). The exact T6.4 checks are those on the rational-λ and Pythagorean lattices only.
+    - **Inputs (preregistered, deterministic).**
+      - Lead parameters: open channels γ = k/2¹⁰ with k ∈ {1, …, 1023}; closed channels γ = 1 + k/2¹⁰ with
+        k ∈ {1, …, 1023}; ξ = |1 − γ²|.
+      - **Eligibility (exact):** √ξ is irrational, i.e. ξ in lowest terms is not a ratio of two perfect squares
+        (`math.isqrt`).
+      - **Sensitivity rule (exact):** |ξ − μ̃²| ≥ (7/8)·e_n·(hi + μ̃). Because √ξ − μ̃ = (ξ − μ̃²)/(√ξ + μ̃) and √ξ ≤ hi, this
+        implies |√ξ − μ̃| ≥ (7/8)·e_n. Rationale: ū inflates t·e_n-sized norms by at most a relative 33/512 (t·e_n ≥ 2⁻²⁵²),
+        so a missing lead factor √2 (two leads) or 2 (N = 1) in ε_A becomes detectable when the factor c in c·e_n satisfies
+        c·√2 > 1 + 33/512, i.e. c > 0.753.
+      - **Selection:** in each branch, the two smallest eligible k satisfying the sensitivity rule; plus the band-edge
+        cases k = 1023 (open) and k = 1 (closed), for which the sensitivity rule is not required. No input is replaced
+        after any result is seen.
+      - **Lattices:** N_y ∈ {1, 2} with N ∈ {1, 2, 3}, channels taking the selected γ values in the listed order; one
+        24 × 24 case (N_y = 4, N = 6); dyadic V(1) with nonzero off-diagonal entries; s ∈ {1, 2⁻¹⁹, 2⁻⁴⁰}.
+      - **Two choices of Y:**
+        - **Y_prod:** the mpmath inverse of §2.4.1 step 1 (dps 60; dps 120 on retry).
+        - **Y_fine:** A_mid⁻¹ rounded to the dyadic grid 2^−ℓ_Y with **ℓ_Y := 2ℓ = 512**, by the following
+          integer-only procedure:
+          - A_mid⁻¹ is computed exactly by `Fraction` Gaussian elimination. The exact inverse is unique, so the result
+            does not depend on pivoting or operation order.
+          - The real and imaginary parts of every entry are rounded **independently**, to nearest, ties-to-even. For a
+            component x, write x·2^ℓ_Y = p/q in lowest terms with q > 0, and set n₀ = p // q and rem = p − n₀·q. Then:
+            n = n₀ if 2·rem < q; n = n₀ + 1 if 2·rem > q; if 2·rem = q, n is the even integer among n₀ and n₀ + 1.
+          - The component of Y_fine is the exact dyadic `Fraction` n/2^ℓ_Y.
+          - All steps use Python integers and `Fraction` only. **No `float` or mpmath value is created**, so Y_fine is a
+            deterministic function of A_mid.
+          - **Why 2⁻⁵¹² is required.** Y_fine exists so that the ω check is sensitive to ε_A, i.e. so that ‖Ξ‖_F is far
+            below the lead term ε_A·ū(f_Y) of ω. Since e_n ≥ 2^−(ℓ+1), ε_A ≥ √2·t·2⁻²⁵⁷ ≈ 2·10⁻⁷⁶ (one channel, two
+            leads). With Ξ = A_mid·(A_mid⁻¹ − Y_fine) and a rounding error of at most √2·2^−(ℓ_Y+1) per entry,
+            ‖Ξ‖_F ≤ ‖A_mid‖_F·n_tot·√2·2^−(ℓ_Y+1). For n_tot = 24 and ‖A_mid‖_F = 10² this is ≈ 1.5·10⁻⁷⁴ at resolution
+            2⁻²⁵⁶ (ℓ_Y = ℓ), which can exceed the lead term, so the ω check could not see an ε_A error. At 2⁻⁵¹² it is
+            ≈ 1.3·10⁻¹⁵¹, about 75 orders of magnitude below 2·10⁻⁷⁶.
+    - **Certificate outputs under test** (read from the certificate module; for every full and prefix matrix where
+      applicable): e_n, μ̃_n, ε_A, ω, a, h, η_A, G_lo, and U_m for the T6.1 mutants on path.
+    - **Reference module.** The T6 reference module; it imports neither the certificate module nor its ū and l̄. It
+      reimplements ū and l̄ at resolution ℓ_ref(p) := 2·prec(p) (derived from the requirement 2^−ℓ_ref ≤ u_p·2⁻²⁶⁰, the
+      smallest positive scale), and builds A_true and λ̂ from γ by the §2.4.1 branch formulas.
+    - **Stage 1 (mpmath).** At each p ∈ {300, 400, 500} (dps), with prec(p) as reported by mpmath (expected 1000, 1332,
+      1664; the reported values and the mpmath version are recorded) and u_p := 2^(1−prec(p)):
+      - ŝ_n,p := `mp.sqrt(ξ_n)`. The import of ξ_n into mpmath must convert back to the same rational exactly; otherwise
+        REFERENCE-INVALID.
+      - X̂_p := `mp.inverse(A_c,p)` and, as an independent second method, X̂′_p := `mp.lu_solve(A_c,p, I)`, for every full
+        and prefix matrix (A_c,p as in Stage 2).
+      - v_p := the right singular vector of the largest singular value of X̂_p from `mp.svd_c`, used only as a test vector.
+        If `svd_c` fails, v_p is the standard basis vector of the column of X̂_p with the largest norm.
+      - Every mpmath output is converted to its exact dyadic rational. Everything after this point is exact.
+    - **Stage 2 (exact rationals only).**
+      - **Assumption A1 (not verified):** |ŝ_n,p − √ξ_n| ≤ r_n,p := u_p·ŝ_n,p/(1 − u_p) (faithful rounding of `mp.sqrt`).
+        This is the reason the case is not validated.
+      - A_c,p := A_mid + A_e,c,p. The lead entries of A_e,c,p are t·(λ̂_n,p − λ̃_n), doubled for N = 1; A_e,c,p is zero
+        elsewhere.
+      - ρ_p := ū(Σ c²·t²·r_n,p²) over the lead entries of the matrix concerned (c = 2 for N = 1, otherwise 1). Under A1,
+        ‖A_true − A_c,p‖_F ≤ ρ_p.
+      - **Inverse enclosure** (separately for X̂_p and X̂′_p): Ξ′_p := I − A_c,p·X̂_p (exact);
+        ω′_p := ū(‖Ξ′_p‖_F²) + ρ_p·ū(‖X̂_p‖_F²); if ω′_p ≥ 1, NONCONVERGENT; otherwise
+        r_X,p := ū(‖X̂_p‖_F²)·ω′_p/(1 − ω′_p). With R″ := I − A_true·X̂_p, ‖R″‖₂ ≤ ω′_p < 1 and
+        A_true⁻¹ − X̂_p = X̂_p(I − R″)⁻¹R″, so r_X,p ≥ ‖A_true⁻¹ − X̂_p‖_F (a Frobenius bound).
+    - **Reference intervals I_p(Q).** Under A1, and assuming the reference module is correct, each true value lies in
+      I_p(Q). All lower ends are clipped at 0.
+
+      | Q | claim under test | I_p(Q) |
+      |---|---|---|
+      | Q1 | lo_n ≤ √ξ_n ≤ hi_n (closed interval, as in T3) | [ŝ − r, ŝ + r] |
+      | Q2 | ‖A_e‖_F ≤ ε_A (full N ≥ 2, N = 1, each prefix) | [l̄(‖A_e,c‖_F²) − ρ, ū(‖A_e,c‖_F²) + ρ] |
+      | Q3 | ‖A_true‖_F ≤ h | [l̄(‖A_c‖_F²) − ρ, ū(‖A_c‖_F²) + ρ] |
+      | Q4 | ‖I − A_true·Y‖_F ≤ ω, with R_c := Ξ − A_e,c·Y | [l̄(‖R_c‖_F²) − ρ·ū(f_Y), ū(‖R_c‖_F²) + ρ·ū(f_Y)] |
+      | Q5 | ‖A_true⁻¹‖_F ≤ a | [l̄(‖X̂‖_F²) − r_X, ū(‖X̂‖_F²) + r_X] |
+      | Q6 | t·‖A_true⁻¹ − Y‖_F ≤ η_A | t·[l̄(‖X̂ − Y‖_F²) − r_X, ū(‖X̂ − Y‖_F²) + r_X] |
+      | Q7 | G_lo ≤ ‖t·A_true⁻¹‖₂ (full matrix) | lower end t·max(l̄(max_ab \|X̂_ab\|²), l̄(‖X̂v‖²/‖v‖²)) − t·r_X; upper end t·(ū(‖X̂‖_F²) + r_X) |
+      | Q8 | U_m ≥ D*_true = ‖F_m(B)‖_F | [max(0, l̄(‖F_m(B̂)‖_F²) − E_ref), ū(‖F_m(B̂)‖_F²) + E_ref] |
+
+      - **Q1.** The closed convention is that of T3 (lo_n² ≤ ξ_n ≤ hi_n²). Since lo_n = μ̃_n − e_n and hi_n = μ̃_n + e_n
+        exactly, the claim is equivalent to the non-strict condition |√ξ_n − μ̃_n| ≤ e_n.
+      - **Q2–Q6** are Frobenius forms. They are stronger than the 2-norm statements of §2.4.1 and §5.6 and follow from the
+        derivations given there (e.g. ω ≥ ‖Ξ‖_F + ‖A_e‖_F‖Y‖_F ≥ ‖R‖_F; A⁻¹ = Y(I − R)⁻¹). No SVD accuracy is needed.
+      - **Q7** uses lower bounds of the 2-norm (an entry modulus, and ‖X̂v‖/‖v‖ for any v ≠ 0) minus the Frobenius radius
+        t·r_X ≥ t‖A_true⁻¹ − X̂‖₂; the upper end uses ‖·‖₂ ≤ ‖·‖_F.
+      - **Q8 compares the unsquared Frobenius norm ‖F_m(B)‖_F.** The squared norm ‖F_m(B̂)‖_F² is only the exact rational
+        argument supplied to the rigorous square-root bounds, which give l̄(‖F_m(B̂)‖_F²) ≤ ‖F_m(B̂)‖_F ≤ ū(‖F_m(B̂)‖_F²); it
+        is not the quantity being bounded.
+        - B̂_i are the blocks of t·X̂ of the matrix each factor comes from; β̂_i := ū(‖B̂_i‖_F²) ≥ ‖B̂_i‖_F; the block
+          radius is t·r_X,i ≥ ‖B_i − B̂_i‖_F (a sub-block's Frobenius norm is at most the full matrix's).
+        - **E_ref := Σ_μ |c_μ|·[Π_i(β̂_i + t·r_X,i) − Π_i β̂_i].** By the telescoping identity
+          ΠB − ΠB̂ = Σ_j B₁⋯B_{j−1}·(B_j − B̂_j)·B̂_{j+1}⋯ and submultiplicativity of the Frobenius norm, followed by the
+          triangle inequality over μ, **E_ref ≥ ‖F_m(B) − F_m(B̂)‖_F directly**. It is therefore **not** multiplied by
+          ū(N_y).
+        - By the reverse triangle inequality |‖F_m(B)‖_F − ‖F_m(B̂)‖_F| ≤ E_ref, which gives the interval above.
+        - The §5.6 definition of U_m (with its ū(N_y)·E_m term) is unchanged.
+    - **Exact preconditions (Q0).** The reference module recomputes exactly, and requires exact equality with the
+      certificate module for: μ̃_n and e_n; the non-lead entries of A_true, which must equal those of A_mid; Ξ, f_Y and f_mid.
+      Any inequality gives PRECONDITION-FAILED.
+    - **Convergence (from the budgets).** Under A1 and a correct reference every I_p contains the true value, so the
+      following intersections must be nonempty:
+      - I_300 ∩ I_400 ∩ I_500 for every Q;
+      - the X̂-based and X̂′-based intervals at every p (Q5–Q8);
+      - I_p(Q1) ∩ [lo_B, hi_B], where [lo_B, hi_B] is the exact `isqrt` enclosure of √ξ_n at ℓ_B := 2·prec(500), used only
+        as an independent consistency check and not for classification.
+
+      Any empty intersection, or any mpmath exception, gives NONCONVERGENT. Otherwise I*(Q) is the intersection of all the
+      mpmath-based intervals for Q.
+    - **Classification per Q** (exact rational comparisons; nothing is divided by a reference value):
+      - **Q1:** CONSISTENT if I* ⊆ [lo_n, hi_n]; CONTRADICTED if I* ∩ [lo_n, hi_n] = ∅; UNRESOLVED otherwise.
+      - **Upper-bound claims b (Q2–Q6, Q8):** CONSISTENT if sup I* < b; CONTRADICTED if inf I* > b; UNRESOLVED otherwise.
+      - **Lower-bound claim (Q7):** CONSISTENT if G_lo < inf I*; CONTRADICTED if G_lo > sup I*; UNRESOLVED otherwise.
+      - Quantities known to be exactly zero (class D: F_m ≡ 0; the off-lead entries of A_e) are decided by the exact module
+        and listed as "exact zero; not compared numerically".
+    - **Reported metrics** for each Q: the claim b (exact); inf I*, sup I* and the width w; the absolute margin m
+      (b − sup I* for upper-bound claims, inf I* − G_lo for Q7, the distances to lo_n and hi_n for Q1); the relative margin
+      m/b when b > 0; the relative width w/inf I* only when inf I* > 0, otherwise "not resolved from zero"; the
+      spread-to-budget ratio |centre_p − centre_500|/(radius_p + radius_500) for p = 300 and 400. The 2-norms ‖R_c‖₂,
+      ‖X̂‖₂ and ‖t·X̂‖₂ from `mp.svd_c` are reported as values only: no tolerance can be derived for them, so they are never
+      classified.
+    - **Field outcome:** the worst over all Q and inputs, in the order CONTRADICTED > PRECONDITION-FAILED > NONCONVERGENT >
+      REFERENCE-INVALID (an eligibility or selection rule violated, an inexact import, or a precision not as recorded) >
+      UNRESOLVED > CONSISTENT.
+    - **Blocking.** CONTRADICTED, PRECONDITION-FAILED, NONCONVERGENT and REFERENCE-INVALID block the manifest freeze until
+      they are resolved and the resolution is recorded in R0. UNRESOLVED is non-blocking; it is recorded and no input is
+      reselected. T6.4 passes only if its exact checks pass and this field is not blocking; a CONSISTENT outcome is never
+      cited as part of that pass.
+    - **CONTRADICTED while all exact T6.4 checks pass.** The exact pass does not override it. Investigation, in order:
+      (1) re-check Q0 and the REFERENCE-INVALID conditions; (2) look for disagreement with the second inverse method or the
+      `isqrt` enclosure; (3) as an investigation aid only, decide the contradicted claim by an exact enclosure (exact
+      squaring of ŝ ± r, then the Stage-2 formulas). If the exact enclosure confirms the contradiction, the certificate is
+      defective: fix it and rerun T1–T6 in full. If it refutes it, the reference is defective: fix it and rerun this case.
+      Widening budgets after the fact, changing p, replacing an input, relabelling the outcome, or citing the exact pass
+      as a resolution is forbidden.
+    - **What CONSISTENT establishes:** for the listed inputs only, each certified bound lies on the correct side of an
+      interval containing the true value, provided A1 holds and the reference module is correct. It is evidence that the
+      irrational-lead code path is implemented correctly.
+    - **What it cannot establish:** that the certificate is correct in general; anything about other inputs, the
+      production lattices or any recorded value; a replacement for the exact T6.4 checks; or any change to a status in
+      §4.6. The label "numerical cross-check (not validated)" is retained even though Stage 2 is exact, because A1 is
+      not verified.
 - **T6.5 (U_m against the oracle).** On the T6.1 lattices at several dyadic s: U_m ≥ 0 and U_m² ≥ D*_true² (exact).
   Failure: any violation.
 - **T6.6 (G_lo against G).** On the T6.1 full matrices: G_lo²I − ĜᴴĜ is **not** positive definite (strict exact test), hence
