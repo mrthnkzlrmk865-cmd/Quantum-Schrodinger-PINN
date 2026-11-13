@@ -35,3 +35,13 @@ def test_t6_7_threshold_and_comparison():
     from cs2_t6_harness import t6_7
     R = t6_7.run(prod)
     assert not R.failures, R.failures
+
+
+def test_t1_to_t5():
+    import coupling_scaling_v2_certify as prod
+    import coupling_scaling_v2_covering as cov
+    from cs2_t1t5 import run_all
+    results = run_all.run(prod, cov)
+    assert len(results) == 5
+    for R in results:
+        assert not R.failures, (R.stage, R.failures[:5])

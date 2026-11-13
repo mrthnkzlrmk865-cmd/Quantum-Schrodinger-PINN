@@ -50,6 +50,11 @@ def run():
     for X, c, exp in (([[3, 0], [0, 4]], F(4), True), ([[3, 0], [0, 4]], F(399, 100), False),
                       ([[3, 0], [4, 0]], F(5), True), ([[3, 0], [4, 0]], F(49, 10), False)):
         R.add(f"norm2_le {X} {c} = {exp}", rpsd.norm2_le(m(X), c) is exp, "KAT-FAIL")
+    for bad, w in ((4.0, "float"), (numpy.float64(4), "numpy.float64"), (True, "bool"), (mpmath.mpf(4), "mpmath.mpf")):
+        R.add(f"norm2_le rejects c of type {w}", _raises(lambda: rpsd.norm2_le(m([[3, 0], [0, 4]]), bad), TypeError), "KAT-FAIL")
+        R.add(f"norm2_lt rejects c of type {w}", _raises(lambda: rpsd.norm2_lt(m([[3, 0], [0, 4]]), bad), TypeError), "KAT-FAIL")
+    R.add("norm2_le accepts int and Fraction c", rpsd.norm2_le(m([[3, 0], [0, 4]]), 4) is True
+          and rpsd.norm2_le(m([[3, 0], [0, 4]]), F(399, 100)) is False and rpsd.norm2_lt(m([[3, 0], [0, 4]]), F(401, 100)), "KAT-FAIL")
     R.add("fro2 KAT = 15", rmat.fro2(m([[(1, 1), 2], [0, (0, -3)]])) == 15, "KAT-FAIL")
     # rlead
     for g, lam in ((F(5, 4), RC(F(1, 2))), (F(5, 3), RC(F(1, 3))), (F(29, 20), RC(F(2, 5))), (F(3, 5), RC(F(3, 5), F(4, 5)))):
@@ -68,6 +73,8 @@ def run():
     ctx.dps = 60
     R.add("rnum exact mpf conversion: -3, -3/4, 0, 5, 2^-1000", [rnum._exact_mpf(ctx, ctx.mpf(v)) for v in (-3, -0.75, 0, 5)]
           == [F(-3), F(-3, 4), F(0), F(5)] and rnum._exact_mpf(ctx, ctx.mpf(2) ** -1000) == F(1, 2**1000), "KAT-FAIL")
+    for sp, w in ((ctx.nan, "NaN"), (ctx.inf, "+inf"), (-ctx.inf, "-inf")):
+        R.add(f"rnum exact mpf conversion rejects {w}", _raises(lambda: rnum._exact_mpf(ctx, sp), ValueError), "KAT-FAIL")
     # rpred
     R.add("S_TEST_REF = 43 explicit points = grid <= 2^-19", len(rpred.S_TEST_REF) == 43
           and rpred.S_TEST_REF == frozenset(I.S_TEST), "KAT-FAIL")

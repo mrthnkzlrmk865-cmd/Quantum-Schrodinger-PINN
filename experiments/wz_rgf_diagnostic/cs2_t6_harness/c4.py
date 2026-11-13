@@ -81,20 +81,39 @@ def run(prod, R=None, quick=False):
             prodvals = dict(A_mid=A, eps=eps, lo=lo, hi=hi, h={k: exact_out(c["h"]) for k, c in certs.items()},
                             omega={k: exact_out(c["omega"]) for k, c in certs.items()},
                             a={k: exact_out(c["a"]) for k, c in certs.items()}, eta={}, U={}, G_lo=None)
+            # eta_A for every matrix and G_lo for the full matrix, independent of mutant availability (also N = 1)
+            for k in A:
+                prodvals["eta"][k] = exact_out(prod.eta_A_bound(to_prod(A[k]), to_prod(Ys[k]), eps[k]), "eta_A")
+            prodvals["G_lo"] = exact_out(prod.G_lo_bound(to_prod(A["full"]), to_prod(Ys["full"]), eps["full"]), "G_lo")
             for m in mutants:
                 refs = {k: (to_prod(A[k]), to_prod(Ys[k]), eps[k]) for k in A}
                 r = prod.pointwise_certificate(m, N, ny, refs)
                 if r["status"] == "computed":
                     prodvals["U"][m] = exact_out(r["U_m"], "U_m")
-                    prodvals["G_lo"] = exact_out(r["G_lo"], "G_lo")
+                    R.add(f"C4 pointwise G_lo == G_lo_bound {yname} {tag} {m}", r["G_lo"] == prodvals["G_lo"],
+                          "PRECONDITION-FAILED")
                     for k, v in r["eta"].items():
-                        prodvals["eta"][k] = exact_out(v, "eta")
+                        R.add(f"C4 pointwise eta == eta_A_bound {yname} {tag} {m} {k}", v == prodvals["eta"][k],
+                              "PRECONDITION-FAILED")
             outcome, rows, notes = rnum.classify_case(lat, N, s, Ys, prodvals, mutants, st1_cache)
             field.append(outcome)
-            rows_all.append(dict(case=f"{yname} {tag}", outcome=outcome, n_rows=len(rows), notes=notes[:3],
+            qcount = {}
+            for r_ in rows:
+                qcount[r_["Q"]] = qcount.get(r_["Q"], 0) + 1
+            expectQ = {"Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7"} | ({"Q8"} if mutants else set())
+            R.add(f"C4 coverage {yname} {tag}: Q present = {sorted(qcount)}", expectQ <= set(qcount), "PRECONDITION-FAILED",
+                  f"missing {sorted(expectQ - set(qcount))}")
+            rows_all.append(dict(case=f"{yname} {tag}", N=N, outcome=outcome, n_rows=len(rows), qcount=qcount, notes=notes[:3],
                                  contradicted=[r_ for r_ in rows if r_["cls"] == "CONTRADICTED"][:3],
                                  unresolved=sum(1 for r_ in rows if r_["cls"] == "UNRESOLVED")))
             R.add(f"C4 {yname} {tag} not blocking", outcome not in BLOCKING, outcome, f"{outcome}; {notes[:2]}")
     fo = rnum.worst(field)
+    cov = {}
+    for c in rows_all:
+        for q, k in c["qcount"].items():
+            cov.setdefault(q, [0, 0])
+            cov[q][0] += k
+            cov[q][1] += k if c["N"] == 1 else 0
     return R, dict(field_outcome=fo, blocking=fo in BLOCKING, n_cases=len(rows_all), cases=rows_all,
+                   coverage={q: dict(rows=v[0], rows_at_N1=v[1]) for q, v in sorted(cov.items())},
                    label="numerical cross-check (not validated)")

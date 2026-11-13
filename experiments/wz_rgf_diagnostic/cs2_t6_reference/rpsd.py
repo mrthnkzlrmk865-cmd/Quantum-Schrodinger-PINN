@@ -1,6 +1,5 @@
 """Exact PSD / PD decisions for Hermitian matrices (§2.4.3.9), and exact 2-norm comparisons."""
-from fractions import Fraction
-from .qexact import RC
+from .qexact import RC, exact_rational
 from . import rmat
 
 
@@ -46,7 +45,7 @@ def is_pd(H):
 
 
 def _gram_gap(X, c):
-    c = Fraction(c)
+    c = exact_rational(c, "norm bound c")  # strict: int (not bool) or Fraction only
     if c < 0:
         raise ValueError("c must be >= 0")
     G = rmat.matmul(rmat.ctranspose(X), X)

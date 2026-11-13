@@ -126,4 +126,23 @@ def run(prod, R=None, cache=None):
                      "T6.6 aux [X0 N=2 s=1/2 M6 Y_half]", accept_bounds=True):
         check_glo(R, res["G_lo"], ref_blocks("X0", 2, s)["Ghat"], "[aux Y_half X0 N=2 s=1/2 M6]")
     interface_cases(R, prod)
+    # 0.3 direct ordering test: a negative G_lo must be rejected by check_glo BEFORE the matrix predicate is called.
+    K = rmat.mat(I.K)
+    probe = Results("probe")
+    before = Counted.calls
+    check_glo(probe, F(-1), K, "[probe negative]")
+    R.add("T6.6 ordering: check_glo(-1, K) -> exactly one CERT-VIOLATION with INVALID_LOWER_BOUND",
+          len(probe.failures) == 1 and probe.failures[0]["cls"] == "CERT-VIOLATION"
+          and probe.failures[0]["detail"] == "INVALID_LOWER_BOUND", "KAT-FAIL", probe.failures)
+    R.add("T6.6 ordering: matrix predicate not called for a negative G_lo (counter unchanged)", Counted.calls == before,
+          "KAT-FAIL", f"{before} -> {Counted.calls}")
+    probe0 = Results("probe0")
+    check_glo(probe0, F(0), K, "[probe zero]")
+    R.add("T6.6 ordering: check_glo(0, K) -> CERT-VIOLATION ZERO_LOWER_BOUND, predicate not called",
+          len(probe0.failures) == 1 and probe0.failures[0]["detail"] == "ZERO_LOWER_BOUND" and Counted.calls == before,
+          "KAT-FAIL", probe0.failures)
+    probe3 = Results("probe3")
+    check_glo(probe3, F(3), K, "[probe positive]")
+    R.add("T6.6 ordering: check_glo(3, K) calls the matrix predicate exactly once and passes (counter is live)",
+          not probe3.failures and Counted.calls == before + 1, "KAT-FAIL", f"{before} -> {Counted.calls}")
     return R
