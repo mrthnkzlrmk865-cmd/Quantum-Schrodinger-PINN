@@ -429,41 +429,75 @@ def _mpf_to_fraction(ctx, x):
 DX2 = Fraction(1, 64)
 
 
+def _np_binary64_component(t):
+    """True iff the numpy scalar type t (real floating, or the component of a complex floating type) is IEEE binary64:
+    finfo reports a 52-bit stored mantissa, an 11-bit exponent and 64 bits. Decided from the actual format, so a platform
+    whose longdouble is binary64 is accepted and one whose longdouble is extended (x87 80-bit, binary128) is rejected."""
+    import numpy as _np  # type inspection only; no numpy arithmetic is performed
+    f = _np.finfo(t)
+    return f.nmant == 52 and f.nexp == 11 and f.bits == 64
+
+
 def import_binary64(x):
-    """The ONLY entry point for binary64 values: exact dyadic rational of a finite binary64 (Python float or a
-    numpy.floating). NaN and +/-inf raise ValueError; bool/int/str/complex raise TypeError."""
-    if isinstance(x, bool) or not isinstance(x, float):
+    """The ONLY entry point for real binary64 values (§2.4.1, T5): the exact dyadic rational of a finite binary64.
+
+    Accepted: a Python float (type exactly `float`), or a numpy floating scalar whose format is binary64 (numpy.float64;
+    numpy.longdouble only on platforms where it is binary64). Rejected with TypeError: bool, int, Fraction, str, complex,
+    float subclasses other than numpy binary64, numpy.float16/float32 (lower precision: NOT promoted, because the T5
+    contract imports binary64 values only and a narrower value means the source is not binary64), extended-precision
+    numpy.longdouble (NOT narrowed), and any other object. NaN and +/-inf raise ValueError."""
+    if type(x) is float:
+        v = x
+    else:
         try:
-            import numpy as _np  # only for the numpy.floating type check; no arithmetic
-            if isinstance(x, _np.floating) and not isinstance(x, _np.longdouble):
-                x = float(x)
-            else:
-                raise TypeError
-        except (ImportError, TypeError):
-            raise TypeError(f"import_binary64: binary64 value required, got {type(x).__name__}") from None
-    if x != x or x in (float("inf"), float("-inf")):
+            import numpy as _np
+        except ImportError:
+            _np = None
+        if _np is None or not isinstance(x, _np.floating):
+            raise TypeError(f"import_binary64: Python float or numpy binary64 required, got {type(x).__name__}")
+        if not _np_binary64_component(type(x)):
+            raise TypeError(f"import_binary64: {type(x).__name__} is not binary64 "
+                            f"({_np.finfo(type(x)).nmant}-bit mantissa); it is neither promoted nor narrowed")
+        v = float(x)  # lossless: x is binary64, so this only changes the Python type
+    if v != v or v in (float("inf"), float("-inf")):
         raise ValueError("import_binary64: NaN and infinities are rejected")
-    return Fraction(x)  # exact for every finite binary64
+    return Fraction(v)  # exact for every finite binary64
 
 
 def import_complex128(z):
-    """Exact (re, im) pair of a complex128 value; both parts go through import_binary64."""
-    if isinstance(z, bool) or not hasattr(z, "real") or not hasattr(z, "imag") or isinstance(z, (int, Fraction)):
-        raise TypeError(f"import_complex128: complex binary64 value required, got {type(z).__name__}")
-    return (import_binary64(float(z.real)), import_binary64(float(z.imag)))
+    """Exact (re, im) pair of a complex binary64 value (§2.4.1: complex values are imported as two exact rationals).
+
+    Accepted: a Python complex (type exactly `complex`), or a numpy complex floating scalar whose components are binary64
+    (numpy.complex128; numpy.clongdouble only where its components are binary64). Rejected with TypeError: complex64
+    (lower precision, not promoted), extended-precision clongdouble (not narrowed), real values, and arbitrary objects
+    that merely expose .real/.imag. Each component then goes through import_binary64 (NaN/inf rejected)."""
+    if type(z) is complex:
+        return (import_binary64(z.real), import_binary64(z.imag))
+    try:
+        import numpy as _np
+    except ImportError:
+        _np = None
+    if _np is None or not isinstance(z, _np.complexfloating):
+        raise TypeError(f"import_complex128: Python complex or numpy complex128 required, got {type(z).__name__}")
+    if not _np_binary64_component(type(z)):
+        raise TypeError(f"import_complex128: {type(z).__name__} components are not binary64 "
+                        f"({_np.finfo(type(z)).nmant}-bit mantissa); neither promoted nor narrowed")
+    return (import_binary64(z.real), import_binary64(z.imag))  # components are numpy binary64 scalars
 
 
 def import_matrix(Mx):
-    """Exact QMat of a 2-D array of binary64 (real or complex) values."""
+    """Exact QMat of a 2-D array (or nested sequence) of binary64 values: complex entries via import_complex128, real
+    entries via import_binary64 (imaginary part 0). Any other entry type raises TypeError."""
+    try:
+        import numpy as _np
+        cplx = (complex, _np.complexfloating)
+    except ImportError:
+        cplx = (complex,)
     out = []
     for row in Mx:
         r = []
         for z in row:
-            if isinstance(z, complex) or (hasattr(z, "imag") and not isinstance(z, float) and z.imag != 0) or \
-                    type(z).__name__.startswith("complex"):
-                r.append(import_complex128(z))
-            else:
-                r.append((import_binary64(z), Fraction(0)))
+            r.append(import_complex128(z) if isinstance(z, cplx) else (import_binary64(z), Fraction(0)))
         out.append(tuple(r))
     return tuple(out)
 

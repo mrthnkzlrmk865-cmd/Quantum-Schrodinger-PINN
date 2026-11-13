@@ -48,6 +48,72 @@ def _raises(fn, exc=TypeError):
     return False
 
 
+def _is_binary64_format(t):
+    """Independent test-side decision from the actual dtype: itemsize (per component) 8 bytes and a 52-bit mantissa."""
+    f = np.finfo(t)
+    comp = np.dtype(t).itemsize // (2 if np.issubdtype(t, np.complexfloating) else 1)
+    return comp == 8 and f.nmant == 52 and f.nexp == 11
+
+
+def _import_type_kats(R, prod):
+    """Import-boundary type KATs (hardening of §2.4.1 / T5): accepted types convert exactly; every other precision
+    format or object is rejected (never promoted, never narrowed)."""
+    imp, impc = prod.import_binary64, prod.import_complex128
+    third = F(6004799503160661, 2**54)  # binary64 nearest to 1/3
+    # Python float and numpy.float64: accepted, exact
+    R.add("T5 import: Python float accepted exactly", imp(1 / 3) == third, "CERT-VIOLATION")
+    R.add("T5 import: numpy.float64 accepted exactly", imp(np.float64(1) / 3) == third, "CERT-VIOLATION")
+    # lower precision: rejected (not promoted)
+    for t in (np.float16, np.float32):
+        R.add(f"T5 import: numpy.{t.__name__} rejected (lower precision, not promoted)",
+              _raises(lambda: imp(t(0.5)), TypeError), "CERT-VIOLATION")
+    # longdouble: platform dependent, decided from its actual format
+    ld = np.longdouble(1) / 3
+    if _is_binary64_format(np.longdouble):
+        R.add(f"T5 import: numpy.longdouble is binary64 on this platform (itemsize {np.dtype(np.longdouble).itemsize}) "
+              f"-> accepted exactly", imp(ld) == third, "CERT-VIOLATION")
+    else:
+        R.add(f"T5 import: numpy.longdouble is extended here (itemsize {np.dtype(np.longdouble).itemsize}, "
+              f"{np.finfo(np.longdouble).nmant}-bit mantissa) -> rejected, not narrowed",
+              _raises(lambda: imp(ld), TypeError), "CERT-VIOLATION")
+    # Python complex and numpy.complex128: accepted, exact components
+    want = (F(1, 2), -F(3602879701896397, 2**55))
+    R.add("T5 import: Python complex accepted exactly", impc(0.5 - 0.1j) == want, "CERT-VIOLATION")
+    R.add("T5 import: numpy.complex128 accepted exactly", impc(np.complex128(0.5 - 0.1j)) == want, "CERT-VIOLATION")
+    R.add("T5 import: numpy.complex64 rejected (lower precision, not promoted)",
+          _raises(lambda: impc(np.complex64(0.5 - 0.25j)), TypeError), "CERT-VIOLATION")
+    cl = np.clongdouble(1) / 3 + 1j * (np.clongdouble(1) / 7)
+    if _is_binary64_format(np.clongdouble):
+        R.add(f"T5 import: numpy.clongdouble has binary64 components here (itemsize {np.dtype(np.clongdouble).itemsize})"
+              f" -> accepted exactly", impc(cl) == (third, F(np.float64(1) / 7)), "CERT-VIOLATION")
+    else:
+        R.add(f"T5 import: numpy.clongdouble is extended here (itemsize {np.dtype(np.clongdouble).itemsize}, "
+              f"{np.finfo(np.clongdouble).nmant}-bit mantissa) -> rejected, not narrowed",
+              _raises(lambda: impc(cl), TypeError), "CERT-VIOLATION")
+    # NaN / inf in either complex component
+    for z, w in ((complex(float("nan"), 0), "NaN real part"), (complex(0, float("inf")), "+inf imaginary part"),
+                 (np.complex128(complex(float("-inf"), 1)), "-inf real part (complex128)")):
+        R.add(f"T5 import: complex with {w} rejected", _raises(lambda: impc(z), ValueError), "CERT-VIOLATION")
+
+    class HasRealImag:  # an arbitrary object exposing .real and .imag
+        real, imag = 0.5, 0.25
+
+    class FloatSub(float):
+        pass
+    for obj, w, fn in ((HasRealImag(), "object with .real/.imag", impc), (HasRealImag(), "object with .real/.imag", imp),
+                       (FloatSub(0.5), "float subclass", imp), (True, "bool", imp), (1, "int", imp), (F(1, 2), "Fraction", imp),
+                       (1.0, "Python float passed to the complex importer", impc), (np.float64(1), "numpy.float64 to complex importer", impc),
+                       (0.5 + 0j, "Python complex passed to the real importer", imp)):
+        R.add(f"T5 import: {fn.__name__} rejects {w}", _raises(lambda: fn(obj), TypeError), "CERT-VIOLATION")
+    # matrix import: float32 / complex64 / arbitrary entries rejected; float64 / complex128 accepted
+    R.add("T5 import_matrix: float64 and complex128 arrays accepted exactly",
+          prod.import_matrix(np.array([[0.5, 0.25]])) == (((F(1, 2), F(0)), (F(1, 4), F(0))),)
+          and prod.import_matrix(np.array([[0.5 - 0.25j]])) == (((F(1, 2), F(-1, 4)),),), "CERT-VIOLATION")
+    for arr, w in ((np.array([[0.5]], dtype=np.float32), "float32 array"), (np.array([[0.5]], dtype=np.complex64), "complex64 array"),
+                   ([[HasRealImag()]], "arbitrary object entry")):
+        R.add(f"T5 import_matrix rejects {w}", _raises(lambda: prod.import_matrix(arr), TypeError), "CERT-VIOLATION")
+
+
 def run(prod):
     R = Results("T5 exact-rational assembly")
     # (a) import boundary
@@ -64,6 +130,7 @@ def run(prod):
           qz == (F(3, 2), -F(3602879701896397, 2**55)) and complex(float(qz[0]), float(qz[1])) == z, "CERT-VIOLATION", qz)
     for bad, w in ((float("nan"), "NaN"), (float("inf"), "+inf"), (float("-inf"), "-inf")):
         R.add(f"T5 import rejects {w}", _raises(lambda: imp(bad), ValueError), "CERT-VIOLATION")
+    _import_type_kats(R, prod)
     # (b) rational assembly on three fixed configurations
     prod_file = str(pathlib.Path(prod.__file__).resolve())
     # tracer liveness controls: it must see production frames, and it must flag a planted float local
