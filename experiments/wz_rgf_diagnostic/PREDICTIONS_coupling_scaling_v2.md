@@ -1,6 +1,6 @@
 # Design and predictions: W/Z coupling-scaling experiment v2 (independent; preregistration document)
 
-Revision 3.5 (document-only; on top of Revision 3.4 `79805f2`; earlier: Revision 3.3 `4d471b0`, Revision 3.2 `f16e7c2`, Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
+Revision 3.6 (document-only; on top of Revision 3.5 `c4b02b0`; earlier: Revision 3.4 `79805f2`, Revision 3.3 `4d471b0`, Revision 3.2 `f16e7c2`, Revision 3.1 `ae05c0d`). Revision 3 (`d40960b`) implements the corrections of the
 independent R0 design review of `f101224` (verdict: CONDITIONAL PASS). Earlier revisions:
 - Revision 2 (`ef4bf12`, `e52cd51`, `f101224`): the certificate audit;
 - Revision 1 (`b62ed42`): the scientific audit of `01bf018`.
@@ -187,15 +187,30 @@ decision rule is changed.**
 | Rev3.4-4 | Self-test T6 added (§2.4.2), including C3 (exact threshold type) and C4 (supplementary irrational case reported as a numerical cross-check only). Precondition references updated from T1–T5 to T1–T6 (§2.4.1, §4.3, §8.1, §8.2, §9 item 7) | adds a precondition |
 | Rev3.4-5 | Notation table and §4.6 row added. The certificate's status is "Designed; validation pending T1–T6 and R0" | no |
 
-Revision 3.5 (vs `79805f2`; T6.4 supplementary irrational-lead protocol). **No threshold, grid point, mutant definition,
-sampling rule, decision rule or status label is changed.** The case remains "numerical cross-check (not validated)".
+Revision 3.5 (vs `79805f2`; T6.4 supplementary irrational-lead protocol). **No main-experiment threshold, grid point, mutant
+definition, sampling rule (§2.3–§2.6), §6 decision rule or status label is changed.** New, and confined to the supplementary
+C4 case: test-input eligibility, sensitivity and selection rules, and T6.4 blocking conditions, which are preconditions for
+the manifest freeze (§8.2). The case remains "numerical cross-check (not validated)". (Wording corrected in Rev3.6-1.)
 
 | # | change | rule change? |
 |---|---|---|
-| Rev3.5-1 | §2.4.2 T6.4: the one-line "mpmath dps-300 reference" is replaced by a reproducible protocol: preregistered dyadic inputs with an exact sensitivity rule; Stage 1 mpmath at dps 300, 400 and 500 with two inverse methods; Stage 2 exact-rational reference intervals Q1–Q8 under the stated, unverified assumption A1; interval-intersection convergence; exact classification; outcome precedence, blocking rules and reporting | no (supplementary, not validated; adds blocking conditions to T6.4 only) |
+| Rev3.5-1 | §2.4.2 T6.4: the one-line "mpmath dps-300 reference" is replaced by a reproducible protocol: preregistered dyadic inputs with an exact sensitivity rule; Stage 1 mpmath at dps 300, 400 and 500 with two inverse methods; Stage 2 exact-rational reference intervals Q1–Q8 under the stated, unverified assumption A1; interval-intersection convergence; exact classification; outcome precedence, blocking rules and reporting | adds a precondition (supplementary C4 selection rules and T6.4 blocking conditions); no main-experiment or §6 rule change |
 | Rev3.5-2 | Q1 uses T3's closed convention lo_n ≤ √ξ_n ≤ hi_n, equivalent to \|√ξ_n − μ̃_n\| ≤ e_n | no |
 | Rev3.5-3 | Q8 compares the unsquared ‖F_m(B)‖_F; E_ref bounds ‖F_m(B) − F_m(B̂)‖_F directly (Frobenius telescoping) and is not multiplied by ū(N_y). The §5.6 U_m definition is unchanged | no |
 | Rev3.5-4 | Y_fine: exact A_mid⁻¹ rounded at 2⁻⁵¹² (ℓ_Y = 2ℓ), nearest, ties-to-even, real and imaginary parts independently, integer-only; resolution rationale stated | no |
+
+Revision 3.6 (vs `c4b02b0`; T6 specification freeze). **No main-experiment threshold, grid point, mutant definition,
+sampling rule (§2.3–§2.6), §6 decision rule or status label is changed.** New, and confined to T6: frozen test inputs,
+interfaces, mutation requirements and stopping rules, which are preconditions for the manifest freeze (§8.2).
+
+| # | change | rule change? |
+|---|---|---|
+| Rev3.6-1 | Rev3.5 log wording corrected: main-experiment rules are distinguished from the supplementary C4 selection and blocking rules | no (wording) |
+| Rev3.6-2 | §2.4.3 added. Every T6 input is frozen (lattices, N_y, N, s, V, leads, full/prefix status, Y matrices). Targeted γ = 5/4 lead-factor tests (N = 1, N ≥ 2, prefix) with an exact sensitivity proof. A quantitative near-threshold definition (1 ≤ ρ < 10) and its lattice. The Rev3.5 C4 selection rules are evaluated (selected γ, channel assignment, V for N_y = 4) | adds preconditions (frozen T6 inputs); no main-experiment rule change |
+| Rev3.6-3 | Production and reference APIs, conversion boundaries, separate harness and reference packages, import restrictions, clean-room order (§2.4.3.3–§2.4.3.5); §8.1 updated (T6 moves from the certificate module to the harness package) | no (structure) |
+| Rev3.6-4 | Reference known-answer tests, mutation suite (must-detect list and non-detectable list), failure classes, stopping rules and manifest-freeze conditions (§2.4.3.7, §2.4.3.10, §2.4.3.11) | adds preconditions |
+| Rev3.6-5 | mpmath pinned to 1.3.0. Double-precision anchors (10·cond₂·ε, §4.7 item 2) are diagnostic only and never part of PASS | no |
+| Rev3.6-6 | T6.6 exact precondition: G_lo must be exact (`int` or `Fraction`, not `bool`) with G_lo ≥ 0, checked before the matrix predicate; `point_infeasible` also requires an exact U ≥ 0 (INVALID_UPPER_BOUND). The generic contract admits G_lo = 0 (never infeasible); the frozen-input invariant 0 < G_lo (§5.6) makes a production G_lo ≤ 0 a CERT-VIOLATION. Interface cases a–i; MU24–MU27, with a mutation audit. The §5.6 formulas and positivity statement are unchanged | adds a precondition (T6 only) |
 
 ## 0. Inspection of the previous experiment: verified definitions and reproducibility gaps
 
@@ -739,7 +754,7 @@ part of the R0 review.
 - **T6.5 (U_m against the oracle).** On the T6.1 lattices at several dyadic s: U_m ≥ 0 and U_m² ≥ D*_true² (exact).
   Failure: any violation.
 - **T6.6 (G_lo against G).** On the T6.1 full matrices: G_lo²I − ĜᴴĜ is **not** positive definite (strict exact test), hence
-  G_lo ≤ ‖Ĝ‖₂. Failure: G_lo²I − ĜᴴĜ ≻ 0.
+  G_lo ≤ ‖Ĝ‖₂. Failure: G_lo²I − ĜᴴĜ ≻ 0. (Exact precondition G_lo ≥ 0 and interface cases: §2.4.3.6.)
 - **T6.7 (exact comparison and threshold type; C3).**
   - **Threshold.** The threshold is the module constant THRESHOLD, constructed from integers as `Fraction(1, 10**10)`.
     The test asserts:
@@ -758,8 +773,9 @@ part of the R0 review.
   - Y = 0;
   - Y = A⁻¹/2 with n_tot ≥ 4 (ω ≥ 1);
   - a missing prefix certificate;
-  - a test-only coarse enclosure (ℓ = 4, a harness parameter; the production ℓ = 256 is unchanged) making ω ≥ 1;
-  - a near-threshold lattice making U_m ≥ THRESHOLD·G_lo;
+  - a test-only coarse enclosure (ℓ = 4, a harness parameter; the production ℓ = 256 is unchanged) making ω ≥ 1 (frozen
+    as P4, §2.4.3.6);
+  - a near-threshold lattice making U_m ≥ THRESHOLD·G_lo (quantitative definition and lattice: P5, §2.4.3.6);
   - M10 or an unsupported mutant requested;
   - an evaluated set different from S_test, including an empty one.
 - **Edge cases:**
@@ -768,6 +784,483 @@ part of the R0 review.
   - the j = 2 terms of M5 vanish exactly;
   - M8 at N = 2 (identical by algebra) is not applicable;
   - S_test on the design grid has exactly 43 points.
+
+#### 2.4.3 T6 frozen specification (Revision 3.6)
+
+**Status.** Specification only. Nothing in this subsection is implemented or executed, and no pass is claimed. It freezes
+every T6 input, interface, test, mutation and stopping rule before any reference or production code is written. It
+changes no threshold, grid point, mutant definition, sampling rule (§2.3–§2.6) or §6 decision rule. The values marked
+"preflight" come from a non-binding mpmath design preflight (dps 60); every property that a test relies on is re-proven
+exactly by the reference before use (PRECONDITION-UNMET otherwise, §2.4.3.10).
+
+##### 2.4.3.1 Frozen common data
+
+- **Constants:** t = 32, dx² = 2⁻⁶ (so 2t·dx² = 1), ℓ = 256, ℓ_Y = 512, THRESHOLD = `Fraction(1, 10**10)`.
+- **Lead parameters** (γ_n = 1 − δ_n; exact rational roots):
+
+  | name | γ | branch | λ (retarded) |
+  |---|---|---|---|
+  | g12 | 5/4 | closed | 1/2 |
+  | g13 | 5/3 | closed | 1/3 |
+  | g25 | 29/20 | closed | 2/5 |
+  | gP | 3/5 | open | 3/5 + 4i/5 |
+  | gE | 1025/1024 | closed | irrational (used only with the coarse enclosure, P4) |
+
+- **Potentials V_j(1)** (j = 1..4; entries are multiples of 1/2):
+  - VS (N_y = 1): 3, −5/2, 1, −2.
+  - VR (N_y = 2, class R): [[2, 3], [3, −1]], [[−4, 1], [1, 5/2]], [[1/2, −2], [−2, 3]], [[−3, 1/2], [1/2, −1/2]].
+  - VH (N_y = 2, class H): [[1, 2+i], [2−i, −2]], [[3, −1+2i], [−1−2i, 1/2]], [[−2, 1/2−3i/2], [1/2+3i/2, 1]],
+    [[1/2, −3+i/2], [−3−i/2, −1]].
+  - VD (N_y = 2, class D): the diagonal of VR_j.
+- **Lattice matrix.** Δ_j(s) := diag(1 − γ_n) − s·V_j(1)·dx². M/t has diagonal blocks 2Δ_j − 2I, plus Λ = diag(λ_n) on
+  slice 1 and on slice N (2Λ when N = 1), and off-diagonal blocks I. A_true := M in physical units (A_true = t·(M/t)). A
+  prefix matrix M^(j) keeps slices 1..j and only the left lead. Block (a, b) of any matrix is rows (a−1)N_y..aN_y − 1 and
+  columns (b−1)N_y..bN_y − 1 (0-indexed), so Ĝ_N1 is the block in slice-N rows and slice-1 columns.
+- **Lattices:**
+
+  | ID | N_y | leads (channel order) | V_j(1) | N | s |
+  |---|---|---|---|---|---|
+  | X0 | 1 | gP | VS | 2, 3, 4 | S6 |
+  | X1 | 2 | g13, gP | VR | 2, 3, 4 | S6 |
+  | X2 | 2 | g25, gP | VH | 2, 3, 4 | S6 |
+  | XD | 2 | g12, gP | VD | 2, 3, 4 | S6 |
+  | G1 | 1 | g12 | VS_1 | 1 | S6 |
+  | G2 | 2 | g12, g12 | VR_1, VR_2 | 2 | S6 |
+  | G3 | 1 | g12 | VS_1, VS_2, VS_3 | 3 | S6 |
+  | X1n | 2 | g13, gP | VR_j/128 (j = 1, 2) | 2 | S_test |
+  | C8 | 1 | gE | 0 | 2 | S_test (V = 0, so every point is the same matrix) |
+
+  with S6 := {1, 1/2, 2⁻¹⁹, 2⁻⁴⁰} and S_test as in §5.6 (43 points). Every full and prefix matrix of every lattice is used.
+  The s column applies to T6.1–T6.6. The T6.8 paths evaluate their lattices at every s ∈ S_test (§2.4.3.6).
+  Preflight: the smallest singular value of M/t over all of them is ≥ 0.336 (X0–XD) and ≥ 0.81 (G1–G3).
+- **Reference inverses Y** (per matrix A; all exact rationals):
+  - **Y_T6(A)** := A_mid⁻¹ rounded entrywise at 2^−ℓ_Y by the integer-only ties-to-even rule of Y_fine (§2.4.2, T6.4).
+    A_mid is the enclosure-midpoint matrix of §2.4.1. The harness first requires the production A_mid to equal the
+    reference A_mid exactly.
+  - **Y_exact(A)** := A_true⁻¹.
+  - **Y_pert(A)** := A_true⁻¹ + 2⁻⁴⁰·e₁e₁ᵀ, with e₁ the first coordinate vector of that matrix.
+  - **Y_half(A)** := A_true⁻¹/2.
+  - **Y_zero** := 0.
+  - **Y_adv** (X1, N = 2, s = 2⁻¹⁹, mutant M6): Y_adv(M^(1)) := (A^(1)_true)⁻¹; Y_adv(M) := A_true⁻¹ with block (2, 1)
+    replaced by −t·(A^(1)_true)⁻¹·(A_true⁻¹)₂₂. Then F_M6(B̃) = −χ̃₁B̃₂₂ − B̃₂₁ = 0 exactly, while ‖Y_adv(M) − A_true⁻¹‖_F
+    = D*_true/t. Preflight: D*_true ≈ 3.3·10⁻⁸ and ‖M/t‖₂·D*_true ≈ 1.3·10⁻⁷, so ω < 1.
+
+##### 2.4.3.2 Frozen inputs per test
+
+| test | lattices | N | s | Y | mutants |
+|---|---|---|---|---|---|
+| T6.1 | X0, X1, X2, XD | 2, 3, 4 | S6 | — (exact blocks) | every ORDER mutant on path (§4.2 MIN_N), except M8 at N = 2 (not applicable) |
+| T6.2 | X1 (N = 3); X2 (N = 4) | as listed | 1/2 | Y_pert and Y_exact, for every full and prefix matrix | every ORDER mutant on path |
+| T6.3 | X0, X1, X2, XD, G1, G2, G3 | as in §2.4.3.1 | S6 | Y_T6 | — |
+| T6.3 (aux) | X0 | 2 | 1/2 | Y_half | — |
+| T6.4 exact | as T6.3 (Y_T6) | | | | — |
+| T6.4 targeted | G1 (N = 1), G2 (N = 2, full and prefix 1), G3 (N = 3, full and prefixes 1, 2) | | S6 | Y_T6 | — |
+| T6.5 | X0, X1, X2, XD | 2, 3, 4 | S6 | Y_T6 | as T6.1 |
+| T6.5 (aux) | X1 | 2 | 2⁻¹⁹ | Y_adv | M6 |
+| T6.6 | full matrices of T6.5 | | | Y_T6 | as T6.1 |
+| T6.6 (aux) | X0 | 2 | 1/2 | Y_half | M6 |
+| T6.7 | synthetic (§2.4.3.6) | | | | |
+| T6.8 | P1–P7 (§2.4.3.6) | | | | |
+| C4 | §2.4.3.8 (separate, not validated) | | | | |
+
+##### 2.4.3.3 Production black-box API (module `coupling_scaling_v2_certify`)
+
+Types: Q := `int` | `Fraction`; QC := `(Q, Q)` (real, imaginary); QMat := tuple of row tuples of QC (square). Every
+argument and every returned number must be of these types; anything else is rejected with `TypeError`.
+
+- `ELL = 256`; `THRESHOLD = Fraction(1, 10**10)`; `S_TEST`: frozenset of 43 `Fraction`; `SUPPORTED_MUTANTS =
+  ("M1", "M2", "M3", "M5", "M6", "M7", "M8", "M15")`.
+- `lead_enclosure(gamma, ell=ELL)` → fields `lo, hi, mu, e` (`Fraction`), `branch` ∈ {"open", "closed"},
+  `lam_mid` (QC). The parameter `ell` is the enclosure resolution only; ū and l̄ always use ℓ = 256.
+- `assemble_A_mid(Delta_blocks, gammas, kind, j=None, ell=ELL)` → QMat, physical units; kind ∈ {"full", "prefix"}.
+- `eps_A(gammas, N, kind, ell=ELL)` → `Fraction` (§2.4.1 per matrix type).
+- `certify_point(A_mid, Y, eps_A)` → `status` ∈ {"certified", "uncertified"}, `f_Xi, f_Y, f_mid, omega, h`, and `a` (None
+  when uncertified).
+- `F_poly(mutant, N, blocks)` → QMat. `blocks` maps "G_NN", "G_N1", "G_1N", "G1_11", ("P", j), ("chi", j), ("psi", j)
+  to N_y × N_y QMat.
+- `pointwise_certificate(mutant, N, N_y, refs)` → `status` ∈ {"computed", "INCONCLUSIVE", "not applicable"}, `reason` ∈
+  {None, "uncertified_reference", "missing_reference", "unsupported_mutant", "invalid_lower_bound",
+  "invalid_upper_bound"}, `eta` (per matrix), `beta` (per block),
+  `E_m`, `U_m`, `G_lo`, and `point` ∈ {"infeasible", "not_infeasible"} when computed. U_m and G_lo are returned exactly as the
+  §5.6 formulas give them, never clamped. If U_m < 0 or G_lo < 0, the result is INCONCLUSIVE (fail-closed), with reason
+  "invalid_upper_bound" or "invalid_lower_bound" respectively, and point "not_infeasible". `refs` maps "full" and ("prefix", j)
+  to `(A_mid, Y, eps_A)`.
+- `point_infeasible(U, G_lo, threshold)` → bool. This is the generic contract. The checks run in this order, and every
+  one of them precedes the comparison:
+  1. **Types:** U, G_lo and threshold must each be `int` or `Fraction`, and not `bool`. A `float`, `complex`, numpy scalar
+     or mpmath value raises `TypeError`.
+  2. **Threshold:** unless `threshold == Fraction(1, 10**10)`, it raises `ValueError`.
+  3. **U < 0:** it raises `ValueError` with code "INVALID_UPPER_BOUND". U is never clamped.
+  4. **G_lo < 0:** it raises `ValueError` with code "INVALID_LOWER_BOUND". G_lo is never clamped.
+  5. **Otherwise** it returns U < threshold·G_lo. For G_lo = 0 this is false for every admitted U, since U ≥ 0 and
+     threshold·0 = 0. So a zero lower bound never yields infeasibility.
+- `conclude(per_point)` → "infeasible" | "INCONCLUSIVE" | "not applicable", with `reason` ∈ {None,
+  "evaluated_set_mismatch", "bound_not_below_threshold", "uncertified_reference", "missing_reference",
+  "unsupported_mutant", "invalid_lower_bound", "invalid_upper_bound"}. `per_point` maps each evaluated s to a `pointwise_certificate` result.
+
+##### 2.4.3.4 Reference API (package `cs2_t6_reference`; clean-room)
+
+Its own exact complex type RC (a pair of `Fraction`). It rejects `float`, `complex`, numpy and mpmath values.
+
+- `rmat`: `matmul`, `add`, `sub`, `scale`, `ctranspose`, `block(X, a, b, N_y)`, `fro2(X)` (exact ‖X‖_F²).
+- `rinv.inverse(A)`: Gauss–Jordan elimination on [A | I] with first-nonzero pivoting. It returns X only after proving
+  A·X = I **and** X·A = I exactly, and raises `SingularMatrix` otherwise.
+- `rpsd`: `is_psd(H)`, `is_pd(H)`, `norm2_le(X, c)` (c²I − XᴴX ⪰ 0, c ≥ 0) and `norm2_lt(X, c)`. Non-Hermitian input
+  raises.
+- `rlead`: `exact_root(gamma)` (rational roots only; raises otherwise; proves λ + 1/λ = 2γ, the branch and Im λ > 0 for
+  open channels); `enclosure(gamma, ell)` (the §2.4.1 formulas reimplemented); `round_dyadic(x, ell_Y)` (the ties-to-even
+  rule).
+- `rlattice`: `M_phys(lattice, N, s, kind, j)`. It builds M = E·I − H − Σ_L ⊕ Σ_R from H explicitly, with H_jj = 2tI +
+  diag(E_perp) + s·V_j(1), H_{j,j±1} = −tI, Σ = −tλ, E := 0 and E_perp,n := −δ_n/dx². It never uses the Δ form.
+- `rblocks.blocks(lattice, N, s)`: Ĝ = t·A_true⁻¹ and the prefix inverses; returns G_NN, G_N1, G_1N, G1_11, P_j, χ_j and ψ_j.
+- `rmutants.endpoint_blocks(Delta, lam_minus_1, mutant)`: an exact transcription of the code-change column of §4.2,
+  transcribed from the source text of `wz_mutants.py` (read, never imported), with a line-correspondence table reviewed
+  in R0.
+- `rpoly.F_ref(mutant, N, blocks)`: the §5.6 polynomial forms. It is used only after it has been proved equal to
+  `rmutants` − `rblocks` on every T6.1 input.
+- `rpred`: `THRESHOLD_REF` (literal `Fraction(1, 10**10)`), `grid()` (the 81 §3 points), `S_TEST_REF` (grid points
+  ≤ 2⁻¹⁹), and the exact predicates of §2.4.3.6. It includes `check_lower_bound(G)`, which is implemented independently of
+  production:
+  - it raises `TypeError` unless G is `int` or `Fraction` and not `bool`;
+  - it raises `InvalidLowerBound` ("INVALID_LOWER_BOUND") if G < 0;
+  - otherwise it returns "ZERO" or "POSITIVE".
+
+  It also includes `check_upper_bound(U)`, with the same type rule; it raises `InvalidUpperBound`
+  ("INVALID_UPPER_BOUND") if U < 0, and otherwise returns "ZERO" or "POSITIVE". Finally, `expected_point_infeasible(U, G,
+  threshold)` applies the five-step contract of `point_infeasible` with the reference's own checks.
+- `rnum`: the C4 Stage 1/Stage 2 protocol (§2.4.2, T6.4) with its own ū and l̄. It is the only reference module that may
+  import mpmath.
+
+##### 2.4.3.5 Types, conversion boundaries, packages and import restrictions
+
+- **B0 (binary64 → `Fraction`):** production import only. The T6 exact inputs contain no binary64 values.
+- **B1 (reference RC → production QC):** the harness adapter, exact.
+- **B2 (production output → harness):** every number must be `int` or `Fraction`. Any other type is an INTERFACE-FAIL.
+- **B3 (mpmath → `Fraction`):** C4 Stage 1 and Y_prod only, through each side's own exact mantissa/exponent converter.
+- **Packages** (under `experiments/wz_rgf_diagnostic/`):
+  - `coupling_scaling_v2_certify.py` (production; T1–T5 remain here);
+  - `cs2_t6_reference/` (reference);
+  - `cs2_t6_harness/`: `inputs.py` (the literal data of §2.4.3.1–§2.4.3.2), `adapters.py`, `t6_1.py` … `t6_8.py`,
+    `c4.py`, `kat.py`, `mutations.py`, `anchors.py`, `import_guard.py`, `report.py`.
+
+```
+ cs2_t6_harness ──imports──► coupling_scaling_v2_certify   (production)
+        │      └─imports──► cs2_t6_reference              (clean-room)
+        └─ anchors.py only ─► wz_rgf, wz_mutants, numpy   (diagnostic, never part of PASS)
+ production  ✗► cs2_t6_reference, cs2_t6_harness
+ reference   ✗► coupling_scaling_v2_certify, wz_mutants, coupled_blocks, wz_rgf, stationary, numpy,
+                any repository module; allowed: fractions, math (isqrt), mpmath (rnum only)
+```
+
+- `import_guard.py` checks these rules by an AST scan of every file before any test runs (IMPORT-VIOLATION otherwise).
+- **Order:** the reference is written and its known-answer tests pass before the production module is written.
+- **mpmath** is pinned to 1.3.0. The harness verifies `mpmath.__version__ == "1.3.0"` before any test (ENV-MISMATCH
+  otherwise). The `requirements-lock.txt` entry is part of the implementation commit.
+- **Double-precision anchors** (`anchors.py`) compare the reference's exact endpoint blocks with `wz_rgf.wz_endpoint_blocks`
+  in binary64, using the §4.7 item 2 tolerance 10·cond₂(M)·ε. They are **diagnostic only**: they are reported, never
+  determine PASS, and a disagreement only triggers an investigation note.
+
+##### 2.4.3.6 T6.1–T6.8 test matrix
+
+All predicates are exact rational comparisons or `rpsd` decisions. Every truth comes from the reference.
+
+| test | production output | reference truth | exact predicate | failure class |
+|---|---|---|---|---|
+| T6.1 | `F_poly(m, N, B)`, with B the exact reference blocks | `rmutants(m)` designated block − `rblocks` reference block | exact matrix equality | CERT-VIOLATION |
+| T6.2 | η_A for every matrix; E_m | t‖Δ‖₂ = t·2⁻⁴⁰ (rank one); D := F_ref(B) − F_ref(B̃), with B̃ the blocks of t·Y | η_A ≥ t·2⁻⁴⁰ (Y_pert); `norm2_le(D, E_m)` (both Y) | CERT-VIOLATION |
+| T6.3 | status, ω, a for every matrix | A_true⁻¹ | status "certified" and ω < 1; `norm2_le(A_true⁻¹, a)` | CERT-VIOLATION; PRECONDITION-UNMET if "uncertified" |
+| T6.4 exact | A_mid, ε_A, ω | A_true; A_e := A_true − A_mid | A_e zero off the lead positions; ε_A² ≥ fro2(A_e); `norm2_le(I − A_true·Y, ω)` | CERT-VIOLATION |
+| T6.4 targeted | ε_A | A_e | ε_A² ≥ fro2(A_e) (sensitivity proven in §2.4.3.9) | CERT-VIOLATION |
+| T6.5 | U_m | D*² := fro2(`rmutants` − `rblocks`) | U_m ≥ 0 and U_m² ≥ D*² | CERT-VIOLATION |
+| T6.6 | G_lo | Ĝ = t·A_true⁻¹ | `check_lower_bound(G_lo)` first; the frozen-input invariant requires "POSITIVE"; then `is_pd(G_lo²I − ĜᴴĜ)` is false | INTERFACE-FAIL (type); CERT-VIOLATION (G_lo < 0: INVALID_LOWER_BOUND; G_lo = 0: ZERO_LOWER_BOUND; in both cases the predicate is not evaluated; or the predicate fails) |
+| T6.7 | `THRESHOLD`, `point_infeasible` | literal | value, `!= Fraction(1e-10)`, type; rejections; cases (a)–(c) | CERT-VIOLATION / INTERFACE-FAIL |
+| T6.8 | `pointwise_certificate`, `conclude` | the path preconditions | the expected status and reason; never "infeasible" | PATH-FAIL |
+
+- **T6.6 exact precondition, frozen-input invariant and interface cases.**
+  - **Precondition.** G_lo must be `int` or `Fraction` (not `bool`) and must satisfy G_lo ≥ 0. This is checked, in that
+    order, before the matrix predicate. Both the harness, through the reference's `check_lower_bound`, and the production
+    `point_infeasible` check it, with separate code. A negative value is never replaced by max(0, G_lo), and the §5.6
+    formula for G_lo is unchanged.
+  - **Generic contract versus frozen-input invariant.**
+    - **Generic API contract.** `point_infeasible` and `check_lower_bound` treat G_lo = 0 as an admissible lower bound
+      (‖Ĝ‖₂ ≥ 0 always). `point_infeasible` then returns false for every valid U ≥ 0, and G_lo < 0 is rejected.
+    - **Frozen-input invariant.** It is stronger. On every frozen T6 input, §5.6 gives 0 < G_lo ≤ G_true, with
+      G_lo ≥ t/h_W > 0 (§2.4.3.9). So a production `pointwise_certificate` result with G_lo = 0 or G_lo < 0 on a frozen
+      input is a **CERT-VIOLATION**, with reason ZERO_LOWER_BOUND or INVALID_LOWER_BOUND respectively. It is not a report
+      note, and the matrix predicate is not evaluated.
+    - The generic behaviour of `point_infeasible` is unchanged by this classification.
+  - **Production outputs on the frozen T6.6 inputs:**
+    - a non-exact type is an INTERFACE-FAIL;
+    - G_lo < 0 is a CERT-VIOLATION (INVALID_LOWER_BOUND);
+    - G_lo = 0 is a CERT-VIOLATION (ZERO_LOWER_BOUND);
+    - G_lo > 0: the existing predicate is evaluated.
+
+    A negative production U_m is already a T6.5 CERT-VIOLATION (U_m ≥ 0).
+  - **Frozen interface cases.** The matrix cases use K := [[3, 0], [4, 0]], with ‖K‖₂ = 5 exactly (rank one;
+    KᴴK = diag(25, 0)). With threshold = THRESHOLD, G := 3·10¹⁰ gives THRESHOLD·G = 3. Each case runs on the reference
+    (`check_lower_bound`, `check_upper_bound`, `expected_point_infeasible` and `rpsd`) and on production
+    (`point_infeasible`), and the two must agree:
+
+    | case | input | reference expectation | production `point_infeasible` expectation |
+    |---|---|---|---|
+    | a (valid positive G_lo) | G_lo ∈ {3, 5} with Ĝ := K; control G_lo = 51/10 | "POSITIVE". `is_pd(G_lo²I − KᴴK)` is false for 3 and for 5 (the equality case), and true for the control 51/10, so the predicate rejects a bound above ‖K‖₂ | (1, G) → true; (3, G) → false (U = THRESHOLD·G) |
+    | b (zero G_lo) | G_lo = 0 | "ZERO" (generic contract: admissible; ‖K‖₂ ≥ 0) | (0, 0) → false; (1, 0) → false; (10²⁰, 0) → false. U < THRESHOLD·0 = 0 is impossible for U ≥ 0 |
+    | c (negative G_lo) | G_lo ∈ {−1, −6} with Ĝ := K | `InvalidLowerBound`, with **zero** calls to `rpsd` (the harness counts calls). Without the precondition the predicate would accept −1 (1 ≤ 25) and reject −6 (36 > 25), although both are below ‖K‖₂ | (1, −1) and (1, −6) raise `ValueError` "INVALID_LOWER_BOUND" |
+    | d (non-exact G_lo) | 3.0 (`float`), `numpy.float64(3)`, `mpmath.mpf(3)`, `True` | `TypeError` | (1, each) raises `TypeError` |
+    | e (U = 0) | U = 0 | "ZERO" | (0, G) → true (0 < 3) |
+    | f (U > 0) | U ∈ {1, 3, 4} | "POSITIVE" | (1, G) → true; (3, G) → false; (4, G) → false |
+    | g (U < 0) | U = −1 | `InvalidUpperBound` | (−1, G) and (−1, 0) raise `ValueError` "INVALID_UPPER_BOUND" (U is checked before G_lo) |
+    | h (float U) | 1.0 (`float`), `numpy.float64(1)`, `mpmath.mpf(1)` | `TypeError` | (each, G) raises `TypeError` |
+    | i (bool U) | `True`, `False` | `TypeError` | (each, G) raises `TypeError` |
+
+  - **Provenance.** A `Fraction` built from a float (e.g. `Fraction(3.0)`) has the same exact value and type as
+    `Fraction(3)`, so its provenance cannot be detected at this interface. It is excluded by the §2.4.1 import boundary
+    (no floating-point arithmetic after import), the T5 type checks and boundary B2 (§2.4.3.5).
+- **T6.7 frozen operands:**
+  - (a) U = 1, G_lo = 10²⁰ → infeasible at point;
+  - (b) U = 1, G_lo = 10⁵ → not infeasible;
+  - (c) U = 1, G_lo = 10¹⁰ (U = THRESHOLD·G_lo exactly) → not infeasible.
+  - **Rejections:** threshold arguments 1e-10 (`float`), `numpy.float64(1e-10)`, `Fraction(1e-10)` and
+    `Fraction(1, 10**9)`; U = 0.5 (`float`).
+- **T6.8 frozen paths** (each evaluated at every s ∈ S_test; `conclude` must return the stated outcome and reason, and
+  every point the stated point status):
+  - **P1:** X0, N = 2, M6, Y_zero for every matrix → INCONCLUSIVE, "uncertified_reference".
+  - **P2:** X1, N = 2 (n_tot = 4), M6, Y_half for every matrix → INCONCLUSIVE, "uncertified_reference" (the full
+    matrix).
+  - **P3:** X1, N = 3, M1, Y_T6, with the ("prefix", 2) entry omitted from `refs` → INCONCLUSIVE, "missing_reference".
+  - **P4:** C8 (γ = 1025/1024, V = 0, N = 2), M6, enclosure `ell = 4` (ū and l̄ stay at ℓ = 256), Y_T6 computed from the
+    ℓ = 4 A_mid → INCONCLUSIVE, "uncertified_reference" (the full matrix). The harness also requires the production ω of
+    the full matrix to be ≥ 1 (§2.4.3.9).
+  - **P5 (near-threshold lattice):** X1n, N = 2, M6, Y_T6 → INCONCLUSIVE, "bound_not_below_threshold"; at s* = 2⁻¹⁹ the
+    point status must be "not_infeasible".
+  - **P6:** X0, N = 2, mutants M4, M4L, M4R, M9, M10, M11, M12, M13, M14, M16, Y_T6 → INCONCLUSIVE or "not applicable",
+    reason "unsupported_mutant".
+  - **P7:** X0, N = 2, M6, Y_T6, evaluated sets: ∅; S_test ∖ {2⁻⁴⁰}; S_test ∪ {2⁻⁴¹}; (S_test ∖ {2⁻¹⁹}) ∪
+    {2⁻¹⁹ + 2⁻⁶⁰} → INCONCLUSIVE, "evaluated_set_mismatch". X0 has F_m ≡ 0, so only the set check can prevent
+    "infeasible".
+- **Near-threshold definition (P5).** With ρ(s) := D*_true(s)/(THRESHOLD·G_true(s)) on the exact lattice, i.e.
+  SNR_ideal(s)/10³ (§5.6), a point is **near-threshold** iff 1 ≤ ρ(s) < 10: the lowest decade on the not-infeasible side.
+  The exact preconditions on X1n, proven by the reference with `rpsd` before P5 runs, are:
+  - (N1) ρ(2⁻¹⁹) ≥ 1, i.e. `is_psd((D*²/THRESHOLD²)·I − ĜᴴĜ)`;
+  - (N2) ρ(s) < 5/2 for every s ∈ S_test, i.e. `is_psd((D*²/((5/2)·THRESHOLD)²)·I − ĜᴴĜ)` is false;
+  - (N3) ρ(2⁻⁴⁰) < 1/5.
+
+  Preflight: ρ(2⁻¹⁹) ≈ 2.33, which is also the maximum over S_test (ρ ≥ 1 also at 3·2⁻²¹ and 2⁻²⁰), and ρ(2⁻⁴⁰) ≈ 10⁻⁶.
+  - **Why INCONCLUSIVE is forced:** at s*, U_m ≥ D*_true ≥ THRESHOLD·G_true ≥ THRESHOLD·G_lo, so that point is not
+    infeasible.
+  - **Why the bound 5/2 matters:** it makes a threshold misread by a factor of 10 detectable. G_lo ≥ max_ab |Ĝ_ab| − (2η
+    + t·2^(1−ℓ)) ≥ ‖Ĝ‖₂/n_tot − (2η + t·2^(1−ℓ)), with n_tot = 4, using l̄(f) ≥ √f − 2^(1−ℓ) and
+    t·max_ab |Y_ab − (A⁻¹)_ab| ≤ η. So under a threshold of 10⁻⁹ every point would be infeasible.
+  - **Why (N3) matters:** it guarantees at least one infeasible point under the correct threshold, so an "any point"
+    conclusion rule is detectable.
+- **Edge cases:**
+  - N_y = 1 (X0) and class D (XD) must give F_poly(B) = 0 exactly;
+  - the j = 2 term of M5 must vanish exactly;
+  - M8 at N = 2 is "not applicable";
+  - `S_TEST` must equal `S_TEST_REF`, which has 43 elements.
+
+##### 2.4.3.7 Known-answer tests for the reference core (must pass before any production code is written)
+
+- **RC:**
+  - (1/2 + i/3)(2 − i) = 4/3 + i/6, and the quotient (4/3 + i/6)/(2 − i) = 1/2 + i/3;
+  - |3/5 + 4i/5|² = 1;
+  - construction from `float`, `complex` or `numpy.float64` raises.
+- **`rinv`:**
+  - [[2, 1], [1, 1]]⁻¹ = [[1, −1], [−1, 2]];
+  - [[0, 1], [1, 0]]⁻¹ is itself (the pivoting path);
+  - [[1+i, 1/2], [0, 1−i]]⁻¹ = [[(1−i)/2, −1/4], [0, (1+i)/2]];
+  - [[1, 2], [2, 4]] raises `SingularMatrix`.
+- **`rpsd` (`is_psd`):**
+  - true: [[1, 0], [0, 0]], 0₂, [[1, 1], [1, 1]] (a zero pivot after elimination), [[2, i], [−i, 2]], [[1, 1+i], [1−i, 2]]
+    (singular);
+  - false: [[0, 1], [1, 0]] (a zero diagonal with a nonzero off-diagonal entry), [[1, 2], [2, 1]], [[1, 1+i], [1−i, 1]],
+    [[−1]];
+  - [[1, 1], [0, 1]] raises (not Hermitian).
+- **`rpsd` (`is_pd`):** [[1, 1], [1, 1]] → false; [[2, i], [−i, 2]] → true; [[1, 0], [0, 0]] → false.
+- **`rpsd` (`norm2_le`):**
+  - diag(3, 4): c = 4 → true; c = 399/100 → false;
+  - [[3, 0], [4, 0]] (‖·‖₂ = 5, rank one): c = 5 → true; c = 49/10 → false.
+- **`fro2`:** [[1+i, 2], [0, −3i]] gives 15.
+- **`rlead`:**
+  - λ(5/4) = 1/2, λ(5/3) = 1/3, λ(29/20) = 2/5, λ(3/5) = 3/5 + 4i/5;
+  - irrational roots raise;
+  - `enclosure(9/16, 256)` = (3/4, 3/4 + 2⁻²⁵⁶).
+- **`round_dyadic`:** at resolution 2⁻²: 1/8 → 0; 3/8 → 1/2; 5/8 → 1/2; −3/8 → −1/2; 1/3 → 1/4; 7/8 → 1.
+- **Self-proofs on every T6 lattice:**
+  - `rmutants(None)` equals the `rblocks` blocks exactly;
+  - `F_ref` equals the recursion difference;
+  - ρ, ω and certification preconditions as stated per test.
+- **`rpred`:** `S_TEST_REF` is the 2⁻ᵏ (k = 19..40) and 3·2⁻ᵏ (k = 21..41) points, |S_TEST_REF| = 43, and it equals the
+  grid points ≤ 2⁻¹⁹.
+
+##### 2.4.3.8 C4 numerical cross-check: frozen inputs (separate from exact validation)
+
+The C4 case keeps the label "numerical cross-check (not validated)" and the protocol of §2.4.2 (T6.4). Its outcome
+contributes to no exact predicate; only its blocking outcomes gate the manifest freeze. The frozen inputs, i.e. the
+Rev3.5 selection rules evaluated exactly and re-proven by the reference, are:
+
+- **Selected leads:** open γ ∈ {9/512, 5/256}; closed γ ∈ {533/512, 1069/1024}; band edges γ ∈ {1023/1024, 1025/1024}
+  (eligible; the sensitivity rule does not hold for them and is not required).
+- **N_y = 1:** each of the six γ separately, V = VS_1..VS_3, N ∈ {1, 2, 3}.
+- **N_y = 2:** channel pairs (9/512, 533/512), (5/256, 1069/1024), (1023/1024, 1025/1024), V = VR_1..VR_3,
+  N ∈ {1, 2, 3}.
+- **N_y = 4, N = 6:** channels (9/512, 5/256, 533/512, 1069/1024).
+  - V4_j(1) for j = 1..6 and 0-indexed a, b:
+    - diagonal entries ((3a + 2j) mod 9 − 4)/2;
+    - off-diagonal entries (−1)^(a+b+j)·(1 + (min(a, b) + 2·max(a, b) + j) mod 3)/2, which are symmetric and nonzero.
+  - Preflight: the smallest singular value of M/t over all C4 matrices is ≥ 0.029.
+- **Remaining choices:** s ∈ {1, 2⁻¹⁹, 2⁻⁴⁰}; Y_fine and Y_prod as in Revision 3.5; Q8 mutants: every ORDER mutant on
+  path, except M8 at N = 2.
+
+##### 2.4.3.9 Mathematical audit (supporting the frozen tests)
+
+- **PSD decision.** For Hermitian H at each elimination step:
+  - if some diagonal entry is < 0, H is not PSD;
+  - if every diagonal entry is 0, H is PSD iff the remaining block is zero (|H_ij|² ≤ H_ii·H_jj);
+  - otherwise pivot on a positive diagonal entry p and recurse on the Schur complement H′ = H_rest − h·hᴴ/H_pp, using
+    H ⪰ 0 ⇔ H′ ⪰ 0 when H_pp > 0.
+
+  For PD, H ≻ 0 iff H₁₁ > 0 and the Schur complement is PD (Sylvester).
+- **Inverse orientation.** Gauss–Jordan on [A | I] gives X with A·X = I. Both products are checked exactly. ‖X‖₂ = ‖Xᴴ‖₂,
+  and ‖X‖₂² = λ_max(XᴴX), so c²I − XᴴX ⪰ 0 ⇔ ‖X‖₂ ≤ c for c ≥ 0.
+- **Frobenius and spectral norms.** ‖X‖₂ ≤ ‖X‖_F ≤ √rank(X)·‖X‖₂; ‖XY‖_F ≤ ‖X‖₂‖Y‖_F; both norms are submultiplicative.
+  T6.2, T6.3 and T6.4 test 2-norm statements. Each is implied by the Frobenius derivations of §2.4.1 and §5.6, so they
+  are valid as stated.
+- **G_lo (T6.6).**
+  - `is_pd(G_lo²I − ĜᴴĜ)` is false ⇔ G_lo² ≤ λ_max(ĜᴴĜ) = ‖Ĝ‖₂² ⇔ |G_lo| ≤ ‖Ĝ‖₂.
+  - This equals the claim G_lo ≤ ‖Ĝ‖₂ **only when G_lo ≥ 0**. For G_lo < 0 the claim holds trivially, but the predicate
+    tests |G_lo| and can fail. Hence the precondition G_lo ≥ 0.
+  - For G_lo = 0 the claim holds because ‖Ĝ‖₂ ≥ 0.
+  - **Positivity is already guaranteed by §5.6.** G_lo := max(t/h_W, t·l̄(max_ab |Y_full,ab|²) − η_full) ≥ t/h_W, with
+    h_W = ū(f_mid,W) + ε_A,W. Here f_mid,W = ‖A_mid‖_F² > 0, because for N ≥ 2 (every supported mutant on path) A_mid has
+    off-diagonal blocks t·I ≠ 0. By §2.4.1 step 4, ū(f) > 0 for f > 0. So 0 < h_W < ∞ and G_lo ≥ t/h_W > 0, as §5.6
+    states.
+  - A correct implementation therefore never produces G_lo ≤ 0 on the frozen inputs. That is why a production zero or
+    negative G_lo on a frozen input is a CERT-VIOLATION (§2.4.3.6).
+  - Generically, a zero is still a mathematically valid lower bound (‖Ĝ‖₂ ≥ 0). But it is useless for the certificate:
+    U < THRESHOLD·0 is impossible for U ≥ 0, which `point_infeasible` enforces. So the generic API returns false for
+    G_lo = 0, and only a strictly positive G_lo can support an infeasibility conclusion.
+- **T6.2.** Δ = 2⁻⁴⁰·e₁e₁ᵀ is rank one, so ‖Δ‖₂ = ‖Δ‖_F = 2⁻⁴⁰ exactly, and A_true⁻¹ − Y = −Δ. E_m bounds
+  ‖F(B) − F(B̃)‖₂ by telescoping, with β̃ ≥ ‖B̃‖₂ and η ≥ ‖B − B̃‖₂.
+- **T6.3.** If ω < 1 then ‖A_true⁻¹‖₂ ≤ ‖Y‖₂/(1 − ω) ≤ a (§2.4.1 step 6).
+  - With Y_half on X0, N = 2: Ξ = I/2 + A_e·Y. So √2/2 − ε_A‖Y‖_F ≤ ‖Ξ‖_F ≤ √2/2 + ε_A‖Y‖_F, giving ω < 1, while
+    ū(f_Y) ≤ ‖A_true⁻¹‖_F/2 + 2^(1−ℓ) ≤ (√2/2)·‖A_true⁻¹‖₂ + 2^(1−ℓ) < ‖A_true⁻¹‖₂.
+  - Hence a test of a without the 1/(1 − ω) factor fails.
+- **T6.4 lead-factor sensitivity (targeted lattices).**
+  - For γ = 5/4: ξ·4^ℓ = (3·2^(ℓ−2))² exactly. So lo = 3/4 = √ξ, hi = 3/4 + 2^−ℓ, μ̃ = 3/4 + 2^−(ℓ+1) and
+    e = 2^−(ℓ+1), giving |√ξ − μ̃| = e_n exactly (ratio 1).
+  - With every lead γ = 5/4, each lead entry of A_e equals u := t·e = 2⁻²⁵² (2u when N = 1). So ‖A_e‖_F² = k·u², with
+    k = N_y (prefix), 2N_y (full, N ≥ 2) or 4N_y (N = 1). This equals the unrounded ε_A² exactly: the γ = 5/4 contribution
+    is the whole of ‖A_e‖_F.
+  - Because f·4^ℓ = 256k is an integer, ū(k′u²) = u·(isqrt(256k′) + 1)/16 exactly. The resulting squares, in units of u²,
+    are 289/256, 529/256, 1089/256 and 2116/256 for k′ = 1, 2, 4, 8.
+  - So the correct ε_A passes in every case (G1: 1089/256 ≥ 4; G2 full: ≥ 4; G2 prefix: 529/256 ≥ 2; G3 full: ≥ 2; G3
+    prefixes: 289/256 ≥ 1).
+  - These mutations are detected:
+    - full N ≥ 2 with Σ instead of 2Σ (G2: 529/256 < 4; G3: 289/256 < 2);
+    - N = 1 with (te)² (289/256 < 4);
+    - N = 1 with the N ≥ 2 formula (529/256 < 4);
+    - ε_A computed with l̄ instead of ū (G3 full and G2 prefix: 484/256 < 2);
+    - ε_A = 0 for prefixes.
+  - In the general lattices (X1, X2) the ratio |√ξ − μ̃|/e_n is 1/3 (λ = 1/3) or 3/5 (λ = 2/5 and the Pythagorean lead);
+    their T6.4 checks are not sensitive to these factors.
+- **T6.8 paths:**
+  - **P1:** Y = 0 gives Ξ = I and ω ≥ ū(n) ≥ √n ≥ 1.
+  - **P2:** Ξ = I/2 + A_e·Y, so ω ≥ ‖Ξ‖_F + ε_A‖Y‖_F ≥ √n_tot/2 = 1, using ε_A ≥ ‖A_e‖_F (tested by T6.4).
+  - **P4:**
+    - At ℓ = 4, ξ·4⁴ = 1/2 + 2⁻¹², so lo = 0, hi = 1/8, μ̃ = e = 1/16 and t·e = 2.
+    - A_mid/t = [[−c, 1], [1, −c]] with c = 1089/1024. Its eigenvalues are −65/1024 and −2113/1024, so
+      ‖A_mid⁻¹‖_F ≥ 32/65.
+    - ε_A = ū(8) ≥ √8, so ω ≥ ε_A·ū(f_Y) ≥ √8·(32/65 − 2⁻⁵¹²) > 1.39. This holds for any ℓ used in ū.
+  - **P5:** as stated under the near-threshold definition.
+  - **P3, P6 and P7:** follow from §5.6 (a missing or uncertified reference, an unsupported mutant, or a set different
+    from S_test gives INCONCLUSIVE). P7 uses F_m ≡ 0, so a missing set check would conclude "infeasible".
+
+##### 2.4.3.10 Mutation suite (applied to a copy of production inside the harness; never committed to production)
+
+Every listed mutation must make at least one frozen T6 predicate fail (MUTATION-SURVIVED otherwise):
+
+| # | mutation | detected by | reason |
+|---|---|---|---|
+| MU1 | ε_A full N ≥ 2: Σ(te)² instead of 2Σ(te)² | T6.4 targeted (G2, G3) | §2.4.3.9 |
+| MU2 | ε_A N = 1: Σ(te)² instead of Σ(2te)² | T6.4 targeted (G1) | §2.4.3.9 |
+| MU3 | ε_A N = 1 uses the N ≥ 2 formula | T6.4 targeted (G1) | §2.4.3.9 |
+| MU4 | ε_A with l̄ in place of ū | T6.4 targeted (G2 prefix, G3 full) | §2.4.3.9 |
+| MU5 | ε_A = 0 for prefix matrices | T6.4 targeted (G2, G3 prefixes) | A_e ≠ 0 |
+| MU6 | closed-branch midpoint λ̃ = γ + μ̃ | T6.4 exact (X1, X2) | ‖A_e‖ ≈ 2t√ξ ≫ ε_A |
+| MU7 | the first two factors of the longest monomial of F_poly swapped (each supported mutant) | T6.1 | exact witness ≠ 0 |
+| MU8 | the sign of the single-block term flipped (M1, M2, M3, M6, M7, M15) | T6.1 | witness: that block ≠ 0 |
+| MU9 | M5 sum over j = 2..N−2 | T6.1 (N = 4) | witness: the j = 3 term ≠ 0 |
+| MU10 | E_m := 0 | T6.2 (Y_pert) | witness: F(B) − F(B̃) ≠ 0 |
+| MU11 | U_m without the ū(N_y)·E_m term | T6.5 aux (Y_adv) | U′ = 0 < D*_true |
+| MU12 | a := ū(f_Y) (no 1/(1 − ω)) | T6.3 aux (Y_half) | §2.4.3.9 |
+| MU13 | G_lo with +η instead of −η | T6.6 aux (Y_half) | η ≥ 1.2·‖Ĝ‖_F > ‖Ĝ‖₂ |
+| MU14 | no ω < 1 check (certify regardless) | T6.8 P1, P2, P4 | infeasible or exception instead of INCONCLUSIVE |
+| MU15 | THRESHOLD = `Fraction(1e-10)` | T6.7 | assertion |
+| MU16 | THRESHOLD = 1e-10 (`float`) | T6.7 | type |
+| MU17 | U ≤ THRESHOLD·G_lo instead of < | T6.7 (c) | equality case |
+| MU18 | THRESHOLD = `Fraction(1, 10**9)` | T6.7; T6.8 P5 | P5: (N2) makes every point infeasible |
+| MU19 | S_TEST with k = 19..39 only (42 points) | edge case; T6.8 P7 | size and set equality |
+| MU20 | `conclude` uses "any point" instead of "every point" | T6.8 P5 | (N3) gives an infeasible point |
+| MU21 | `conclude` skips the evaluated-set check | T6.8 P7 | F_m ≡ 0 gives a vacuous "infeasible" |
+| MU22 | an unsupported mutant evaluated with the M6 polynomial | T6.8 P6 | reason must be "unsupported_mutant" |
+| MU23 | a missing prefix treated as zero blocks | T6.8 P3 | reason must be "missing_reference" |
+| MU24 | `point_infeasible` without the G_lo < 0 rejection | T6.6 case c | the mutant returns false for (1, −1) instead of raising "INVALID_LOWER_BOUND" |
+| MU25 | `point_infeasible` without the U < 0 rejection | T6.6 case g | the mutant returns true for (−1, G) (−1 < 3) instead of raising "INVALID_UPPER_BOUND" |
+| MU26 | `bool` accepted as an exact operand | T6.6 cases d, i | the mutant returns a value for (`True`, G) instead of raising `TypeError` |
+| MU27 | G_lo without the t/h_W branch of the §5.6 maximum | T6.6 aux (Y_half), frozen-input invariant | t·l̄(max_ab \|Y_ab\|²) − η ≤ ‖Ĝ‖_F/2 − 1.2·‖Ĝ‖_F < 0, so the mutant's G_lo is ≤ 0 (INVALID_LOWER_BOUND, or ZERO_LOWER_BOUND if clamped) while the unmutated G_lo ≥ t/h_W > 0 |
+
+The harness proves every listed witness (MU7–MU10) exactly before the mutation run; a missing witness is
+PRECONDITION-UNMET.
+
+**Mutation audit.** For each required mutation:
+- **Valid inputs.** Every detecting input satisfies the API preconditions (exact types, U ≥ 0, G_lo ≥ 0, a certified
+  reference where one is required), except where the mutation removes an input check. MU24–MU26 deliberately pass the
+  invalid operand whose rejection was removed, and only that operand is invalid.
+- **Different expected outputs.** The unmutated and mutated expected outputs differ, by the proof or exact witness in the
+  "reason" column.
+- **The difference is observed.** The detecting test compares exactly the output that changes: a predicate value, a
+  status, a reason code or an exception.
+
+**Removed in review:** the earlier MU25, "`point_infeasible` without the G_lo = 0 branch". It has no observable effect
+on valid inputs, since U ≥ 0 makes U < THRESHOLD·0 false anyway, so it is not a required mutation.
+
+**Not detectable by T6 as specified** (these are conservative, or redundant per the §5.6 Frobenius argument). They are
+recorded and not required, because tightness checks are deferred:
+- G_lo without the factor t;
+- extra positive terms in U_m, E_m, η_A or ε_A;
+- ε_A for prefixes using the full-matrix formula;
+- U_m without the ū(N_y) factor (keeping E_m);
+- η_A without the factor t;
+- l̄ in place of ū inside ω.
+
+##### 2.4.3.11 Failure classes, stopping rules and manifest-freeze conditions
+
+| class | trigger | rule |
+|---|---|---|
+| ENV-MISMATCH | mpmath ≠ 1.3.0 | stop before any test |
+| IMPORT-VIOLATION | the §2.4.3.5 import rules are broken | stop before any test |
+| KAT-FAIL / REF-SELFCHECK-FAIL | a §2.4.3.7 check fails | stop; no production result is read |
+| INTERFACE-FAIL | §2.4.3.3 types or fields violated | stop; T6 fails |
+| PRECONDITION-UNMET | a frozen input lacks its stated property | stop; inputs change only by a documented revision with an R0 note |
+| CERT-VIOLATION | a T6.1–T6.7 predicate fails, production and reference A_mid differ, or a production G_lo ≤ 0 on a frozen input (INVALID_LOWER_BOUND if < 0, ZERO_LOWER_BOUND if = 0; the T6.6 matrix predicate is not evaluated) | finish the deterministic run, record every violation, stop; after a fix, rerun T1–T6 in full |
+| PATH-FAIL | a T6.8 path gives a wrong outcome or reason, or raises | as CERT-VIOLATION |
+| MUTATION-SURVIVED | a §2.4.3.10 mutation passes every predicate | stop; T6 inputs are insufficient; documented revision required |
+| C4 outcomes | §2.4.2 (T6.4) | blocking outcomes block the freeze; never part of an exact predicate |
+
+No retry with changed inputs is allowed. The run is deterministic.
+
+The manifest (§8.2) may be generated only when **all** of the following hold:
+1. ENV and import checks pass;
+2. every reference known-answer test and self-proof passes;
+3. T1–T5 pass;
+4. every T6.1–T6.8 predicate and edge case holds on the frozen inputs;
+5. every §2.4.3.10 mutation is detected;
+6. the C4 field is not blocking;
+7. R0 has signed off.
+
+Double-precision anchors and the C4 outcome never establish a pass, and no "validated" status follows from T6 alone
+(§4.6).
 
 ### 2.5 Conditional sampling (explicit limitation)
 
@@ -1361,8 +1854,10 @@ controls.
 
 All under `experiments/wz_rgf_diagnostic/`:
 - `coupling_scaling_v2_manifest.py`;
-- `coupling_scaling_v2_certify.py` (§2.4.1, the §5.6 pointwise certificate, and T1–T6; T6's independent reference
-  implementation lives in a separate module);
+- `coupling_scaling_v2_certify.py` (§2.4.1, the §5.6 pointwise certificate, and T1–T5; the production black-box API of
+  §2.4.3.3);
+- `cs2_t6_reference/` (clean-room T6 reference, §2.4.3.4) and `cs2_t6_harness/` (T6 harness, §2.4.3.5); the
+  `requirements-lock.txt` pin `mpmath==1.3.0` is part of the implementation commit;
 - `coupling_scaling_v2.py` (driver);
 - `wz_mutants_oracle.py`;
 - `wz_mutants_mp.py` (clean-room transcription);
