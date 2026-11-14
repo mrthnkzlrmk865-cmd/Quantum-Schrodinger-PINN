@@ -17,7 +17,7 @@ Section and step numbers (§x.y) refer to `PREDICTIONS_coupling_scaling_v2.md`. 
 | frozen specification | `experiments/wz_rgf_diagnostic/PREDICTIONS_coupling_scaling_v2.md`, **Revision 3.7** (`0f502c9`) |
 | implementation baseline | `baab2c5986e3bf40fc1cd0210f74b0de2bb85567` (covering, T1–T5, T6 review corrections) |
 | this packet | first added in `25f48ee` (import-boundary hardening, runner docs); **updated in the main-experiment infrastructure phase** (see Part I). **The reviewer must record the exact commit SHA reviewed in Part H.** |
-| `main` / branch reconciliation | `main` = `c7939df` (merge of PR #23), which contains every branch commit through `f1ecc60`; the branch was fast-forwarded to `c7939df` (no history rewrite) before the infrastructure phase |
+| `main` / branch reconciliation | infrastructure `aa06437`, merged to `main` as `b0b3dac` (PR #24; tree-identical); the branch was fast-forwarded to `b0b3dac` (no history rewrite); manifest freeze `fac5f5e` |
 
 **Source files under review**
 
@@ -302,6 +302,400 @@ re-run it. "Exact" = decided by exact rational predicates; C4 is a numerical cro
 
 ---
 
+## I. Main-experiment infrastructure (pre-R0): modules, formulas, provenance, §4.7, manifests, tests, limitations
+
+**Status of this part.** It describes the implementation the reviewer must audit for R0 items (c)–(e) on the main
+experiment. It makes **no** R0 decision.
+
+| status | value |
+|---|---|
+| software validation | the T1–T6 official run and the repository tests pass (I.7); this is **not** scientific validation |
+| manifest generation | **GENERATED and FROZEN** in `fac5f5e` (XP 60, HO 120; I.6) |
+| implementation-level R0 | **PENDING** |
+| main experiment | **NOT RUN** |
+| scientific W/Z validation | **NOT VALIDATED** |
+
+### I.1 Modules and interfaces
+
+All files are under `experiments/wz_rgf_diagnostic/`.
+
+| file | role | key interfaces | may import |
+|---|---|---|---|
+| `wz_mutants_oracle.py` | §4.2 oracle for every mutant, specification-derived (no recursion code) | `oracle(m, N, ny, G_full, G_prefix, lam_minus_1, backend)` returns `{status, designated, X, secondary}`; `OffPath`; `on_path`; `reference_block`; `monomials` (coef, degree); `monomial_factors` and `magnitude` (Mag_m, §4.3); backends `MpBackend` (driver) and series (analysis) | nothing (backend injected) |
+| `wz_mutants_mp.py` | §4.3 clean-room mpmath transcription, written from the materials file only (I.3) | `mp_endpoint_blocks(Delta, lam_minus_1, mutant=None, dps=60)` returns Ghat11/GhatN1/Ghat1N/GhatNN, `trace`, Z, Zi; private `MPContext` | `mpmath` only |
+| `coupling_scaling_v2_refs.py` | §4.7 item 4 validated references and the (b)/(c) cross-checks | `validated_inverse`, `reference`, `err_ghat`, `w_reference`, `w_p_bounds`, `s_reference`, `check_dps100`, `check_lu_vs_inverse` | certificate module, `mpmath` |
+| `coupling_scaling_v2_manifest.py` | §2.3 draws, §2.4 filter, §2.6 order, redraw cap, §8.1 manifest files, §8.3 `previous_files.sha256` | `configurations`, `draw`, `v1_blocks`, `energy`, `conditioning_at`, `grid_conditioning`, `certificate`, `generate_configuration`, `build_manifest`, `solver_guard`, `main` | numpy, certificate and covering modules, `stationary.transverse_basis` only (all other `stationary` callables are stubbed during generation) |
+| `coupling_scaling_v2_analysis.py` | §5 procedures (pure functions) | `SeriesBackend`, `neumann_series`, `zero_test`, `identify_order`, `s_star`, `b_tail`, `b_prec`, `ols`, `regression`, `local_slopes`, `window_adequacy`, `crossover`, `regime_models`, `noise_trend`, `bootstrap_median` | numpy, mpmath |
+| `coupling_scaling_v2.py` | driver (gated; **not run**) | `gate`, `point`, `run_configuration`, `decide`, `determinism`, `write_outputs`, `write_report`, `main` | solvers imported lazily inside `_solvers()`, never at module level |
+
+### I.2 Every mutant: change column, designated block and oracle as implemented
+
+All quantities are in Ĝ units. They come from direct prefix and full references: P_j = −Ĝ^(j)_jj, χ_j = Ĝ^(j)_j1,
+ψ_j = Ĝ^(j)_1j, θ_j = ψ_{j−1}P_jχ_{j−1}, and Z⁻¹ = Ĝ_NN. Sums run over j = 2..N−1. Each oracle is in
+`wz_mutants_oracle.oracle`, and its first-deviation closed form is in `coupling_scaling_v2.first_dev_closed_form`.
+
+| mutant | change (§4.2) | X_m | oracle as coded | MIN_N | first deviating intermediate: closed form |
+|---|---|---|---|---|---|
+| M1 | `Gj1 = Gj1@P` | Ĝ_N1 | −Ĝ_NN·Ĝ^(1)_11·P_2⋯P_{N−1} | 3 | `G_21^(2)` = Ĝ^(1)_11 P_2 |
+| M2 | `G1j = P@G1j` | Ĝ_1N | −(P_{N−1}⋯P_2·Ĝ^(1)_11)·Ĝ_NN | 3 | `G_12^(2)` = P_2 Ĝ^(1)_11 |
+| M3 | M1 and M2 | Ĝ_N1 | as M1 | 3 | `G_21^(2)` = Ĝ^(1)_11 P_2 |
+| M4 | chains first, then G11 | Ĝ_11 | Ĝ_11 − Σ ψ_{j−1}(P_j³ − P_j)χ_{j−1} | 3 | `G11^(2)` = Ĝ^(1)_11 − Ĝ^(1)_11 P_2³ Ĝ^(1)_11 |
+| M4L | Gj1 before G11; G1j after | Ĝ_11 | Ĝ_11 − Σ ψ_{j−1}(P_j² − P_j)χ_{j−1} | 3 | `G11^(2)` = Ĝ^(1)_11 − Ĝ^(1)_11 P_2² Ĝ^(1)_11 |
+| M4R | G1j before G11; Gj1 after | Ĝ_11 | as M4L | 3 | as M4L |
+| M5 | `G11 − Gj1@P@G1j` | Ĝ_11 | Ĝ_11 − Σ(χ_{j−1}P_jψ_{j−1} − θ_j) | 3 | N ≥ 4: `G11^(3)` = Ĝ^(2)_11 − χ_2P_3ψ_2; N = 3: no deviation allowed |
+| M6 | `GN1 = −(Gj1@Zi)` | Ĝ_N1 | −χ_{N−1}Ĝ_NN | 2 | `GN1` = −χ_{N−1}Ĝ_NN |
+| M7 | `G1N = −(Zi@G1j)` | Ĝ_1N | −Ĝ_NNψ_{N−1} | 2 | `G1N` = −Ĝ_NNψ_{N−1} |
+| M8 | closing `G11 + Gj1@Zi@G1j` | Ĝ_11 | Ĝ_11 + χ_{N−1}Ĝ_NNψ_{N−1} − ψ_{N−1}Ĝ_NNχ_{N−1} | 2 | N ≥ 3: `G11` = Ĝ^(N−1)_11 + χĜ_NNψ; N = 2: no deviation allowed |
+| M9 | stale P | Ĝ_N1 | −Ĝ_NN·P_{N−2}⋯P_1·Ĝ^(1)_11 | 3 | `P_2` = P_1 = −Ĝ^(1)_11 |
+| M10 | Lm dropped in Z | Ĝ_NN | (Ĝ_NN⁻¹ − diag(λ−1))⁻¹ | 2 | `Z` = Ĝ_NN⁻¹ − diag(λ−1) |
+| M11 | N = 1 boundary | — | `OffPath` for every N ≥ 2; never a zero value | — | — |
+| M12 | transposed solves | Ĝ_11 | Ĝ_11 | 2 | no deviation allowed |
+| M13 | `G11 + G1j@P@Gj1` | Ĝ_11 | Ĝ_11 + 2Σθ_j | 3 | `G11^(2)` = Ĝ^(1)_11 + Ĝ^(1)_11 P_2 Ĝ^(1)_11 |
+| M14 | init `solve(I − W, I)` | Ĝ_11 | Ĝ_11 − 2Ĝ^(1)_11; secondary Ĝ_N1 → −Ĝ_N1, Ĝ_1N → −Ĝ_1N | 2 | `G11^(1)` = −Ĝ^(1)_11 |
+| M15 | M6 + M7 | Ĝ_N1 | as M6 | 2 | `GN1` = −χ_{N−1}Ĝ_NN |
+| M16 | closing GN1, G1N first | Ĝ_11 | Ĝ^(N−1)_11 + ψ_{N−1}Ĝ_NN³χ_{N−1} | 2 | `G11` = Ĝ^(N−1)_11 + ψĜ_NN³χ |
+
+- **Boundaries.** `on_path(m, N)` is N ≥ MIN_N[m], or N = 1 for M11. An off-path mutant raises `OffPath`; no value is
+  returned. Identical-by-algebra cases (M5 at N = 3, M8 at N = 2) and the equivalent M12 are **computed** by their
+  formulas. The driver assigns their category (§5.1).
+- **First-deviation closed forms.** §4.3 states only the M1 example. The other closed forms above are the implementer's: each
+  evaluates the changed line on the prefix references, whose inputs are still exact at that point.
+- **The reviewer should re-derive the closed forms** (choice C-12).
+
+### I.3 Clean-room transcription provenance
+
+The full record is in `wz_mutants_mp_PROVENANCE.md`. In summary:
+
+- **Materials.** The implementer was given exactly one file, `wz_mutants_mp_MATERIALS.md`
+  (sha256 `91fc23c5…ca25`). It contains:
+  - the variables;
+  - the §4.2 correct-code listing, verbatim;
+  - the N = 1 rules;
+  - the change column only, without the oracle column;
+  - the interface and the precision rules.
+- **Implementer.** A separately started AI subagent, in a fresh context without this session's conversation. It was
+  instructed to read only the materials file.
+- **Creation hash.** The file's sha256 at creation was `a7339d25…fdfc8a`. It is unchanged since: the orchestrating session
+  did not edit it.
+- **Independence cannot be fully established.**
+  - The subagent is the same model as the author of the oracle and of `wz_mutants.py`, so shared priors are possible.
+  - Its isolation was enforced by instruction, not by a sandbox; it shared the filesystem.
+  - The materials file was prepared by a session that had read `wz_mutants.py`.
+- **Mechanical guards (tests).**
+  - AST: the transcription imports only `mpmath`; there are no dynamic imports, `exec` or `eval`.
+  - Neither module imports the other, and neither imports a solver.
+
+### I.4 §4.7 implementation
+
+| item | implementation | on failure |
+|---|---|---|
+| 1 | `coupling_scaling_v2.item1`: off-diagonals of the imported Δ_fl must equal −s·V_off(1)/64 exactly (bitwise after the exact import). The diagonal rounding is recorded (`diag_rounding`). | INVALID |
+| 2 | ‖Ĝ_{R_W} − Ĝ_L‖_F/‖Ĝ_L‖₂ and the same for R_orig, each ≤ 10·cond₂(M_L)·ε | INVALID |
+| 3 | per mutant: \|D*_RW − D*_L\|/D*_L ≤ 1e-6 where D*_L ≥ 1e-30 | INVALID |
+| 4(a) | `refs.validated_inverse`, run for every full and prefix system of L, R_W and R_orig at **every** grid point. Y comes from §2.4.1 step 1 (`approx_inverse_Y`) and ω from `certify_point` with the lattice's ε_A. Acceptance is the exact comparison ω < 1 and ω/(1 − ω) ≤ 10⁻⁵⁵ at dps 60, else dps 120, else INVALID. | INVALID |
+| 4(a) bounds | err_Ĝ = t·ū(‖Y‖_F²)·ω/(1 − ω); err_P,j = err_Ĝ^(j); err_W,1 = ε_A(prefix 1)/t; err_W,j = err_Ĝ^(j−1). For S, the exact S_ref = 2i·ū(μμ′)·Ĝ^Y − δ, with the frozen \|ΔS\| bound in exact rationals. A missing bound is `None`, and the quantity is then *not reliably measured* (§6). | — |
+| 4(b) | `refs.check_dps100`, at k ≡ 0 (mod 4) for both grid families, s = 1 and s = 2⁻⁴⁰. Metric: relative Frobenius ≤ 1e-55 (choice C-5, C-10). The **duplicate set is undefined (gap G-1)**. | escalate to dps 120, then INVALID |
+| 4(c) | `refs.check_lu_vs_inverse` at s ∈ {1, 2⁻¹², 2⁻⁴⁰}, tolerance 1e-55 (choice C-6) | escalate to dps 120, then INVALID |
+| 5 | `coupling_scaling_v2.identities` on R_W and L: the chain identities and the closing identities, ≤ 1e-50·‖Ĝ‖₂ | INVALID |
+| 6 | `wz_instrumented` bit-identical to `wz_endpoint_blocks` at every point | INVALID |
+| 7 | `coupling_scaling_v2.determinism`: first 5 configurations, full grid, double outputs (WZ solver, Fisher–Lee, all double mutants) recomputed and compared by hash (choice C-14) | INVALID |
+| 8 | `gate`: manifest hash, R0 sign-off and `previous_files.sha256` are verified before and after the run | refuse / INVALID |
+
+**Reliably measured (§6).** A validated bound is converted to each error metric as follows (choice C-11):
+
+| metric | bound used |
+|---|---|
+| endpoint e_glob | √N_y·err_Ĝ/(‖Ĝ^Y‖₂ − err_Ĝ) |
+| prefix blocks | √N_y·err_Ĝ^(j)/(‖Ĝ^(j)‖₂ − err_Ĝ^(j)) |
+| W_j and P_j (absolute Frobenius) | √N_y·err |
+| ΔS (max entry) | the maximum entry bound |
+
+### I.5 Implementer choices and specification gaps (for R0 adjudication)
+
+**Gaps: the frozen text does not determine these.**
+
+- **G-1** §4.7 4(b) names a "duplicate set" that is not defined anywhere in the frozen spec. The driver sets
+  `DUPLICATE_SET = None`, and `gate()` **refuses the main run** until R0 or a spec amendment defines it. This is the one open
+  blocker for running the driver. It does not affect the manifest.
+- **G-2** §2.4 item 2 does not specify the precision or method of the conditioning filter. Resolved by choice C-1.
+- **G-3** §4.7 4(c) states no `lu_solve` tolerance. Resolved by choice C-6.
+- **G-4** §2.4 item 1 does not say whether E_upper for n_open = N_y is a double or exact. Resolved by choice C-2.
+- **G-5** §8.1 asks for D* "for all four blocks", but the oracle specifies only X_m (plus M14's two secondary blocks).
+  - For the other blocks the driver records the transcription-based value and the double value.
+  - The oracle column is `None` there: it is never filled with a zero.
+
+**Choices affecting the manifest.** These are frozen once the manifest is committed. A disagreement at R0 would require a
+new design revision.
+
+- **C-1** Grid conditioning in binary64: `numpy.linalg.cond` on the exact L(s)/R_W(s) matrices rounded once; inverses with
+  `numpy.linalg.inv`. A non-finite value counts as > 1e3.
+- **C-2** E_upper = E_perp,1 (double, imported exactly) + 64·(2 − 1/50), exact.
+- **C-3** The filter steps are evaluated in the order energy → conditioning → certificate, stopping at the first failure.
+  Acceptance does not depend on the order; only the logged reason does.
+- **C-4** In the M10 matrix Z − (Λ − I), Λ is the lattice's lead root (the enclosure midpoint).
+
+**Choices affecting the driver only.**
+
+- **C-5** "k ≡ 0 (mod 4)" is applied to both grid families (2⁻ᵏ and 3·2⁻⁽ᵏ⁺²⁾).
+- **C-6** The `lu_solve` tolerance is 1e-55 relative Frobenius, the inherited `coupled_blocks` threshold.
+- **C-7** Mag for M10 = ‖X_oracle‖₂ + ‖Ĝ_NN‖₂ (not a polynomial).
+- **C-8** The regime-model fit (descriptive only).
+- **C-9** The bootstrap spawn key.
+- **C-10** The dps-100 metric is relative Frobenius, as inherited.
+- **C-11** The conversion of validated bounds to each error metric (I.4).
+- **C-12** The first-deviation closed forms beyond M1 (I.2).
+- **C-13** R_orig is validated at **every** grid point (the stronger option in §4.7 4(a)).
+- **C-14** The determinism check compares double outputs only.
+- **C-15** §5.2 Taylor coefficients and the series-vs-direct check use L with the **exact** lead roots evaluated at dps 100
+  or 200 (`L_ctx`).
+  - The rational enclosure midpoint is accurate only to 2⁻²⁵⁶. Using it left M9's C_0 at about 1e-77 on a fixture, so the
+    zero test came out "unresolved" against Fact 6.
+  - Pointwise validated references keep the midpoint plus ε_A, as §2.4.1 prescribes.
+- **C-16** The heuristic τ formulas (τ_end, τ_pre, τ_W, τ_P, τ_S, and the U/Q/symmetry bounds) are taken by calling
+  `coupled_blocks.bounds`/`tau_S` read-only, with the inherited constants c = 10 and ε = 2⁻⁵².
+
+### I.6 Manifests and reproducibility
+
+**Manifest freeze.** The manifests are committed in **`fac5f5e3aae6f9ae9c151a649e9279bcd01fed95`**. That commit adds only the
+three files below. No solver or reference run preceded it.
+
+| file (`results_coupling_scaling_v2/`) | sha256 |
+|---|---|
+| `manifest_XP.json` | `e51ffe43a1970cf8fa5cf4ddce14547e9d5a24598a8248086ed88cba12a90923` |
+| `manifest_HO.json` | `9b3ecc924ab204a4ef742b42240065e70778126bd9bd9584638e17879ae034d2` |
+| `manifest.sha256` | `d7be20bc64b96324ed7fb16e35e428ee164672bedb7356f1b08e79b41c65b969` |
+
+**Generator provenance**
+
+- **Source commit.** `aa064370c5aff89d96de15a9a0f4f25f2c8c5670`. This is tree-identical to `b0b3dac`, the PR #24 merge, so
+  `git diff aa06437 b0b3dac` is empty.
+- **Command.** `cd experiments/wz_rgf_diagnostic && OPENBLAS_NUM_THREADS=1 python3 coupling_scaling_v2_manifest.py
+  --workers 4`.
+  - It was run from a clean working tree; the command line refused unless `git status --porcelain` was empty.
+  - Exit code 0; 6 min 25 s wall time; 23 min 51 s CPU.
+  - There was exactly one generation run. No duplicate process was started.
+- **Recorded `versions` field**, identical in both manifests:
+  - Python 3.13.18, numpy 2.5.3, mpmath 1.3.0, Linux x86_64, `OPENBLAS_NUM_THREADS=1`.
+  - sha256 of the generator `5933f1db…efdb64`, the certificate `16c3350f…f523dc`, the covering `f136dd7f…1fe45`, the spec
+    `9750ce3a…f053aa` and `stationary.py` `7294be3c…17949e`.
+  - Each of these was re-checked against `git show HEAD:<file> | sha256sum` and matches.
+
+**Seeds and counts (§2.3, §2.6)**
+
+| set | root entropy | expected (R / H / D) | generated (R / H / D) | redraws (energy / conditioning / certificate) | highest attempt index | cap reached |
+|---|---|---|---|---|---|---|
+| XP | 202611110001 | 60 (24 / 24 / 12) | 60 (24 / 24 / 12) | 11 (11 / 0 / 0) | 2 | no |
+| HO | 202611110002 | 120 (48 / 48 / 24) | 120 (48 / 48 / 24) | 10 (10 / 0 / 0) | 2 | no |
+
+**Filter and certificate outcomes (§2.4)**
+
+- **Configurations.** Every accepted configuration has 0 grid-conditioning failures. The largest binary64 grid condition
+  number over all checked quantities is 131.7 in XP and 382.1 in HO, against a limit of 1e3.
+- **Matrices.** Every listed matrix (M_L and every M_L^(j)) is covered on [0, 1] within the budget. There are 0 uncertified
+  points, 0 matrices with b = 0, and s = 0 is certified for every matrix, so r_0 is defined for every configuration.
+- **Certified points.** 18,690 in total for XP and 37,303 for HO.
+- **Per-stratum detail** is in the tables below. The "validated cond bound" is max_κ 2a_κ(h_κ + r_κ b) over the certified
+  points.
+
+**Set XP** (root 202611110001)
+
+| N_y | class | N | configs | redraws | max attempt | certified points | min r_0 | max validated cond bound | max binary64 grid cond |
+|---|---|---|---|---|---|---|---|---|---|
+| 2 | R | 2 | 2 | 0 | 0 | 328 | 5.280e-01 | 14.8 | 4.1 |
+| 2 | R | 3 | 2 | 1 | 1 | 492 | 2.822e-01 | 42.2 | 11.3 |
+| 2 | R | 4 | 2 | 0 | 0 | 656 | 1.357e-01 | 82.9 | 22.7 |
+| 2 | R | 6 | 2 | 0 | 0 | 1007 | 6.911e-02 | 515 | 131.7 |
+| 2 | H | 2 | 2 | 0 | 0 | 328 | 4.288e-01 | 19.8 | 5.5 |
+| 2 | H | 3 | 2 | 0 | 0 | 492 | 2.129e-01 | 42.5 | 11.9 |
+| 2 | H | 4 | 2 | 1 | 1 | 656 | 2.229e-01 | 63.8 | 14.6 |
+| 2 | H | 6 | 2 | 0 | 0 | 995 | 6.812e-02 | 158 | 40.8 |
+| 2 | D | 2 | 1 | 1 | 1 | 164 | 3.446e-01 | 47.6 | 30.9 |
+| 2 | D | 3 | 1 | 0 | 0 | 246 | 3.195e-01 | 58.4 | 18.4 |
+| 2 | D | 4 | 1 | 1 | 1 | 328 | 2.571e-01 | 63.8 | 14.7 |
+| 2 | D | 6 | 1 | 0 | 0 | 494 | 1.111e-01 | 148 | 38.0 |
+| 3 | R | 2 | 2 | 0 | 0 | 328 | 4.169e-01 | 31.2 | 7.8 |
+| 3 | R | 3 | 2 | 0 | 0 | 492 | 1.918e-01 | 41.5 | 8.7 |
+| 3 | R | 4 | 2 | 0 | 0 | 658 | 1.156e-01 | 97.8 | 22.3 |
+| 3 | R | 6 | 2 | 0 | 0 | 994 | 6.903e-02 | 166 | 34.1 |
+| 3 | H | 2 | 2 | 1 | 1 | 328 | 3.592e-01 | 18 | 3.4 |
+| 3 | H | 3 | 2 | 0 | 0 | 494 | 1.365e-01 | 67.9 | 16.5 |
+| 3 | H | 4 | 2 | 1 | 1 | 671 | 6.681e-02 | 328 | 86.3 |
+| 3 | H | 6 | 2 | 0 | 0 | 1016 | 4.729e-02 | 177 | 37.1 |
+| 3 | D | 2 | 1 | 0 | 0 | 164 | 6.882e-01 | 17.1 | 3.0 |
+| 3 | D | 3 | 1 | 0 | 0 | 246 | 2.390e-01 | 68.1 | 13.9 |
+| 3 | D | 4 | 1 | 2 | 2 | 328 | 2.031e-01 | 42.2 | 7.0 |
+| 3 | D | 6 | 1 | 0 | 0 | 498 | 6.349e-02 | 205 | 42.3 |
+| 4 | R | 2 | 2 | 1 | 1 | 330 | 1.708e-01 | 88.9 | 33.1 |
+| 4 | R | 3 | 2 | 0 | 0 | 492 | 1.489e-01 | 62.8 | 12.6 |
+| 4 | R | 4 | 2 | 0 | 0 | 660 | 8.900e-02 | 147 | 28.7 |
+| 4 | R | 6 | 2 | 1 | 1 | 1028 | 3.317e-02 | 403 | 79.8 |
+| 4 | H | 2 | 2 | 1 | 1 | 328 | 1.889e-01 | 44.5 | 10.0 |
+| 4 | H | 3 | 2 | 0 | 0 | 498 | 8.787e-02 | 221 | 122.8 |
+| 4 | H | 4 | 2 | 0 | 0 | 665 | 7.793e-02 | 62.7 | 9.6 |
+| 4 | H | 6 | 2 | 0 | 0 | 1050 | 2.915e-02 | 352 | 63.4 |
+| 4 | D | 2 | 1 | 0 | 0 | 164 | 4.040e-01 | 19.2 | 2.2 |
+| 4 | D | 3 | 1 | 0 | 0 | 246 | 2.089e-01 | 112 | 27.0 |
+| 4 | D | 4 | 1 | 0 | 0 | 328 | 1.279e-01 | 72 | 12.2 |
+| 4 | D | 6 | 1 | 0 | 0 | 498 | 7.284e-02 | 319 | 63.8 |
+
+**Set HO** (root 202611110002)
+
+| N_y | class | N | configs | redraws | max attempt | certified points | min r_0 | max validated cond bound | max binary64 grid cond |
+|---|---|---|---|---|---|---|---|---|---|
+| 2 | R | 2 | 4 | 0 | 0 | 656 | 3.218e-01 | 23.4 | 7.9 |
+| 2 | R | 3 | 4 | 0 | 0 | 984 | 2.845e-01 | 30.9 | 8.0 |
+| 2 | R | 4 | 4 | 0 | 0 | 1314 | 1.225e-01 | 91 | 25.4 |
+| 2 | R | 6 | 4 | 0 | 0 | 1980 | 6.710e-02 | 183 | 43.5 |
+| 2 | H | 2 | 4 | 1 | 1 | 656 | 3.417e-01 | 20.2 | 5.9 |
+| 2 | H | 3 | 4 | 0 | 0 | 984 | 2.156e-01 | 53.1 | 16.7 |
+| 2 | H | 4 | 4 | 1 | 1 | 1312 | 1.302e-01 | 78.2 | 21.5 |
+| 2 | H | 6 | 4 | 2 | 2 | 1982 | 5.863e-02 | 158 | 37.8 |
+| 2 | D | 2 | 2 | 0 | 0 | 328 | 8.181e-01 | 10.1 | 1.9 |
+| 2 | D | 3 | 2 | 0 | 0 | 492 | 3.227e-01 | 45.5 | 13.6 |
+| 2 | D | 4 | 2 | 0 | 0 | 656 | 2.083e-01 | 60.6 | 15.5 |
+| 2 | D | 6 | 2 | 0 | 0 | 984 | 1.327e-01 | 65.6 | 12.7 |
+| 3 | R | 2 | 4 | 1 | 1 | 656 | 3.020e-01 | 23.1 | 5.8 |
+| 3 | R | 3 | 4 | 1 | 1 | 984 | 1.774e-01 | 67 | 16.1 |
+| 3 | R | 4 | 4 | 0 | 0 | 1320 | 8.895e-02 | 260 | 69.8 |
+| 3 | R | 6 | 4 | 0 | 0 | 1992 | 6.669e-02 | 146 | 28.2 |
+| 3 | H | 2 | 4 | 0 | 0 | 656 | 2.929e-01 | 21.1 | 4.7 |
+| 3 | H | 3 | 4 | 0 | 0 | 984 | 1.432e-01 | 44.3 | 10.2 |
+| 3 | H | 4 | 4 | 0 | 0 | 1324 | 9.647e-02 | 137 | 30.3 |
+| 3 | H | 6 | 4 | 0 | 0 | 2015 | 5.596e-02 | 184 | 39.4 |
+| 3 | D | 2 | 2 | 0 | 0 | 328 | 4.061e-01 | 26.7 | 7.7 |
+| 3 | D | 3 | 2 | 0 | 0 | 492 | 3.908e-01 | 25 | 3.6 |
+| 3 | D | 4 | 2 | 1 | 1 | 656 | 1.841e-01 | 82.5 | 18.0 |
+| 3 | D | 6 | 2 | 0 | 0 | 988 | 8.943e-02 | 180 | 38.2 |
+| 4 | R | 2 | 4 | 0 | 0 | 656 | 1.871e-01 | 56.2 | 15.4 |
+| 4 | R | 3 | 4 | 0 | 0 | 988 | 1.053e-01 | 97.5 | 21.2 |
+| 4 | R | 4 | 4 | 0 | 0 | 1350 | 6.583e-02 | 1.63e+03 | 382.1 |
+| 4 | R | 6 | 4 | 0 | 0 | 2049 | 3.871e-02 | 497 | 91.9 |
+| 4 | H | 2 | 4 | 1 | 1 | 656 | 1.460e-01 | 61.8 | 17.3 |
+| 4 | H | 3 | 4 | 0 | 0 | 990 | 6.879e-02 | 130 | 32.4 |
+| 4 | H | 4 | 4 | 0 | 0 | 1344 | 3.768e-02 | 259 | 57.5 |
+| 4 | H | 6 | 4 | 1 | 1 | 2080 | 3.200e-02 | 259 | 53.1 |
+| 4 | D | 2 | 2 | 0 | 0 | 328 | 4.275e-01 | 46.6 | 11.0 |
+| 4 | D | 3 | 2 | 0 | 0 | 492 | 1.422e-01 | 80.5 | 20.2 |
+| 4 | D | 4 | 2 | 0 | 0 | 656 | 1.427e-01 | 133 | 30.4 |
+| 4 | D | 6 | 2 | 1 | 1 | 991 | 8.653e-02 | 141 | 21.6 |
+
+**Independent validation of the frozen files.** A replay script written separately from the generator re-derived each item
+below from the manifest alone. Result: 0 problems.
+
+- the §2.3 PCG64 draws (n_open, u, Jr_j, Ji_j) at the recorded `attempt`, from the frozen roots and `spawn_key=(idx, attempt)`;
+- V_j(1) from Jr/Ji, and the class D zeroing;
+- E by the energy rule, with exact rhe and choice C-2; δ_min; n_open;
+- §2.6 index and stratum order, and the expected counts;
+- rejection-log attempts 0..attempt−1 and the absence of duplicate configurations;
+- the presence of all 81 grid points among the evaluated points;
+- an exact re-check of §2.4 item 3 coverage (ends and consecutive pairs) for every matrix with b > 0.
+
+The script did not re-run any certificate.
+
+**Determinism.**
+
+- A second full generation, in a fresh process into a scratch directory, gave **byte-identical** `manifest_XP.json`,
+  `manifest_HO.json` and `manifest.sha256` (`cmp`).
+- `tests/test_cs2_manifest.py` checks determinism on a non-frozen test root, in fresh interpreters.
+
+**Solver-guard evidence**
+
+1. *Static:* the generator's AST imports are `numpy`, `mpmath`, stdlib, the certificate and covering modules, and `stationary`.
+   - `mpmath` is used only for the version string; Y comes from the certificate module.
+   - `stationary` is used only for `transverse_basis`, i.e. the E_perp values.
+   - The certificate and covering modules import only `numpy`, `mpmath`, `fractions`, `math` and each other.
+   - No `wz_rgf`, `wz_mutants`, `wz_variants`, `coupled_blocks`, oracle, transcription or driver import appears (tested).
+2. *Runtime:* every worker runs `generate_configuration` inside `solver_guard()`.
+   - The guard replaces every callable of `stationary` with a raising stub. E_perp is cached before the guard is entered.
+   - On entry and exit it raises `SolverGuardViolation` if any of those modules is in `sys.modules`.
+   - `main()` performs the same check before generation.
+   - A violation would have aborted the run. The run exited 0 and wrote output only after both sets completed.
+3. *Tests:*
+   - `test_solver_guard_blocks_and_restores` (fresh interpreter) and `test_solver_guard_detects_forbidden_module`;
+   - `test_generate_configuration_deterministic_and_hash`, which asserts that `wz_rgf`, `wz_mutants` and `coupled_blocks`
+     are absent after generation;
+   - `test_manifest_module_imports_no_solver`.
+4. *Limitation:* the guard writes no per-worker log line, so the runtime evidence is the code path plus the clean exit,
+   not a recorded trace.
+
+**Reproduction.** In a fresh clone at `fac5f5e`:
+
+```
+cd experiments/wz_rgf_diagnostic/results_coupling_scaling_v2 && sha256sum -c manifest.sha256
+cd .. && OPENBLAS_NUM_THREADS=1 python3 coupling_scaling_v2_manifest.py --workers 4 --out /tmp/regen
+cmp /tmp/regen/manifest_XP.json results_coupling_scaling_v2/manifest_XP.json
+cmp /tmp/regen/manifest_HO.json results_coupling_scaling_v2/manifest_HO.json
+```
+
+The generator refuses to write into a directory that already holds `manifest.sha256`. Bitwise identity is expected on the same
+build. On another numpy/BLAS build, the binary64 conditioning values (C-1) could in principle differ at rounding level.
+
+**Ordering note on §8.3 `previous_files.sha256` (ambiguity A-1, for R0).**
+
+- **What §8.3 says.** "Before any run, record the sha256 of every existing file … Verify it after every phase."
+- **What this phase did.**
+  - Generation of `previous_files.sha256` is a **separate command**, `coupling_scaling_v2_manifest.py --previous-files`.
+  - It was **not** run in this phase.
+  - It is intended to run immediately before the first solver run, after R0. That way the review documents R0 will create
+    or edit (this packet, `REVIEW_coupling_scaling_v2.md`) are not themselves flagged as changes.
+- **Effect on the gate.** The driver gate requires the file and verifies it before and after the run.
+- **For R0 to decide.** Whether "verify after every phase" also requires a snapshot now, for the manifest phase.
+
+
+### I.7 Test results (exact commands, exit codes and counts)
+
+These runs were made on the infrastructure code **before** the manifest freeze. They were taken at `aa06437` (the working
+tree content of that commit), on the same machine, with `OPENBLAS_NUM_THREADS` unset for the harness and pytest.
+
+| command | exit | result |
+|---|---|---|
+| `cd experiments/wz_rgf_diagnostic && python3 -m cs2_t6_harness.run --out <dir>` (official, flag-free) | 0 | see the stage results below |
+| `python3 -m pytest -q -p no:cacheprovider tests/` | 0 | 690 passed, 2 xfailed |
+| `pytest tests/test_cs2_manifest.py` (after the `--previous-files` split) | 0 | 17 passed |
+| new infrastructure tests (oracle 28, transcription 51, refs 8, manifest 17, driver 18) | 0 | 122 passed |
+
+Stage results of the official run:
+
+| stage | checks | failed | result |
+|---|---|---|---|
+| 1 environment and guard | 54 | 0 | PASS |
+| 2 KATs | 507 | 0 | PASS |
+| 3 preconditions | 28 | 0 | PASS |
+| 4 T1–T5 | 468 | 0 | PASS |
+| 5 T6.1–T6.8 | 3528 | 0 | PASS |
+| C4 | — | — | CONSISTENT (blocking=False) |
+| 6 mutation suite | 36 | 0 | PASS (36/36 detected) |
+
+The overall result was **ALL STAGES PASS (OFFICIAL)**.
+
+**The final software validation** at the packet commit (§8.2, after the manifest freeze) is reported in the phase audit
+report. A document cannot record the test results of its own commit. The reviewer should re-run the official harness and
+pytest at the reviewed SHA (checklist item e.8).
+
+These results are **software validation only**. They are not scientific validation of W/Z.
+
+### I.8 Limitations
+
+- **The driver has never been run** on a manifest configuration. Its end-to-end behaviour is exercised only on fixture
+  configurations from a non-frozen root, with a reduced grid and one full-grid fixture during development. Runtime for the
+  full experiment is unmeasured.
+- **The driver gate refuses to run.** It refuses because of G-1: the §4.7 4(b) "duplicate set" is **undefined**, and the
+  implementer has **not** chosen a definition. It also refuses while `REVIEW_coupling_scaling_v2.md` is absent and while
+  `previous_files.sha256` (A-1) has not been recorded.
+- **Independence is partial** (I.3).
+  - The oracle, the drivers, the references and the double mutants were all written by the same AI agent.
+  - The transcription was written by a separate AI context of the same model.
+- **Decision logic is tested on fixtures only.** The precedence and the rule paths of §6 are exercised on synthetic
+  records. Coverage counts cannot be exercised without the real population.
+- **Numerical precision of the heuristic machinery.**
+  - The conditioning numbers (manifest filter, τ formulas) are binary64.
+  - The validated quantities are exact rationals.
+  - The mp-level checks (b), (c), 5 and the agreement tests are empirical, at dps 60/100/120.
+- **No scientific claim.** Passing T1–T6, C4 and the infrastructure tests establishes software behaviour against the frozen
+  specification only. It is **not** scientific validation of W/Z.
+
+---
+
 ## H. Reviewer checklist (to be completed by the independent reviewer only)
 
 Reviewer identity: ____________________ Date: __________ Reviewed commit SHA: ________________________________________
@@ -327,6 +721,7 @@ Mark each item PASS / FAIL / NEEDS CLARIFICATION. Nothing below is pre-filled.
 | e.8 | official run re-executed by the reviewer at the reviewed SHA (record command and exit code) | ☐ | ☐ | ☐ | |
 | e.9 | §4.7 validated-reference machinery (Part I.4) | ☐ | ☐ | ☐ | |
 | e.10 | manifest generator, its choices C-1–C-4 and the committed manifests/hashes (Parts I.5, I.6) | ☐ | ☐ | ☐ | |
+| e.12 | §4.7 4(b) duplicate set (G-1) and §8.3 timing (A-1) resolved | ☐ | ☐ | ☐ | |
 | e.11 | driver and §5/§6 implementation; gaps G-1–G-5, choices C-5–C-16 (Part I.5) | ☐ | ☐ | ☐ | |
 | x.1 | independence of implementation (single-author disclosure, Part A; transcription provenance, Part I.3) acceptable | ☐ | ☐ | ☐ | |
 
@@ -345,10 +740,16 @@ Mark each item PASS / FAIL / NEEDS CLARIFICATION. Nothing below is pre-filled.
 7. Double-precision anchors use ‖X_double − X_exact‖_F/‖Ĝ‖₂ ≤ 10·cond₂·ε as the reading of §4.7 item 2 (diagnostic only).
 8. File placement: T1–T5 live in `cs2_t1t5/` rather than inside the certificate module (§8.1 wording), to keep the
    references independent of production.
+9. §4.7 4(b) "duplicate set" is undefined in the frozen spec (G-1). The implementer has **not** chosen a definition; the
+   driver gate refuses until R0 or a spec amendment defines it.
+10. Timing of §8.3 `previous_files.sha256` (A-1, Part I.6): deferred to a separate step immediately before the first run.
+11. Manifest-affecting implementer choices C-1–C-4 are frozen in `fac5f5e`. A different reading at R0 would require a new
+    design revision (§8.2).
 
 Signature (reviewer): ____________________ Decision recorded in `REVIEW_coupling_scaling_v2.md`: ☐ yes
 
 ---
 
 **Status at preparation:** B1-F FAIL; coupled-block W/Z DESIGN INSUFFICIENT; W/Z NOT VALIDATED; main coupling-scaling
-experiment NOT RUN; manifest NOT GENERATED; implementation-level R0 **PENDING**.
+experiment NOT RUN; manifests GENERATED and FROZEN (`fac5f5e`; no solver or reference run); driver GATED (G-1 duplicate set
+undefined, no R0 sign-off); implementation-level R0 **PENDING**.
