@@ -1,0 +1,29 @@
+@page { size: A4; margin: 20mm 17mm 18mm 17mm; }
+html { font-family: "DejaVu Serif", "Liberation Serif", serif; font-size: 9.6pt; line-height: 1.38; color: #111; }
+body { margin: 0; }
+header#title-block-header { display: none; }
+h1, h2, h3 { font-family: "DejaVu Sans", "Liberation Sans", sans-serif; color: #1f3a5f; page-break-after: avoid; break-after: avoid; }
+h1 { font-size: 14pt; border-bottom: 1.5px solid #1f3a5f; padding-bottom: 2px; margin: 16px 0 8px; }
+h2 { font-size: 11.5pt; margin: 12px 0 6px; }
+p { margin: 5px 0; text-align: justify; hyphens: auto; }
+ul, ol { margin: 4px 0 6px; padding-left: 20px; }
+li { margin: 2px 0; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.2pt; background: #f2f4f7; padding: 0 2px; border-radius: 2px; word-break: break-all; }
+table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 8.4pt; page-break-inside: avoid; break-inside: avoid; }
+th, td { border: 1px solid #b8c2cf; padding: 3px 5px; vertical-align: top; }
+th { background: #e8edf3; font-family: "DejaVu Sans", sans-serif; }
+caption { caption-side: bottom; font-size: 8.2pt; color: #333; text-align: left; padding-top: 3px; font-style: italic; }
+figure { margin: 8px 0 10px; text-align: center; page-break-inside: avoid; break-inside: avoid; }
+figure img { max-width: 100%; }
+figcaption { font-size: 8.2pt; color: #333; text-align: left; font-style: italic; margin-top: 2px; }
+math[display="block"] { margin: 6px 0; font-size: 10.5pt; }
+.not, .uyari { border-left: 4px solid #c0504d; background: #fbf3f2; padding: 5px 10px; margin: 8px 0; page-break-inside: avoid; break-inside: avoid; }
+.not { border-left-color: #1f4e79; background: #f1f5fa; }
+.kapak { page-break-after: always; break-after: page; padding-top: 30mm; }
+.kapak h1 { font-size: 26pt; border: none; margin: 6px 0 10px; }
+.kapak-ust { font-family: "DejaVu Sans", sans-serif; letter-spacing: 1px; text-transform: uppercase; color: #c0504d; font-size: 10pt; }
+.kapak-alt { font-size: 13pt; color: #333; margin-bottom: 18mm; }
+.kapak table td:first-child { width: 32%; white-space: nowrap; }
+.kapak table { font-size: 9.2pt; }
+.kapak table thead { display: none; }
+.dipnot { font-size: 8pt; color: #555; border-top: 1px solid #ccc; margin-top: 12px; padding-top: 4px; }
