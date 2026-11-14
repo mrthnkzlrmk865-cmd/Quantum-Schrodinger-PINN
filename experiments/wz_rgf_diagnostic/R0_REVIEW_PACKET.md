@@ -16,8 +16,8 @@ Section and step numbers (§x.y) refer to `PREDICTIONS_coupling_scaling_v2.md`. 
 |---|---|
 | frozen specification | `experiments/wz_rgf_diagnostic/PREDICTIONS_coupling_scaling_v2.md`, **Revision 3.7** (`0f502c9`) |
 | implementation baseline | `baab2c5986e3bf40fc1cd0210f74b0de2bb85567` (covering, T1–T5, T6 review corrections) |
-| this packet | added in the commit that follows `baab2c5` on branch `claude/quantum-schrodinger-audit-iy6kn4` (together with the import-boundary hardening and runner-documentation fixes). **The reviewer must record the exact commit SHA reviewed in Part H.** |
-| `main` | `78ab402` (merge of PR #22) contains the history up to `61e1d29` only; `baab2c5` and later are not yet on `main` |
+| this packet | first added in `25f48ee` (import-boundary hardening, runner docs); **updated in the main-experiment infrastructure phase** (see Part I). **The reviewer must record the exact commit SHA reviewed in Part H.** |
+| `main` / branch reconciliation | `main` = `c7939df` (merge of PR #23), which contains every branch commit through `f1ecc60`; the branch was fast-forwarded to `c7939df` (no history rewrite) before the infrastructure phase |
 
 **Source files under review**
 
@@ -31,6 +31,12 @@ Section and step numbers (§x.y) refer to `PREDICTIONS_coupling_scaling_v2.md`. 
 | double-precision mutants (system whose change column is audited) | `wz_mutants.py` (unchanged since `63e046d`) |
 | W/Z production solver (unchanged) | `wz_rgf.py` |
 | repository wrapper tests | `tests/test_cs2_t6.py` |
+| §4.2 oracle for every mutant (main run) | `wz_mutants_oracle.py` (Part I) |
+| §4.3 clean-room mpmath transcription, its materials and provenance | `wz_mutants_mp.py`, `wz_mutants_mp_MATERIALS.md`, `wz_mutants_mp_PROVENANCE.md` (Part I) |
+| §4.7 validated references | `coupling_scaling_v2_refs.py` (Part I) |
+| manifest generator (§2.3, §2.4, §2.6, §8.1, §8.3) | `coupling_scaling_v2_manifest.py` (Part I) |
+| §5 analysis procedures; driver (gated, not run) | `coupling_scaling_v2_analysis.py`, `coupling_scaling_v2.py` (Part I) |
+| infrastructure tests | `tests/test_wz_mutants_oracle.py`, `tests/test_wz_mutants_mp.py`, `tests/test_cs2_refs.py`, `tests/test_cs2_manifest.py`, `tests/test_cs2_driver.py` |
 
 **Existing design-level R0.** The independent design review of `f101224` (verdict **CONDITIONAL PASS**; corrections E1–E17
 implemented in Revision 3) verified R0 items (a) and (b) **against the document**. Per §4.3 it does **not** replace the
@@ -39,16 +45,18 @@ implementation-level sign-off of items (c)–(e).
 **What exists and what does not (important for items (c) and (d)).**
 - Implemented: the production certificate (§2.4.1, §5.6), the covering (§2.4 item 3), T1–T6, the T6 clean-room reference,
   the C4 numerical cross-check, the mutation suite MU1–MU27.
-- **Not implemented** (planned in §8.1): `coupling_scaling_v2_manifest.py`, the driver `coupling_scaling_v2.py`,
-  **`wz_mutants_oracle.py`** (the §4.2 oracle for *all* mutants on the experiment lattices) and **`wz_mutants_mp.py`** (the
-  §4.3 clean-room **mpmath** transcription). The §4.7 validated-reference machinery for the main run (ω/(1 − ω) ≤ 1e-55,
-  dps-100 and `lu_solve` cross-checks) is likewise part of the not-yet-written driver.
-- Consequently R0 items (c) and (d) **cannot be completed for the main experiment at this commit.** What can be reviewed now
-  is the *T6-scope* oracle (the §5.6 polynomial forms of the 8 pure order mutants) and the *T6-scope* exact transcription
-  (`cs2_t6_reference/rmutants.py`). See Parts C and D.
+- **Implemented in the infrastructure phase (Part I):** `wz_mutants_oracle.py` (the §4.2 oracle for *all* mutants),
+  `wz_mutants_mp.py` (the §4.3 clean-room mpmath transcription), `coupling_scaling_v2_refs.py` (§4.7 validated references),
+  `coupling_scaling_v2_manifest.py`, `coupling_scaling_v2_analysis.py` and the driver `coupling_scaling_v2.py`.
+  - The driver is **gated and has not been run**: it refuses without the R0 sign-off, and while the §4.7 4(b)
+    "duplicate set" is undefined (gap G-1).
+- Parts C and D below describe the *T6-scope* oracle and the T6 transcription. Part I covers the main-run oracle and the
+  clean-room transcription for R0 items (c) and (d).
 
-**Authorship (to be recorded per §4.3).** All implementation code listed above — production, reference, harness, T1–T5 — was
-written by the same AI coding agent (Claude Code) in one session. The T6 reference was written before the production module
+**Authorship (to be recorded per §4.3).** All implementation code listed above — production, reference, harness, T1–T5, the
+oracle, the §4.7 references, the manifest generator, the analysis and the driver — was written by the same AI coding agent
+(Claude Code). The exception is `wz_mutants_mp.py`, which was written by a separately started AI subagent (same model) from a
+materials file only (Part I.3). The T6 reference was written before the production module
 (clean-room *ordering*), but **no part was written by an independent human implementer.** The reviewer should weigh this when
 assessing shared-error risk (Parts C, D, F).
 
@@ -157,7 +165,7 @@ implementations — is detectable only here.
 
 **Scope available now: the 8 pure order mutants** (M1, M2, M3, M5, M6, M7, M8, M15), as the §5.6 polynomial forms
 F_m := (oracle value of X_m) − (designated reference block). The full §4.2 oracle for M4, M4L, M4R, M9, M10, M12, M13, M14, M16
-on the experiment lattices (`wz_mutants_oracle.py`) is **not implemented**.
+on the experiment lattices is implemented in `wz_mutants_oracle.py` (Part I.2).
 
 | mutant | §5.6 form | reference (`cs2_t6_reference/rpoly.py`, `monomials`) | production (`coupling_scaling_v2_certify.py`, `_monomials`, L232–259) |
 |---|---|---|---|
@@ -195,7 +203,7 @@ on the experiment lattices (`wz_mutants_oracle.py`) is **not implemented**.
 - **Not clean-room in the §4.3 sense.** By the frozen T6 design (§2.4.3.4) this transcription was written **from the source
   text of `wz_mutants.py`** (read, never imported). §4.3's clean-room transcription for the main run must instead be written
   from §4.2's change column and the correct-code listing *without reading* `wz_mutants.py`, or by an independent implementer
-  — that artefact (`wz_mutants_mp.py`) **does not exist**.
+  — that artefact is `wz_mutants_mp.py` (Part I.3; independence only partial).
 - **Formula source:** the transcription follows the *code*; the oracle follows the *§5.6/§4.2 formulas*. They meet in the
   T6.1 equality (304 exact cases) and in the self-proof `rmutants(None) == rblocks` (direct inverses; every T6 lattice).
 - **How R0 can detect a shared specification error:** (i) item (a) — re-derive each change-column entry from `wz_mutants.py`
@@ -305,9 +313,10 @@ Mark each item PASS / FAIL / NEEDS CLARIFICATION. Nothing below is pre-filled.
 | a.1 | §4.2 change column matches `wz_mutants.py` for every mutant (Part B) | ☐ | ☐ | ☐ | |
 | b.1 | every oracle formula independently re-derived (Part B) | ☐ | ☐ | ☐ | |
 | c.1 | §5.6 polynomial forms implemented correctly in production and reference (Part C) | ☐ | ☐ | ☐ | |
-| c.2 | full §4.2 oracle for the main run (`wz_mutants_oracle.py`) — **not implemented at this commit** | ☐ | ☐ | ☐ | |
+| c.2 | full §4.2 oracle for the main run (`wz_mutants_oracle.py`, Part I.2), incl. off-path handling and Mag_m | ☐ | ☐ | ☐ | |
+| c.3 | first-deviation closed forms (Part I.2, choice C-12) | ☐ | ☐ | ☐ | |
 | d.1 | T6 exact transcription `rmutants.py` correct (line correspondence) | ☐ | ☐ | ☐ | |
-| d.2 | §4.3 clean-room mpmath transcription (`wz_mutants_mp.py`) — **not implemented at this commit**; authorship recorded | ☐ | ☐ | ☐ | |
+| d.2 | §4.3 clean-room mpmath transcription (`wz_mutants_mp.py`); provenance and partial-independence disclosure (Part I.3) | ☐ | ☐ | ☐ | |
 | e.1 | §2.4.1 certificate code (Parts E, F) | ☐ | ☐ | ☐ | |
 | e.2 | §2.4 item 3 covering and Taylor radius | ☐ | ☐ | ☐ | |
 | e.3 | validated-residual derivation and norms (Part F) | ☐ | ☐ | ☐ | |
@@ -316,11 +325,14 @@ Mark each item PASS / FAIL / NEEDS CLARIFICATION. Nothing below is pre-filled.
 | e.6 | T1–T5 adequacy against §2.4.2 (including the test-file input choices) | ☐ | ☐ | ☐ | |
 | e.7 | T6.1–T6.8, C4 and mutation suite adequacy against §2.4.3 | ☐ | ☐ | ☐ | |
 | e.8 | official run re-executed by the reviewer at the reviewed SHA (record command and exit code) | ☐ | ☐ | ☐ | |
-| x.1 | independence of implementation (single-author disclosure, Part A) acceptable | ☐ | ☐ | ☐ | |
+| e.9 | §4.7 validated-reference machinery (Part I.4) | ☐ | ☐ | ☐ | |
+| e.10 | manifest generator, its choices C-1–C-4 and the committed manifests/hashes (Parts I.5, I.6) | ☐ | ☐ | ☐ | |
+| e.11 | driver and §5/§6 implementation; gaps G-1–G-5, choices C-5–C-16 (Part I.5) | ☐ | ☐ | ☐ | |
+| x.1 | independence of implementation (single-author disclosure, Part A; transcription provenance, Part I.3) acceptable | ☐ | ☐ | ☐ | |
 
 **Open points the reviewer should adjudicate** (implementer's disclosures, not resolutions):
-1. Main-experiment modules not yet written (§8.1): oracle for all mutants, clean-room mpmath transcription, driver, manifest
-   generation, §4.7 reference validation. R0 items (c)/(d) for the main run cannot be signed at this commit.
+1. Main-experiment modules are now written (Part I). Open specification gaps G-1–G-5 and implementer choices C-1–C-16 are
+   listed in Part I.5. G-1 (undefined §4.7 4(b) duplicate set) blocks the driver gate.
 2. The T6 transcription is transcribed from `wz_mutants.py` source by design (§2.4.3.4), not clean-room in the §4.3 sense.
 3. Test-file choices for T1–T5 (§2.4.2 delegates fixed integers): explicit Jr/Ji arrays and dyadic E in `cs2_t1t5/inputs.py`;
    A1 := A in T1(a)–(c); the T1(f) margin read as bound ≥ σ_ref·(1 + 10⁻²⁹⁰).
