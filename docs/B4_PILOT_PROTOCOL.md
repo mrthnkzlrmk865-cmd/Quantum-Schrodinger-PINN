@@ -61,7 +61,7 @@ in §7.3.
 | Tolerance | Value | Used for | Basis in the repository |
 |---|---|---|---|
 | control reproduction | ≤ 10⁻¹² | C1/C2 against the committed B3/B3X/B3Y T₁ | B3X reproduced B3 with difference 0.0 |
-| TD accounting residual ρ | ≤ 10⁻¹⁰ | probability bookkeeping (§2.2) | V6 measured 1.6×10⁻¹³ |
+| TD bookkeeping drift \|ρ(t) − ρ(0)\| | ≤ 10⁻¹⁰ | probability bookkeeping (§2.2) | V6 measured max \|N + A_L + A_R − N(0)\| = 1.6×10⁻¹³ |
 | TD separability check (A1) | ≤ 10⁻¹⁰ | mode-n vs mode-1 clean return (§3.2) | same rounding basis as ρ |
 | order floor | 10⁻⁸ | changes below this give BELOW FLOOR or NOT RESOLVABLE (§1.4) | `validate_rgf_b2.ORDER_FLOOR` (B2 convention); ≥ 300× the B3Y method spread (≤ 3.3×10⁻¹¹) |
 | solver agreement | ≤ 10⁻¹⁰ | M1–M2–M3 complex S | existing B3/B3Y criterion |
@@ -181,7 +181,7 @@ The total is about 1 h, single-threaded BLAS (`OPENBLAS_NUM_THREADS=1`).
 
     | Status | Condition |
     |---|---|
-    | **BELOW FLOOR** | \|Δ₁\| < 10⁻⁸ **and** \|Δ₂\| < 10⁻⁸: the dx dependence is below the order floor (§0.1) |
+    | **BELOW FLOOR** | \|Δ₁\| < 10⁻⁸ **and** \|Δ₂\| < 10⁻⁸: the dx dependence between these three grids is below the order floor (§0.1). **Establishes:** the lattice result changes by less than 10⁻⁸ between dx = 1/512 and 1/2048. **Does not establish:** an error bound, an asymptotic regime, or continuum convergence; with three grids, a pre-asymptotic coincidence or cancellation cannot be excluded |
     | **NOT RESOLVABLE** | exactly one of \|Δ₁\|, \|Δ₂\| is below 10⁻⁸; **or** sign(Δ₁) ≠ sign(Δ₂) (non-monotone: an order is undefined) |
     | **OUTSIDE WINDOW** | both changes ≥ 10⁻⁸ with the same sign, but p_Q = log₂(\|Δ₁\|/\|Δ₂\|) ∉ [1.8, 2.2] (the existing provisional window) |
     | **RESOLVED** | both changes ≥ 10⁻⁸, the same sign, and p_Q ∈ [1.8, 2.2] |
@@ -229,6 +229,63 @@ The total is about 1 h, single-threaded BLAS (`OPENBLAS_NUM_THREADS=1`).
      own review. It may be added by a dated pilot amendment if gate G-RGF is inconclusive.
 
 ---
+
+### 1.6 Deterministic resolution decision (input to gate G-RGF)
+
+**Point set per configuration.**
+
+- The 14 points of §1.2.
+- **Plus** the three remaining B3 energies (E = 88.51, 204.93, 281.90), re-run with M1 at all three dx, so that T₁ and
+  R₁ are both available on three grids. C1 and C2 already cover E = 140.47 and 371.36.
+- The committed T₁ of these re-runs must be reproduced to ≤ 10⁻¹² (an extension of gate G0).
+- Cost: 3 × 3 × 4 M1 evaluations, i.e. seconds.
+
+**The algorithm** is applied per configuration c and per quantity Q ∈ {T₁, R₁} separately, using M1 values once
+step 0 has passed.
+
+**Step 0 — solver agreement.** The M1–M2–M3 agreement (≤ 10⁻¹⁰, or adjudicated as in B3Y) must hold at every point and
+dx. Otherwise **STOP**: a solver defect blocks B4.
+
+**Step 1 — status.** For every point x, compute s(x, Q) ∈ {BELOW FLOOR, NOT RESOLVABLE, OUTSIDE WINDOW, RESOLVED}
+(§1.4).
+
+**Step 2 — admissibility** of each candidate dx_c ∈ {1/512, 1/1024, 1/2048} for (x, Q):
+
+- **The Richardson estimate** associated with dx_c always uses the finest pair Δ₂ and the single observed order p:
+  e(dx_c) = 2^{k·p}·|Δ₂|/(2^p − 1), with k = 2, 1, 0 for dx_c = 1/512, 1/1024, 1/2048.
+  - For k = 2 this equals 2^p·|Δ₁|/(2^p − 1), because p is defined from |Δ₁|/|Δ₂|.
+
+| s(x, Q) | dx_c = 1/512 | dx_c = 1/1024 | dx_c = 1/2048 |
+|---|---|---|---|
+| RESOLVED | **ADMISSIBLE** iff \|Δ₁\| ≤ 2×10⁻⁴ (change to the next finer grid) **and** e(1/512) ≤ 1×10⁻⁴ | **ADMISSIBLE** iff \|Δ₂\| ≤ 2×10⁻⁴ (change to the next finer grid) **and** e(1/1024) ≤ 1×10⁻⁴ | the next-finer change (to 1/4096) is **not available**. **ADMISSIBLE-R** (Richardson-only) iff \|Δ₂\| ≤ 2×10⁻⁴ (the change *into* 1/2048, the only one available) **and** e(1/2048) ≤ 1×10⁻⁴ |
+| BELOW FLOOR | **ADMISSIBLE-F** (below floor; not an error bound) | ADMISSIBLE-F | ADMISSIBLE-F |
+| NOT RESOLVABLE or OUTSIDE WINDOW | **INADMISSIBLE-U** (unclassifiable) | INADMISSIBLE-U | INADMISSIBLE-U |
+
+- The limits are the existing B3/C11 consecutive-change value (2×10⁻⁴) and the existing B4 budget item for the RGF dx
+  error (≈ 10⁻⁴), used as a ≤ 1×10⁻⁴ test. **No new value is introduced.**
+- **Can dx = 1/2048 satisfy the next-finer-grid condition?** No: that would need a 1/4096 run. The condition is
+  therefore replaced for 1/2048 by the change into 1/2048 together with the Richardson estimate. Admissibility of
+  1/2048 rests on the observed-order assumption from three grids, and that is why it carries the label "-R".
+
+**Step 3 — selection.** dx_sel(c) is the **coarsest** candidate that is admissible (in any of its labelled forms) for
+every point in the set and for both T₁ and R₁.
+
+- A dated B4 amendment may choose a finer dx than dx_sel, never a coarser one.
+- **If no candidate is admissible:**
+  - **(a)** If any (x, Q) is INADMISSIBLE-U, the finest available pair cannot classify the order. **G-RGF is NOT
+    EVALUABLE** for c. The remedy is a dated **pilot** amendment adding dx = 1/4096 after the separate review of §1.5.
+  - **(b)** Otherwise, every (x, Q) is classified but a limit is exceeded even at 1/2048. **G-RGF FAILS** for c. The
+    options are listed in §6.
+
+**Step 4 — what is carried into the B4 amendment:**
+
+- dx_sel(c);
+- for every (x, Q): its status, its label (ADMISSIBLE, ADMISSIBLE-R or ADMISSIBLE-F), Δ₁, Δ₂, p and e(dx_sel);
+- an explicit statement whenever dx_sel = 1/2048 (no next-finer change available) or any point is ADMISSIBLE-F (no
+  error bound).
+
+The Richardson values are estimates of the dx → 0 limit of the finite-difference problem at fixed N_y and N_q, under
+the asymptotic assumption. **They are not demonstrated continuum convergence.**
 
 ## 2. Part 2 — TD stopping-rule pilot (TD only)
 
@@ -285,8 +342,10 @@ belongs to exactly one region; this is a unit test.
   separately.
 - T(t) = A_R + P_gapR + P_capR and R(t) = A_L + P_gapL + P_capL. These are the existing `transport.py` definitions
   (x > b and x < a).
-- P_in,res(t) = 1 − T − R (the existing residual definition). Check: |P_in,res − P_slab − ρ − (1 − N(0))| at rounding
-  level.
+- P_in,res(t) = 1 − T − R (the existing residual definition). By the definitions, P_in,res = P_slab + ρ exactly, since
+  1 − T − R = 1 − (A_L + A_R) − (N − P_slab). The check |P_in,res − P_slab − ρ| ≤ 10⁻¹⁰ is therefore an arithmetic
+  consistency test of the implementation. The physically meaningful check is the bookkeeping drift
+  |ρ(t) − ρ(0)| ≤ 10⁻¹⁰, with ρ(0) = 1 − N(0) reported separately (§0.1; the same checks are used in G-TD).
 - Mode-resolved region probabilities: a DST-I in y of ψ restricted to each region, giving the probability per
   transverse mode n = 1…63. Used by Part 3.
 
@@ -302,22 +361,51 @@ Let t_k be the frames, ε = 10⁻⁴ (the B4 value, unchanged) and τ_w = 1.0.
 - **Unabsorbed exterior content** U(t) = P_gapL + P_gapR + P_capL + P_capR, reported at t_s and t_max.
   - B4's interval criterion covers only P_in. U is booked as T or R, but part of it can still return. Requiring
     U ≤ 10⁻⁴ at the candidate t_end is a **gate condition** of the pilot (G-TD), **not** a new B4 pass threshold.
-- **τ_w = 1.0** is ≥ 1.5× the largest late-time decay time quoted in the protocol (0.19) and in the audit's fits
+- **τ_w = 1.0** is ≈ 1.5× the largest late-time decay time quoted in the protocol (0.19) and in the audit's fits
   (≤ 0.67). It also exceeds the round-trip time from the slab to the right CAP and back for kₓ ≥ 1 (≤ 0.8).
 
 **Pilot output:** for each realization, SETTLED or NOT SETTLED, together with t_s, t_first and U.
 
-**What the pilot recommends to the B4 amendment:** a fixed, predeclared t_end per realization, or a common t_end ≥ max
-t_s that also satisfies the trailing window, at which B4 would evaluate T_TD, R_TD and P_in.
+**Candidate B4 evaluation time (deterministic):** t_end,cand = max over the four realizations of t_s. It is defined
+only if all four are SETTLED.
+
+- G-TD then requires t_max − t_end,cand ≥ τ_w.
+- The B4 amendment adopts t_end,cand, or a later frame that satisfies the same trailing-window condition, as the time at
+  which B4 reads T_TD, R_TD and P_in.
 
 ### 2.4 Robustness runs (TD only, informative)
 
 - **TD-R1.** Configuration D (strongest disorder) to t_max at dt = 10⁻⁴. Purpose: dt error growth to t = 6, and whether
   the non-monotone P_slab structure is a time-step artifact.
-- **TD-R2.** Configuration D at dx = 1/128 (nx = 3.9·128 − 1 = 498). Measured cost ≈ 46 s per 1.5 time units, so
-  ≈ 3 min. Purpose: whether the late-time P_slab structure is a spatial-resolution artifact.
+- **TD-R2.** Configuration D at dx ≈ 1/128 (nx = round(3.9·128) − 1 = 498; dx = 3.9/499). Measured cost ≈ 46 s per
+  1.5 time units, so ≈ 3 min. Purpose: whether the late-time P_slab structure is a spatial-resolution artifact.
 
-Both report only the TD-internal changes of P_slab(t), T(t), R(t) and t_s.
+**Frame alignment.** Production and both robustness runs record frames at the same times t_j = j·0.005, j = 0…1200:
+
+- with dt = 2×10⁻⁴, frames are every 25 steps;
+- with dt = 10⁻⁴, every 50 steps;
+- TD-R2 keeps dt = 2×10⁻⁴.
+
+The equality of the frame times is asserted by test. Frame-by-frame comparison is therefore defined.
+
+**Predeclared robustness rule** (the only decision-relevant comparison). A robustness run is **ROBUST** if both hold:
+
+- P_slab(t_j) ≤ ε = 10⁻⁴ for **every** frame with t_end,cand ≤ t_j ≤ t_max;
+- t_max − t_end,cand ≥ τ_w.
+
+Otherwise it is **NOT ROBUST**. This rule asks exactly the question that matters for B4: whether the stopping decision
+taken on the production run would also hold under a refined dt or dx. It uses only the existing B4 value ε = 10⁻⁴ and
+τ_w.
+
+**Quantitative differences are report-only.** The following are reported but not used for any decision:
+
+- Δt_s in frames;
+- max_j |ΔP_slab(t_j)|;
+- ΔT, ΔR and ΔU at t_end,cand.
+
+No tolerance for them can be justified from the repository. V3 and V4 measured T and R changes of order 10⁻⁵ at t = 1,
+which do not transfer to P_slab at the 10⁻⁴ level up to t = 6. Their quantitative comparison is therefore **NOT
+EVALUABLE**, and no "exact t_s equality" or "maximum frame shift" criterion is imposed.
 
 ---
 
@@ -359,15 +447,55 @@ small. At E = 205: n = 4, 5, 6 give kₓ ≈ 15.9, 12.8, 7.4 (arithmetic).
 - dt = 2×10⁻⁴;
 - t_end = 5.0/max(k_x0 − 3σ_k, 0.5) + 1.0 (predeclared formula).
 
-**Backward weight:** the analytic weight of kₓ < 0 is W_neg = ½erfc(k_x0σₓ) (1.1×10⁻⁵ at k_x0 = 3; < 10⁻¹² for
-k_x0 ≥ 5). It is reported.
+**Initial momentum distribution and free-propagation baseline** (derived from `initial_condition_numpy`).
 
-**Spurious return**, a time-gated definition:
+- **Convention.** With `packet = "waveguide_mode"` the initial state is
+  ψ₀ = (πσₓ²)^(−1/4) exp[−(x − x₀)²/(2σₓ²)] e^{ik_x0·x} · √(2/L_y) sin(nπy/L_y).
+  - The Gaussian is in the **amplitude**, with width parameter σₓ, so |ψ₀|² has positional standard deviation σₓ/√2.
+  - Its Fourier transform gives P(kₓ) = (σₓ/√π) exp[−(kₓ − k_x0)²σₓ²], a Gaussian with standard deviation
+    σ_k = 1/(√2σₓ). This is the same P(kₓ) as in PHASE2_METHOD_SELECTION.md §3 B4.
+- **Backward weight** of a run with parameters (k_x0, σₓ):
+  W_back(k_x0, σₓ) = ∫_{−∞}^{0} P dkₓ = ½erfc(k_x0σₓ) = ½erfc(k_x0/(√2σ_k)).
+  - **No extra √2 factor:** the argument k_x0σₓ already equals (k_x0/σ_k)/√2.
+  - The value depends on each run's own (k_x0, σₓ). **It is never a single constant for all runs.**
+- **Free-propagation baseline.** In free propagation on the infinite line, |ψ(x, t)|² is a Gaussian with mean
+  x₀ + k_x0·t and variance s(t)² = σₓ²/2 + t²/(2σₓ²) (ħ = m = 1). The probability left of a plane x_c at time t is
+  therefore
+  B_free(x_c, t) = ½erfc[(x₀ + k_x0·t − x_c)/(√2·s(t))].
+  - As t → ∞, B_free → W_back for any fixed x_c.
+  - At finite t, B_free also contains **slow forward components** that have not yet passed x_c. These are not CAP
+    returns.
+  - **Assumptions:** infinite line, free propagation, no CAP and no walls. These are listed as OPEN-8.
+  - The pilot also computes the grid state's backward weight W_back,grid, by a zero-padded FFT of the sampled ψ₀ along
+    x, and reports |W_back,grid − W_back|.
 
-- R_spur = [A_L(t_end) − A_L(t_g)] + P(x < x₀, t_end).
-- t_g is the predeclared time at which the packet's trailing edge (x₀ − 5σₓ moving at k_x0 − 3σ_k) passes x₀. Backward
-  components emitted at t = 0 have then left the gap, and are counted separately in A_L(t_g).
-- The ungated R_raw = A_L(t_end) + P(x < L_x − 0.6, t_end) is also reported.
+**Sanity-check values for the C-A runs** (σₓ = 1.0, σ_k = 0.7071; t_end from the formula above; arbitrary-precision
+erfc). These are arithmetic only:
+
+| k_x0 | t_end | W_back = ½erfc(k_x0σₓ) | B_free(x₀, t_end) |
+|---|---|---|---|
+| 3 | 6.690 | 1.105×10⁻⁵ | 1.358×10⁻⁵ |
+| 5 | 2.737 | 7.687×10⁻¹³ | 1.551×10⁻¹¹ |
+| 7 | 2.025 | 2.092×10⁻²³ | 3.463×10⁻¹⁹ |
+| 9 | 1.727 | 2.069×10⁻³⁷ | 1.627×10⁻²⁸ |
+| 11 | 1.563 | 7.204×10⁻⁵⁵ | 1.557×10⁻³⁹ |
+| 13 | 1.460 | 8.698×10⁻⁷⁶ | 2.937×10⁻⁵² |
+| 16 | 1.360 | 1.164×10⁻¹¹³ | 1.463×10⁻⁷⁴ |
+| 20 | 1.280 | 2.698×10⁻¹⁷⁶ | 2.500×10⁻¹¹⁰ |
+
+At k_x0 = 3, subtracting only W_back would book ≈ 2.5×10⁻⁶ of not-yet-departed forward probability as CAP return;
+B_free removes it.
+
+**Spurious return:**
+
+- **Primary (baseline-subtracted):** R_spur = A_L(t_end) + P(x < x₀, t_end) − B_free(x₀, t_end), using the run's own
+  (x₀, k_x0, σₓ).
+- **Report-only:**
+  - the time-gated form [A_L(t_end) − A_L(t_g)] + P(x < x₀, t_end), where t_g is the time at which the trailing edge
+    (x₀ − 5σₓ, moving at k_x0 − 3σ_k) passes x₀. It is not used for any decision, because P(x < x₀, t_end) still
+    contains slow forward probability;
+  - the ungated R_raw = A_L(t_end) + P(x < L_x − 0.6, t_end);
+  - W_back, W_back,grid and B_free(x₀, t_end).
 
 **Check of A1:** for each k_x0, |R_spur(n = 4) − R_spur(n = 1)| and |R_spur(n = 6) − R_spur(n = 1)|. Separability
 predicts agreement to TD rounding. A difference larger than 10⁻¹⁰ (§0.1) falsifies A1 in this implementation and must
@@ -507,8 +635,8 @@ come from the left CAP.
 | Quantity | Definition | Units | Role |
 |---|---|---|---|
 | **Instantaneous directional probability** | D⁻_R(t) = Σ_n Σ_{k_m<0} \|φ̂_n\|² in W_R; D⁺_L(t) the same with k_m > 0 in W_L | probability | diagnostic time series |
-| **Maximum directional probability** | D⁻_R,max = max over directional frames in [0, t_max] of D⁻_R(t); likewise D⁺_L,max | probability | a **lower bound** on returned probability (content seen at one instant), used only for FAIL |
-| **Time-integrated directional probability** | F⁻_R = ∫₀^{t_max} J⁻_R dt, with J⁻_R(t) = (1/L_eff) Σ_n Σ_{k_m<0} \|k_m\| \|φ̂_n\|² (density × velocity, ħ = m = 1); likewise F⁺_L | probability | the **estimator of the returned probability**, used for PASS |
+| **Maximum directional probability** | D⁻_R,max = max over directional frames in [0, t_max] of D⁻_R(t); likewise D⁺_L,max | probability | **diagnostic only** (see "Why D_max is not a lower bound" below) |
+| **Time-integrated directional probability** | F⁻_R = ∫₀^{t_max} J⁻_R dt, with J⁻_R(t) = (1/L_eff) Σ_n Σ_{k_m<0} \|k_m\| \|φ̂_n\|² (density × velocity, ħ = m = 1); likewise F⁺_L | probability | the **estimator of the returned probability**, used only for PASS (an upper-bound use, conditional on test SD) |
 
 - Only the time-integrated quantity has the meaning "probability returned by the CAP". Integrating D(t) over time
   would have units of probability × time and **cannot** support a 10⁻⁴ probability criterion.
@@ -517,28 +645,86 @@ come from the left CAP.
 - **Late returns:** δ_late = U_R(t_max) for F⁻_R and U_L(t_max) for F⁺_L. Unabsorbed content may still return after
   t_max.
 
-**Leakage and calibration.** A finite window spreads right-moving content into k < 0 and vice versa.
+**Leakage in both directions** (computed on the actual disordered frames). A finite window misassigns content both
+ways:
 
-- **(a) Operator leakage**, computed on the actual disordered frames:
-  - φ̃⁺ = w·IFFT[Θ(k > 0)·FFT(φ)] is the window's own right-moving part, re-windowed;
-  - D_leak(t) and F_leak are the k < 0 measures of φ̃⁺, defined exactly as above (and mirrored for the left window);
-  - **reported per frame, and added as uncertainty.**
-- **(b) Clean-reference calibration**, one W = 0 run per geometry:
-  - the direct clean return is R_ret,clean = A_L(t_max) + P(x < x_capR, t_max) − W_back, with
-    W_back = ½erfc(k₀σₓ) ≈ 7.7×10⁻⁹ (analytic);
-  - its estimator is F⁻_R,clean;
-  - the calibration error is ε_cal = |F⁻_R,clean − R_ret,clean|. It is reported and added as uncertainty;
-  - if F_leak,clean does not bound the clean-run pre-return k < 0 content, the leakage estimate is invalid and (iii) is
-    **NOT EVALUABLE**;
-  - **limitation:** the clean calibration contains only mode-1, broadband flux. It does not represent low-kₓ
-    mode-converted flux; only (a) is computed on the actual frames.
+- **(a1) Right-moving → k < 0 (spurious return).**
+  - φ̃⁺ = w·IFFT[Θ(k > 0)·FFT(φ)] is the right-moving part, re-windowed.
+  - D_leak⁺⁻(t) and F_leak⁺⁻ are the k < 0 measures of φ̃⁺, defined as above.
+- **(a2) Left-moving → k > 0 (return missed).**
+  - φ̃⁻ = w·IFFT[Θ(k < 0)·FFT(φ)] is the left-moving part, re-windowed.
+  - D_leak⁻⁺(t) and F_leak⁻⁺ are its k > 0 measures.
+  - Without this term, F⁻ could *underestimate* the return, so F_up would not be an upper bound.
+- The left window W_L uses the mirrored definitions.
+- **Both terms are model estimates of misassignment, not bounds.** Whether they bound the true misassignment is tested
+  by SD (below).
+
+**Clean-reference calibration** (one W = 0 run per geometry; the production packet, k₀ = 20, σₓ = 0.2, x₀ = 1.2
+physical):
+
+- **Direct clean return:** R_ret,clean = A_L(t_max) + P(x < x_capR, t_max) − B_free(x_capR, t_max), with B_free from
+  §3.2 evaluated with **this run's** (x₀, k₀, σₓ).
+  - For V3 (x_capR = 4.2984, t_max = 6): B_free = 1.79×10⁻⁸, of which W_back = ½erfc(4) = 7.71×10⁻⁹. This is
+    arithmetic.
+  - The previous form subtracted only W_back, and so booked the slow-forward part of B_free (≈ 1.0×10⁻⁸ here) as a
+    return.
+- **Estimator:** F⁻_R,clean, computed as above.
+- **Calibration error:** ε_cal = |F⁻_R,clean − R_ret,clean|, reported and added as uncertainty.
+- **Pre-return check.**
+  - Before t_arr = (x_capR − x₀ − 5σₓ)/(k₀ + 5σ_k), no component within 5σ_k can have reached the right CAP
+    (analytic). For V3, t_arr ≈ 0.0557.
+  - Over [0, t_arr), the clean run's k < 0 content in W_R must be ≤ D_leak⁺⁻(t) frame by frame. If not, the leakage
+    estimate (a1) is invalid and (iii) is **NOT EVALUABLE**.
+- **Limitation:** the clean calibration contains only mode-1, broadband flux. It does not represent low-kₓ
+  mode-converted flux.
+
+**Why D_max is not a lower bound** (examined; not assumed). D⁻_R − D_leak⁺⁻ would be a lower bound on probability
+returned by the right CAP only if all of the following held:
+
+- **(L-i)** The window contains no scatterer. This holds up to the disorder tail (factor ≤ e⁻¹⁰), whose own
+  reflection is not bounded here.
+- **(L-ii)** The window contains no evanescent (closed-mode) content. Real-exponential tails have a spectrum symmetric
+  about k = 0 and contribute to D⁻ without being left-moving. For a closed mode near its threshold, the decay length
+  can exceed the 0.10 offset from the slab, and the repository gives no bound on it.
+- **(L-iii)** D_leak⁺⁻(t) bounds the actual right→left misassignment at every frame. It is a model estimate (a1); no
+  bound is established.
+- **(L-iv)** Returned probability can be identified with the error the CAP causes in T or R. **It cannot.** A returned
+  wave can re-scatter and end on the same side, so the effect on T or R can be far smaller than the returned amount.
+  Returned probability is therefore an **upper**-bound proxy for the CAP effect, never a lower bound.
+
+(L-ii) and (L-iii) cannot be established from repository evidence, and (L-iv) is false in general. **D_max is
+therefore a diagnostic only. It is not used to declare G-CAP FAIL, and no lower bound F_low is used.** This is
+recorded as OPEN-9.
+
+**Synthetic directional tests SD** (no physics; required before (iii) is evaluated). Each test uses analytic fields on
+the actual window grids (V3 W_R and W_L; V0 W_R), per transverse mode, with known exact directional content and exact
+flux through the window over time (free propagation):
+
+| Test | Field | Checked |
+|---|---|---|
+| **SD1** one-directional outgoing | right-moving Gaussian packets, kₓ from the set below; the exact left-moving content is 0 | D⁻ ≤ D_leak⁺⁻ at every frame, and F⁻ ≤ F_leak⁺⁻ (validity of the spurious-content estimate used in the pre-return check) |
+| **SD2** known incoming | left-moving packets of known probability p and known flux, same kₓ set | F⁻ + F_leak⁻⁺ ≥ exact returned flux (the upper-bound property needed for PASS) |
+| **SD3** mixed direction | coherent superposition of SD1 and SD2 in the same mode, relative phases {0, π/2, π}, overlapping in time | both properties above under interference |
+| **SD4** finite-window leakage | packets straddling the window edges, and kₓ below the resolution 2π/L_w | both properties above at and below resolution |
+| **SD5** evanescent | real-exponential profiles e^{−κ(x − x_e)} with decay lengths 1/κ ∈ {1, 1/3, 1/10, 1/30} (test parameters spanning the window length and the 0.10 offset) | the size of the spurious directional content (reported; quantifies L-ii) |
+
+- **kₓ set for SD1–SD4:** {0.25, 0.5, 1, 2, 4}·k_res and {7, 12.8, 15.9, 20} (the channel values of §3.1), where
+  k_res = 2π/L_w is the window's resolution.
+- **Outcome.** If SD2, SD3 or SD4 shows any case where F⁻ + F_leak⁻⁺ underestimates the exact returned flux, the
+  upper-bound use of F is not established for that kₓ range, and (iii) is **NOT EVALUABLE** for flux in that range.
 
 **Criterion (iii), evaluated on V3** (production CAP, resolvable windows):
 
-- **Upper bound:** F_up = F⁻_R + F⁺_L + F_leak,R + F_leak,L + δ_s,R + δ_s,L + δ_late,R + δ_late,L + ε_cal.
-- **Lower bound:** F_low = max(D⁻_R,max − max_t D_leak,R(t), D⁺_L,max − max_t D_leak,L(t), (F⁻_R + F⁺_L) − (F_leak,R + F_leak,L + δ_s,R + δ_s,L + ε_cal)).
-  The late-return terms are not subtracted, because they can only add returned probability.
-- **PASS** if F_up ≤ 1×10⁻⁴; **FAIL** if F_low > 1×10⁻⁴; otherwise **NOT EVALUABLE**.
+- **Upper bound** on the returned probability, and hence on the CAP-induced change of T or R (L-iv):
+  F_up = F⁻_R + F_leak,R⁻⁺ + F⁺_L + F_leak,L⁺⁻ + δ_s,R + δ_s,L + δ_late,R + δ_late,L + ε_cal.
+  - **Notation:** superscript "ab" means content moving in direction a, assigned by the window to direction b.
+  - Only the **missed**-content terms are added: F_leak,R⁻⁺ (returned, left-moving content in W_R assigned to k > 0)
+    and F_leak,L⁺⁻ (returned, right-moving content in W_L assigned to k < 0).
+  - The spurious-content terms (F_leak,R⁺⁻, F_leak,L⁻⁺) already inflate the measured F and are conservatively **not**
+    subtracted.
+- **PASS** if SD passed for the relevant kₓ range **and** F_up ≤ 1×10⁻⁴; otherwise **NOT EVALUABLE**.
+- **(iii) has no FAIL outcome.** A large F (or D_max) is reported as "CAP return not bounded below 10⁻⁴", which is
+  diagnostic. A G-CAP FAIL can only come from (i) or (ii).
 - **V0** (right window only, resolution ≈ 22.4) is **report-only**. A V0 value is interpreted only if its F_up itself
   is ≤ 10⁻⁴.
 - The mode-resolved consistency estimate Σₙ∫wₙ(kₓ)R_spur(kₓ)dkₓ, using the C-A curves, is report-only.
@@ -550,7 +736,7 @@ For every realization, all of the following:
 - **(i)** V0 vs each of V1–V4: PASS for T and for R by the §3.3.4 rule.
 - **(ii)** Each pair among V1, V2 and V4: PASS for T and for R by the §3.3.4 rule. This shows that the enlarged CAPs
   agree with each other, so the V0 comparison is against a stable reference.
-- **(iii)** PASS by §3.3.5.
+- **(iii)** PASS by §3.3.5. It requires SD to be passed and F_up ≤ 10⁻⁴; it has no FAIL outcome.
 - **A1:** separability holds (§3.2).
 
 **Outcome.** Any FAIL means G-CAP FAILS. Any NOT EVALUABLE, without a FAIL, means G-CAP is **NOT EVALUABLE**, which
@@ -754,7 +940,7 @@ The pilot driver refuses to run if:
 - the protocol hash matches;
 - the clean tree;
 - §1.2 and §4.1 reproduced exactly;
-- the controls C1 and C2 reproduce the committed values (≤ 10⁻¹²);
+- the controls C1 and C2, and the three B3-energy re-runs of §1.6, reproduce the committed T₁ values (≤ 10⁻¹²);
 - the committed artifacts are unchanged.
 
 Any failure stops the pilot; there is no partial output.
@@ -766,9 +952,9 @@ unchanged. **No gate may be passed by weakening any existing B4 threshold.**
 | Gate | Required evidence | Pass condition | Fail condition | If it fails | Dated amendment required? |
 |---|---|---|---|---|---|
 | **G-REAL** (same realization) | the three levels of §3.3.2: **L1** parameter hashes and configuration equality across the RGF devices (all dx), the TD production grid, the CAP variants and the B3 records; **L2** bitwise sampler fidelity of every grid against direct `Potential.numpy` calls at its own coordinates (as in B3); **L3** bitwise equality at common physical coordinates (variant ↔ production TD grid; coincident RGF slices across dx), including ψ₀; the shifted-grid dx equality test | L1, L2 and L3 all true where applicable. RGF ↔ TD is judged on L1 + L2 only, and no equality of differently sampled grids is claimed | any mismatch at any level. **Equal hashes with an L2 or L3 mismatch is a FAIL**, not a pass | **blocking**: no B4 until the cause is found and fixed; any pilot output that depends on the mismatched item is void | no (unless the realization definition itself must change, which would be a new benchmark) |
-| **G-RGF** (resolution) | Part 1 rows for all 14 points × 4 configurations × 3 dx × M1–M3 (M4 where specified), plus the existing B3/B3X/B3Y points | (a) M1–M2–M3 agreement on S ≤ 10⁻¹⁰ (or adjudicated as in B3Y) at every point; **and** (b) for the resolution proposed for B4, at every point and **separately for T₁ and R₁** (§1.4): either BELOW FLOOR, or RESOLVED (p_T or p_R in [1.8, 2.2], same sign) with the consecutive change to the next finer grid ≤ 2×10⁻⁴ (existing B3/C11 value) **and** the Richardson ESTIMATE of the error at that resolution ≤ 1×10⁻⁴ (the RGF dx item of the existing B4 budget). NOT RESOLVABLE or OUTSIDE WINDOW for either quantity means (b) is **NOT EVALUABLE** at that point. A resolved T₁ never substitutes for R₁; **and** (c) the N_y and N_q changes ≤ 2×10⁻⁴ at the top-window points; **and** (d) lead-tail guard met | (a) unexplained; or (b) RESOLVED but above a limit at dx = 1/2048 for some configuration; or (c) not met. (b) NOT EVALUABLE at any point means the gate is NOT EVALUABLE (not passed) | (a): treat as a solver defect, so B4 is blocked. (b): the B4 budget item cannot be met as designed for that configuration. Options, each needing a dated amendment: a finer dx after a separate dx = 1/4096 review; or a predeclared Richardson-extrapolated B4 quantity with the order gate; or recording that configuration's B4 outcome as discretization-limited. Never a relaxed 10⁻³. (c): a larger N_y or N_q in B4 | **yes, in every case**: the B4 text does not fix the RGF resolution, so even a pass requires the amendment to state the chosen dx, N_y and N_q |
-| **G-TD** (stopping rule) | Part 2 frames for the four realizations; TD-R1 and TD-R2 | every realization SETTLED with t_max − t_s ≥ 1.0; ρ(t) ≤ 10⁻¹⁰ for all t; the residual and direct P_in consistent; U(t_end,candidate) ≤ 10⁻⁴; TD-R1/R2 do not move t_s past t_max − 1.0 | any realization NOT SETTLED; or U > 10⁻⁴; or ρ > 10⁻¹⁰; or the robustness runs change the settling | NOT SETTLED: B4 cannot meet its P_in ≤ 10⁻⁴ pass condition with the current setup. Options (dated pilot amendment, then a new pilot run): a larger t_max, or a geometry change (which would make it a different benchmark) | **yes**: the amendment must fix the B4 t_end (or rule), the frame spacing, and the frame at which T_TD, R_TD and P_in are read |
-| **G-CAP** (CAP sensitivity) | C-A narrowband curves (modes 1, 4, 6); C-B variants V0–V4 for the four realizations, with settling times, the common comparison time t_c and the undetermined probabilities u_j (§3.3.4); the V3 direction-resolved quantities F, D_max, leakage, sampling and calibration terms (§3.3.5); the clean-reference runs | §3.3.6 (i)–(iii) all PASS for every realization, by the conservative rules of §3.3.4–§3.3.5; A1 holds (≤ 10⁻¹⁰, §0.1) | any FAIL of (i)–(iii) (i.e. a difference or return exceeding 10⁻⁴ even after subtracting all uncertainties); or A1 falsified. If no FAIL but any NOT EVALUABLE (an unsettled variant, t_max − t_c < τ_w, or uncertainty terms too large to decide): **NOT EVALUABLE**, i.e. not passed | FAIL: the production CAP is not adequate for B4's budget. Options: B4 TD with a CAP variant that passes (i)–(iii) against the even larger variants, or the CAP item entered in the B4 budget as measured. NOT EVALUABLE: a dated **pilot** amendment (e.g. longer t_max or longer gap windows), then a re-run; no interpretation of the differences. Never a relaxed 10⁻³ or 10⁻⁴ | **yes, if the B4 TD settings change**, because the B4 text says "production settings"; **no, if V0 passes** |
+| **G-RGF** (resolution) | Part 1 rows for all 14 points × 4 configurations × 3 dx × M1–M3 (M4 where specified), plus the three B3 energies re-run with M1 (§1.6) | (a) M1–M2–M3 agreement on S ≤ 10⁻¹⁰ (or adjudicated as in B3Y) at every point; **and** (b) the §1.6 algorithm yields a dx_sel for every configuration, i.e. a dx admissible (ADMISSIBLE, ADMISSIBLE-R or ADMISSIBLE-F) at every point of the §1.6 set, for T₁ and for R₁ separately. A resolved T₁ never substitutes for R₁; **and** (c) the N_y and N_q changes ≤ 2×10⁻⁴ at the top-window points; **and** (d) lead-tail guard met | (a) unexplained; or §1.6 step 3(b) for some configuration (all points classified, a limit exceeded even at 1/2048); or (c) not met. §1.6 step 3(a) (an unclassifiable point) gives **NOT EVALUABLE**, i.e. not passed | (a): treat as a solver defect, so B4 is blocked. (b): the B4 budget item cannot be met as designed for that configuration. Options, each needing a dated amendment: a finer dx after a separate dx = 1/4096 review (NOT EVALUABLE: a dated pilot amendment adding 1/4096); or a predeclared Richardson-extrapolated B4 quantity with the order gate; or recording that configuration's B4 outcome as discretization-limited. Never a relaxed 10⁻³. (c): a larger N_y or N_q in B4 | **yes, in every case**: the B4 text does not fix the RGF resolution, so even a pass requires the amendment to state the chosen dx, N_y and N_q |
+| **G-TD** (stopping rule) | Part 2 frames for the four realizations; TD-R1 and TD-R2 | all four realizations SETTLED (§2.3); t_end,cand = max_r t_s,r with t_max − t_end,cand ≥ τ_w = 1.0; bookkeeping drift |ρ(t) − ρ(0)| ≤ 10⁻¹⁰ for all t and the consistency check |P_in,res − P_slab − ρ| ≤ 10⁻¹⁰ (§2.2, §0.1); ρ(0) reported; U(t_end,cand) ≤ 10⁻⁴ for every realization; TD-R1 and TD-R2 both ROBUST (§2.4) | any realization NOT SETTLED; or t_max − t_end,cand < τ_w; or U(t_end,cand) > 10⁻⁴; or an accounting check > 10⁻¹⁰; or TD-R1 or TD-R2 NOT ROBUST. The report-only differences of §2.4 never decide the gate | NOT SETTLED: B4 cannot meet its P_in ≤ 10⁻⁴ pass condition with the current setup. Options (dated pilot amendment, then a new pilot run): a larger t_max, or a geometry change (which would make it a different benchmark) | **yes**: the amendment must fix the B4 t_end (or rule), the frame spacing, and the frame at which T_TD, R_TD and P_in are read |
+| **G-CAP** (CAP sensitivity) | C-A narrowband curves (modes 1, 4, 6); C-B variants V0–V4 for the four realizations, with settling times, the common comparison time t_c and the undetermined probabilities u_j (§3.3.4); the V3 direction-resolved quantities F, the two-way leakage terms, sampling, late-return and calibration terms (§3.3.5; D_max diagnostic only); the synthetic directional tests SD1–SD5; the clean-reference runs with B_free | §3.3.6 (i)–(iii) all PASS for every realization, by the conservative rules of §3.3.4–§3.3.5; A1 holds (≤ 10⁻¹⁰, §0.1) | a FAIL of (i) or (ii) (a variant difference exceeding 10⁻⁴ even after subtracting all undetermined probability, §3.3.4); or A1 falsified. (iii) has **no FAIL outcome** (§3.3.5: returned probability does not bound the CAP effect from below). If there is no FAIL but any NOT EVALUABLE (an unsettled variant; t_max − t_c < τ_w; uncertainty terms too large to decide; SD not passed; or F_up > 10⁻⁴): **NOT EVALUABLE**, i.e. not passed | FAIL: the production CAP is not adequate for B4's budget. Options: B4 TD with a CAP variant that passes (i)–(iii) against the even larger variants, or the CAP item entered in the B4 budget as measured. NOT EVALUABLE: a dated **pilot** amendment (e.g. longer t_max or longer gap windows), then a re-run; no interpretation of the differences. Never a relaxed 10⁻³ or 10⁻⁴ | **yes, if the B4 TD settings change**, because the B4 text says "production settings"; **no, if V0 passes** |
 | **G-THR** (threshold quadrature) | §4.1 reproduced; the synthetic cusp test; the RGF local windows; the resonance scan | for the quadrature rule proposed for B4: halving DETECTING (r ≥ r_S0, §4.2) for S1, S2 and S3 at every threshold (S4 is reported, not gated); **and** in the real-RGF local windows plus the n = 6 resonance scan, the sum of the local differences \|rule(h) − rule(h/8)\| (and \|I(h/2) − I(h/32)\| for the scan), for T₁ and for R₁ separately, ≤ 2×10⁻⁴ (the existing quadrature item; a **necessary, not sufficient** condition, since the smooth part of the window is not included) | UNDER-DETECTED for S1–S3 with the proposed rule; or a local sum > 2×10⁻⁴ | adopt R-c (threshold-split quadrature) or local refinement for B4, re-verified by the same tests; if the scan shows structure that h/2 misses, local adaptive refinement near thresholds with a predeclared rule. A passing synthetic test never replaces the real-RGF diagnostic | **yes**, if the B4 quadrature changes from the protocol's uniform grid with moved nodes; **no**, if R-a passes |
 
 **Proceeding to full B4 requires G0, G-REAL, G-RGF, G-TD, G-CAP and G-THR all PASS**, with the dated amendment
@@ -800,9 +986,11 @@ committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failin
    the trailing-window logic on synthetic P(t) curves (including non-monotone ones and late up-crossings); the
    L1/L2/L3 realization checks, including a mutation (shift by m ± 1) that L3 must detect; the dx-equality test of
    §3.3.1; the order-status classification of §1.4 on synthetic triples (BELOW FLOOR, one-sided floor, sign change,
-   outside window, resolved), separately for T and R; the §3.3.4 PASS/FAIL/NOT EVALUABLE logic; the Parseval
-   normalization and the operator-leakage construction of §3.3.5 on synthetic one-directional fields; and the
-   synthetic-quadrature reference integrals (S0–S4).
+   outside window, resolved), separately for T and R; the §1.6 decision algorithm on synthetic status tables
+   (including the "-R", "-F" and "-U" cases and the coarsest-admissible rule); the frame-time equality of §2.4 and the
+   ROBUST rule; the §3.3.4 PASS/FAIL/NOT EVALUABLE logic; the Parseval normalization, the two-way leakage terms and the
+   directional tests SD1–SD5 of §3.3.5; B_free and W_back against the §3.2 table; and the synthetic-quadrature
+   reference integrals (S0–S4).
 3. **Pilot modules** (new): `b4_pilot_rgf.py` (Parts 1 and 4), `b4_pilot_td.py` (Parts 2 and 3, the subclass),
    `b4_pilot_summary.py` (gates). They reuse existing functions read-only.
 4. **Run order:**
@@ -842,6 +1030,20 @@ committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failin
 - **OPEN-7 Bitwise L3.** Whether `DisorderRealization.numpy` gives shape-independent results bitwise, and whether the
   shifted-grid dx equality holds on the execution platform, must be shown by test. The design-time arithmetic of
   §3.3.1 is for this platform only.
+
+- **OPEN-8 Free-propagation baseline.** B_free (§3.2) is exact only for free propagation on the infinite line. The
+  box walls, the CAPs, the discrete DST representation and the truncation of ψ₀ at x = 0 are neglected. The pilot
+  reports |W_back,grid − W_back| but cannot bound the remaining baseline error.
+- **OPEN-9 Directional lower bound.** The assumptions (L-ii) no evanescent content in the window, and (L-iii) the
+  leakage estimate bounds the misassignment, cannot be established from the repository, and (L-iv) is false in
+  general. D_max is diagnostic only, and criterion (iii) has no FAIL outcome. The upper-bound use of F is conditional on
+  the synthetic tests SD.
+- **OPEN-10 BELOW FLOOR.** Two consecutive changes below 10⁻⁸ do not establish an error bound (§1.4). ADMISSIBLE-F
+  points are carried into the amendment with that label.
+- **OPEN-11 dx = 1/2048 selection.** No change to a finer grid is available. Selection of 1/2048 (ADMISSIBLE-R) rests on
+  the observed-order assumption from three grids.
+- **OPEN-12 TD robustness magnitudes.** No tolerance for Δt_s, ΔP_slab(t), ΔT or ΔR is justified by the repository, so
+  their quantitative comparison is NOT EVALUABLE. Only the ROBUST / NOT ROBUST rule of §2.4 decides.
 
 All existing limitations and NOT VALIDATED statements of the audit and of B1–B3Y remain in force.
 
