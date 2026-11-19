@@ -52,6 +52,23 @@ result, and it does not independently validate Phase 2 transport.**
 the grid definitions in `validate_rgf_b2.py` (`kx_window`, `adjust_energy`, `e_perp`). They contain no solver output.
 The pilot must reproduce them exactly and stop if it does not (gate G0, §6).
 
+### 0.1 Pilot-internal tolerances
+
+The tolerances below are **implementation tolerances of the pilot, not B4 thresholds**. Each is set from an existing
+measured rounding level or an existing convention. None is a derived error bound; that limitation is listed as OPEN-6
+in §7.3.
+
+| Tolerance | Value | Used for | Basis in the repository |
+|---|---|---|---|
+| control reproduction | ≤ 10⁻¹² | C1/C2 against the committed B3/B3X/B3Y T₁ | B3X reproduced B3 with difference 0.0 |
+| TD accounting residual ρ | ≤ 10⁻¹⁰ | probability bookkeeping (§2.2) | V6 measured 1.6×10⁻¹³ |
+| TD separability check (A1) | ≤ 10⁻¹⁰ | mode-n vs mode-1 clean return (§3.2) | same rounding basis as ρ |
+| order floor | 10⁻⁸ | changes below this give BELOW FLOOR or NOT RESOLVABLE (§1.4) | `validate_rgf_b2.ORDER_FLOOR` (B2 convention); ≥ 300× the B3Y method spread (≤ 3.3×10⁻¹¹) |
+| solver agreement | ≤ 10⁻¹⁰ | M1–M2–M3 complex S | existing B3/B3Y criterion |
+
+The **B4 thresholds** (10⁻³, 10⁻⁴, 2×10⁻⁴) and the existing B4 error-budget items (RGF dx ≈ 10⁻⁴, CAP ≈ 10⁻⁴,
+quadrature ≤ 2×10⁻⁴) are used **only as stated in PHASE2_METHOD_SELECTION.md §3**. They are never relaxed.
+
 ---
 
 ## 1. Part 1 — RGF resolution pilot
@@ -158,11 +175,32 @@ The total is about 1 h, single-threaded BLAS (`OPENBLAS_NUM_THREADS=1`).
 
 - the complex-S differences M1–M2, M1–M3 and M2–M3 at each dx;
 - the consecutive changes ΔT₁ and ΔR₁ (1/512 → 1/1024, 1/1024 → 1/2048), per method;
-- the observed order p = log₂(|T₁(1/512) − T₁(1/1024)| / |T₁(1/1024) − T₁(1/2048)|), reported with the B2 floor rule:
-  a change below 10⁻⁸ makes the order "unresolvable";
-- a Richardson **ESTIMATE** of the dx = 1/1024 and dx = 1/2048 errors, computed only if p ∈ [1.8, 2.2] (the existing
-  provisional window). Otherwise it is "NOT APPLICABLE";
-- the method spread of ΔT₁ (H1-type check, as in B3Y).
+- **Observed orders, separately for Q = T₁ and Q = R₁** (per method and point):
+  - Δ₁(Q) = Q(1/1024) − Q(1/512) and Δ₂(Q) = Q(1/2048) − Q(1/1024).
+  - **Status of each quantity:**
+
+    | Status | Condition |
+    |---|---|
+    | **BELOW FLOOR** | \|Δ₁\| < 10⁻⁸ **and** \|Δ₂\| < 10⁻⁸: the dx dependence is below the order floor (§0.1) |
+    | **NOT RESOLVABLE** | exactly one of \|Δ₁\|, \|Δ₂\| is below 10⁻⁸; **or** sign(Δ₁) ≠ sign(Δ₂) (non-monotone: an order is undefined) |
+    | **OUTSIDE WINDOW** | both changes ≥ 10⁻⁸ with the same sign, but p_Q = log₂(\|Δ₁\|/\|Δ₂\|) ∉ [1.8, 2.2] (the existing provisional window) |
+    | **RESOLVED** | both changes ≥ 10⁻⁸, the same sign, and p_Q ∈ [1.8, 2.2] |
+
+  - p_T and p_R are computed and classified **independently**. A RESOLVED T₁ does **not** make R₁ resolved, and vice
+    versa.
+  - For a single incident channel, unitarity gives T₁ + R₁ = 1 up to the unitarity residual (U is recorded at
+    every point; the existing criterion is U ≤ 10⁻¹⁰). So Δ(R₁) ≈ −Δ(T₁) is *expected*, but it is **checked, not assumed**. If the two statuses differ,
+    or |Δ(T₁) + Δ(R₁)| exceeds the recorded unitarity residuals, the point is flagged and adjudicated as a possible
+    unitarity or extraction defect.
+- **Richardson ESTIMATE** (only for a RESOLVED quantity, using the finest pair):
+  - error of Q(1/2048) ≈ |Δ₂|/(2^{p_Q} − 1);
+  - error of Q(1/1024) ≈ 2^{p_Q}|Δ₂|/(2^{p_Q} − 1).
+  - For any other status it is **NOT APPLICABLE**.
+  - These are estimates on the lattice. **They are not continuum statements.**
+- the method spread of Δ₁ and Δ₂ for T₁ and R₁ (H1-type check, as in B3Y).
+- **Differences from the B3Y convention, disclosed.** B3Y (`convergence_rows`) computed one order from T₁ only, without
+  a floor and without a sign check. The pilot adds the floor, the sign check and the separate R₁ order. The B3Y
+  results are unchanged.
 
 **Controls C1 and C2.** M1 at dx = 1/512 and 1/1024 must reproduce the committed B3/B3X/B3Y T₁ values to ≤ 10⁻¹²
 (B3X reproduced B3 with difference 0.0). A mismatch stops the pilot (gate G0).
@@ -332,65 +370,194 @@ k_x0 ≥ 5). It is reported.
 - The ungated R_raw = A_L(t_end) + P(x < L_x − 0.6, t_end) is also reported.
 
 **Check of A1:** for each k_x0, |R_spur(n = 4) − R_spur(n = 1)| and |R_spur(n = 6) − R_spur(n = 1)|. Separability
-predicts agreement to TD rounding. A difference larger than 10⁻⁸ falsifies A1 in this implementation and must be
-reported.
+predicts agreement to TD rounding. A difference larger than 10⁻¹⁰ (§0.1) falsifies A1 in this implementation and must
+be reported.
 
 **Output:** R_spur(k_x0, n), a narrowband CAP return curve for the production CAP, and for the CAP variants of §3.3 at
 k_x0 ∈ {3, 7, 11}.
 
+**C-A is not the calibration of the directional estimator.** Its packets are wider than its gap windows would allow.
+The estimator is calibrated in §3.3.5 on clean (W = 0) runs in the C-B geometry.
+
 ### 3.3 C-B: the four B4 realizations with CAP variants
 
-**Same physical realization in a shifted frame.** Extending the left CAP requires moving the domain origin, but the
-disorder field depends on absolute x.
+#### 3.3.1 Variants and the shifted frame
 
-- **Approach:** construct the potential as an array, V_s(X, Y) = Potential(cfg, disorder_from_config(cfg, 0)).numpy(X − s, Y).
-- Pass it to `SplitStepDST(cfg_s, potentials=V_s)`, which already accepts an array; shift x₀ and all region boundaries
-  by s.
-- **The disorder parameters are unchanged**; the hash is checked under G-REAL.
-- The sampled values differ from production only because the grid point positions differ, which is the same situation
-  as any dx change.
-- No source change is needed.
+**Why integer-step shifts.** Extending the left CAP moves the domain origin, and the disorder field depends on the
+absolute physical x. Every shift is therefore an **integer number m of production grid steps**, dx = 3.9/250 = 0.0156,
+so that grid points of different variants coincide in physical coordinates.
 
-**Variants** (gap lengths unchanged except in V3):
+| Variant | m | Shift s = m·dx | CAP width (each side) | Strength | Power | L_x | nx | Gaps (physical) |
+|---|---|---|---|---|---|---|---|---|
+| V0 (production) | 0 | 0 | 0.6 | 300 | 2 | 3.9 | 249 | left 1.3, right 0.4 |
+| V1 (wide) | 39 | 0.6084 | 0.6 + s = 1.2084 | 300 | 2 | 5.1168 | 327 | unchanged |
+| V2 (wide, weaker) | 39 | 0.6084 | 1.2084 | 150 | 2 | 5.1168 | 327 | unchanged |
+| V3 (long gaps, production CAP) | 64 | 0.9984 | 0.6 | 300 | 2 | 5.8968 | 377 | left 2.2984, right 1.3984 |
+| V4 (very wide) | 115 | 1.7940 | 0.6 + s = 2.3940 | 300 | 2 | 7.4880 | 479 | unchanged |
 
-| Variant | Left / right CAP width | Strength | Power | Shift s | Domain L_x |
-|---|---|---|---|---|---|
-| V0 (production) | 0.6 / 0.6 | 300 | 2 | 0 | 3.9 |
-| V1 (wide) | 1.2 / 1.2 | 300 | 2 | 0.6 | 5.1 |
-| V2 (wide, weaker) | 1.2 / 1.2 | 150 | 2 | 0.6 | 5.1 |
-| V3 (long gaps) | 0.6 / 0.6 | 300 | 2 | 1.0 | 5.9 (left gap +1.0, right gap +1.0) |
-| V4 (very wide) | 2.4 / 2.4 | 300 | 2 | 1.8 | 7.5 |
+- In V1, V2 and V4 the inner CAP edges stay at the production physical positions (x = 0.6 and x = 3.3).
+- **Design-time arithmetic** (IEEE double, this platform): for m = 39, 64 and 115, L_x/(nx + 1) equals the production
+  dx **bitwise**. For m = 38 it does not, which is why m = 39 is used instead of a nominal 0.6.
+- The pilot re-checks this equality by test. If it fails on the execution platform, the kinetic-operator dx differs
+  at rounding level. That is recorded, and the potential identity below is unaffected.
 
-**Settings:** dx, dy and dt as production; t_max = 6.0 and the same frames and observables as Part 2.
+**Construction (no source change).**
 
-**How CAP return is separated from genuine reflection by the slab:**
+- **Physical coordinates.** x_phys,j = (j + 1 − m)·dx is built from integer indices and the production dx, using the
+  same expression as the production grid, (i + 1)·dx with i = j − m. It is **not** computed as x_j − s, which would
+  round differently.
+- **Potential.** The potential array is V_j,l = Potential(cfg, disorder_from_config(cfg, 0)).numpy(x_phys,j, y_l), with
+  the production y-grid. It is passed as `SplitStepDST(cfg_s, potentials=V)`.
+- **Initial state.** ψ₀ is built by `initial_condition_numpy(cfg, x_phys, y)` with the **production** cfg (x₀ = 1.2) and
+  passed as `run(psi0=...)`.
+- **Region masks** (slab, gaps and windows) are defined in physical coordinates.
 
-1. **Variant differences.** Genuine scattering by the slab does not depend on the CAP. Differences of T and R at the
-   common evaluation time between V0 and V1–V4 estimate the CAP's contribution at production settings. V1, V2 and V4
-   differ in CAP gradient; V3 changes only the time of flight. Agreement of V1, V2 and V4 with each other, but not with
-   V0, isolates the production-CAP effect.
-2. **Direction-resolved gap content.**
-   - In the right gap there is no scatterer. Any **left-moving** probability there can come only from the right CAP
-     or from the wall behind it.
-   - Per frame and per transverse mode n, the right-gap field is multiplied by a predeclared smooth window (a cos²
-     taper of 0.05 on each side) and Fourier-transformed in x. The probability with kₓ < 0 is the left-moving content.
-   - The same is done for right-moving content in the left gap, after t_dep: the first frame at which the initial
-     packet's content in the left gap is below 10⁻⁸ in the clean-guide reference run with the same settings.
-   - These are approximate (windowing leakage). They are reported with the leakage measured on the clean-guide C-A
-     runs.
-3. **Mode-resolved outgoing content.** The probability per mode n in each gap (§2.2) gives the outgoing flux
-   distribution over channels. Combined with the C-A curve R_spur(kₓ), it gives a *consistency estimate*
-   Σₙ∫wₙ(kₓ)R_spur(kₓ)dkₓ. This is an estimate, not a measurement.
+#### 3.3.2 Same realization: three levels, all required
 
-**Predeclared CAP criterion (gate G-CAP).** For every realization, at the candidate B4 t_end from Part 2:
+Equal parameter hashes alone do **not** show that two differently sampled grids represent the same field.
 
-- (i) |T_V0 − T_Vj| ≤ 1×10⁻⁴ and |R_V0 − R_Vj| ≤ 1×10⁻⁴ for j = 1…4; **and**
-- (ii) max over the pairs among V1, V2, V4 of |ΔT| and |ΔR| ≤ 1×10⁻⁴, i.e. the enlarged CAPs agree with each other;
-  **and**
-- (iii) the time-integrated left-moving right-gap content plus right-moving left-gap content (method 2) is ≤ 1×10⁻⁴.
+| Level | Question | Check |
+|---|---|---|
+| **L1 parameter identity** | the same random draw and field definition | sha256 over (qx, qy, φ), together with (W, ζ, region, edge, M, seed), equal for all variants, the RGF devices and the B3 records |
+| **L2 sampler fidelity** | each grid samples *that* field correctly | for each variant grid and each RGF device, the stored samples are **bitwise** equal to a direct `Potential(...).numpy` call at the same coordinates (as in B3) |
+| **L3 common-coordinate identity** | the same physical values where grids share physical points | V_variant[j = i + m, :] equals V_production[i, :] **bitwise** for every production index i; ψ₀ likewise; for the RGF, the coincident slices across dx are bitwise equal (B3Y cross-resolution identity) |
+
+- **Where L3 cannot apply.** The TD grid (x spacing 0.0156) and the RGF slices (1/512 and finer) share no common
+  physical points. For RGF ↔ TD only L1 and L2 apply, and **no** claim of equal sampled values on different grids is
+  made. That the two discretizations represent the same continuum field is then a consequence of L1 and L2 together.
+- **Points outside the production domain.** Variant grid points outside [0, 3.9] (negative physical x, or beyond 3.9)
+  have no production counterpart. Only L2 applies there. Their |V| is recorded; it is a tail of the tanh window.
+- **Bitwise L3 is a test, not an assumption.** `DisorderRealization.numpy` reduces over chunks of 64 modes per point.
+  Whether the result is independent of the array shape must be verified by the test.
+
+#### 3.3.3 Runs
+
+- All five variants for the four realizations.
+- Production dx, dy and dt; t_max = 6.0.
+- Scalar frames every Δt_f = 0.005 (as in Part 2).
+- **Directional frames every Δt_d = 0.001** (every 5 time steps), computed by the `observables` callback.
+- **Clean reference:** one W = 0 run per variant geometry, with the same packet and settings. It is used for the
+  calibration in §3.3.5.
+
+#### 3.3.4 Comparison time: separating CAP return from timing
+
+**Why a common comparison time is needed.** The variants differ in CAP position, CAP gradient and gap length, so at a
+fixed nominal time they can differ in how much probability has been *absorbed* versus how much is still in transit.
+
+- By the existing definitions, T = A_R + P_gapR + P_capR and R = A_L + P_gapL + P_capL. Absorption timing therefore
+  does **not** change T or R directly: probability in a gap or CAP is already booked to the side it is on.
+- Timing enters only through probability whose final assignment is still open:
+  - the slab content P_slab;
+  - the unabsorbed exterior content U_L = P_gapL + P_capL and U_R = P_gapR + P_capR, which can still return.
+
+**Procedure:**
+
+1. **Per variant j.** Compute t_s,j and SETTLED_j by the §2.3 rule (ε = 10⁻⁴, τ_w = 1.0, t_max = 6.0).
+2. **Common comparison time** for a set of compared variants: t_c = max_j t_s,j.
+   - The comparison is **EVALUABLE** only if every compared variant is SETTLED and t_max − t_c ≥ τ_w.
+   - Otherwise it is **NOT EVALUABLE**, and no difference is interpreted.
+3. **Undetermined probability** of variant j at t_c: u_j = P_slab,j(t_c) + U_L,j(t_c) + U_R,j(t_c). The asymptotic
+   values satisfy:
+   - T_j(∞) ∈ [T_j(t_c) − U_R,j, T_j(t_c) + P_slab,j + U_L,j];
+   - R_j(∞) ∈ [R_j(t_c) − U_L,j, R_j(t_c) + P_slab,j + U_R,j].
+4. **Pairwise decision** for variants i, j, with Δ = |T_i(t_c) − T_j(t_c)| (the same for R) and u_ij = u_i + u_j:
+   - **PASS** if Δ + u_ij ≤ 1×10⁻⁴;
+   - **FAIL** if Δ − u_ij > 1×10⁻⁴;
+   - otherwise **NOT EVALUABLE**.
+
+   All undetermined probability is counted against the criterion, so a timing difference cannot be read as a CAP
+   effect and cannot produce a false PASS.
+5. **Report-only.** The same quantities at t_max, and the full time series T_j(t), R_j(t), P_slab,j(t), U_L,j(t) and
+   U_R,j(t).
+
+#### 3.3.5 Direction-resolved probability (reproducible definition)
+
+**Where it can be evaluated.** In a gap with no scatterer, left-moving probability in the right gap can only come from
+the right CAP (or the wall behind it). Right-moving probability in a window to the left of the initial packet can only
+come from the left CAP.
+
+**Windows** (physical coordinates; a = 1.9, b = 2.9):
+
+| Window | Variant | Support | Length L_w | Spectral resolution 2π/L_w (arithmetic) |
+|---|---|---|---|---|
+| right, W_R | V3 | [b + 0.10, x_capR − 0.02] = [3.0, 4.2784] | 1.2784 | ≈ 4.9 |
+| right, W_R | V0 | [3.0, 3.28] | 0.28 | ≈ 22.4 |
+| left, W_L | V3 | [x_capL + 0.02, x₀ − 5σₓ] = [−0.3784, 0.2] | 0.5784 | ≈ 10.9 |
+| left, W_L | V0 | none: the initial packet extends into the left CAP | — | — |
+
+**Why these window positions:**
+
+- **0.10 from the slab edge** is 5 disorder-edge widths (edge 0.02), so the disorder tail factor is ≤ e⁻¹⁰ ≈ 4.5×10⁻⁵.
+  The recorded max|V| in each window is reported.
+- **0.02 from a CAP edge** places the window outside the CAP, where W_cap is exactly 0 by `cap_profile`.
+- **The left window ends at x₀ − 5σₓ**, so the initial |ψ|² inside it is ≤ ½erfc(5) ≈ 7.7×10⁻¹³.
+- Each window has cos² tapers of width 0.05 inside its support. w(x) is the taper function, and
+  L_eff = Σ_x w(x)²·dx is its effective length.
+
+**Spectral transform** (per directional frame):
+
+- Mode amplitudes ψ_n(x, t) are obtained by a DST-I in y, orthonormal, so Σ_n|ψ_n|² = Σ_y|ψ|²dy.
+- The window field φ_n = w·ψ_n is zero-padded to N_pad = the smallest power of two ≥ 8M (M window points) and
+  FFT-transformed.
+- k_m = 2πm/(N_pad·dx), signed. The normalization is chosen so that Σ_m|φ̂_n(k_m)|² = Σ_x|φ_n(x)|²dx (Parseval
+  exact). The k = 0 bin is assigned to neither direction and reported as D⁰.
+
+**Three quantities, kept distinct:**
+
+| Quantity | Definition | Units | Role |
+|---|---|---|---|
+| **Instantaneous directional probability** | D⁻_R(t) = Σ_n Σ_{k_m<0} \|φ̂_n\|² in W_R; D⁺_L(t) the same with k_m > 0 in W_L | probability | diagnostic time series |
+| **Maximum directional probability** | D⁻_R,max = max over directional frames in [0, t_max] of D⁻_R(t); likewise D⁺_L,max | probability | a **lower bound** on returned probability (content seen at one instant), used only for FAIL |
+| **Time-integrated directional probability** | F⁻_R = ∫₀^{t_max} J⁻_R dt, with J⁻_R(t) = (1/L_eff) Σ_n Σ_{k_m<0} \|k_m\| \|φ̂_n\|² (density × velocity, ħ = m = 1); likewise F⁺_L | probability | the **estimator of the returned probability**, used for PASS |
+
+- Only the time-integrated quantity has the meaning "probability returned by the CAP". Integrating D(t) over time
+  would have units of probability × time and **cannot** support a 10⁻⁴ probability criterion.
+- **Integration:** composite trapezoid over the directional frames (Δt_d = 0.001), over [0, t_max].
+- **Sampling uncertainty:** δ_s = |F(Δt_d) − F(2Δt_d)|, where F(2Δt_d) uses every second frame.
+- **Late returns:** δ_late = U_R(t_max) for F⁻_R and U_L(t_max) for F⁺_L. Unabsorbed content may still return after
+  t_max.
+
+**Leakage and calibration.** A finite window spreads right-moving content into k < 0 and vice versa.
+
+- **(a) Operator leakage**, computed on the actual disordered frames:
+  - φ̃⁺ = w·IFFT[Θ(k > 0)·FFT(φ)] is the window's own right-moving part, re-windowed;
+  - D_leak(t) and F_leak are the k < 0 measures of φ̃⁺, defined exactly as above (and mirrored for the left window);
+  - **reported per frame, and added as uncertainty.**
+- **(b) Clean-reference calibration**, one W = 0 run per geometry:
+  - the direct clean return is R_ret,clean = A_L(t_max) + P(x < x_capR, t_max) − W_back, with
+    W_back = ½erfc(k₀σₓ) ≈ 7.7×10⁻⁹ (analytic);
+  - its estimator is F⁻_R,clean;
+  - the calibration error is ε_cal = |F⁻_R,clean − R_ret,clean|. It is reported and added as uncertainty;
+  - if F_leak,clean does not bound the clean-run pre-return k < 0 content, the leakage estimate is invalid and (iii) is
+    **NOT EVALUABLE**;
+  - **limitation:** the clean calibration contains only mode-1, broadband flux. It does not represent low-kₓ
+    mode-converted flux; only (a) is computed on the actual frames.
+
+**Criterion (iii), evaluated on V3** (production CAP, resolvable windows):
+
+- **Upper bound:** F_up = F⁻_R + F⁺_L + F_leak,R + F_leak,L + δ_s,R + δ_s,L + δ_late,R + δ_late,L + ε_cal.
+- **Lower bound:** F_low = max(D⁻_R,max − max_t D_leak,R(t), D⁺_L,max − max_t D_leak,L(t), (F⁻_R + F⁺_L) − (F_leak,R + F_leak,L + δ_s,R + δ_s,L + ε_cal)).
+  The late-return terms are not subtracted, because they can only add returned probability.
+- **PASS** if F_up ≤ 1×10⁻⁴; **FAIL** if F_low > 1×10⁻⁴; otherwise **NOT EVALUABLE**.
+- **V0** (right window only, resolution ≈ 22.4) is **report-only**. A V0 value is interpreted only if its F_up itself
+  is ≤ 10⁻⁴.
+- The mode-resolved consistency estimate Σₙ∫wₙ(kₓ)R_spur(kₓ)dkₓ, using the C-A curves, is report-only.
+
+#### 3.3.6 Predeclared CAP criterion (gate G-CAP)
+
+For every realization, all of the following:
+
+- **(i)** V0 vs each of V1–V4: PASS for T and for R by the §3.3.4 rule.
+- **(ii)** Each pair among V1, V2 and V4: PASS for T and for R by the §3.3.4 rule. This shows that the enlarged CAPs
+  agree with each other, so the V0 comparison is against a stable reference.
+- **(iii)** PASS by §3.3.5.
+- **A1:** separability holds (§3.2).
+
+**Outcome.** Any FAIL means G-CAP FAILS. Any NOT EVALUABLE, without a FAIL, means G-CAP is **NOT EVALUABLE**, which
+counts as not passed (§6).
 
 The value 10⁻⁴ is the CAP item of the **existing** B4 error budget (≈ 10⁻⁴), i.e. 10 % of the 10⁻³ tolerance. It is
-used as a gate on the budget assumption. It is **not** a new B4 pass threshold.
+used as a gate on the budget assumption. It is **not** a new B4 pass threshold, and it is not relaxed.
 
 ### 3.4 Code changes needed later (new files only; no existing file modified)
 
@@ -462,20 +629,40 @@ used as a gate on the budget assumption. It is **not** a new B4 pass threshold.
 
 1. **Enumeration (G0).** Reproduce §4.1 exactly from `kx_window`, `adjust_energy` and `e_perp`: indices, kₓ', Δkₓ,
    side, weights and shared energies. Any difference stops the pilot.
-2. **Synthetic cusp test (no physics; exact reference).**
-   - Integrand f(kₓ) = s(E) + Σₙ aₙ·√(max(E − Eₙ, 0))/√Eₙ.
-   - s is a smooth predeclared function: s(E) = 0.5 + 0.3 sin(E/40).
-   - aₙ ∈ {0.05, 0.2} (two predeclared amplitudes), with E = E(kₓ).
-   - Reference: ∫P f dkₓ by adaptive quadrature split at every threshold, with tolerance ≤ 10⁻¹³.
+2. **Synthetic quadrature test** (no physics; exact reference). It characterizes the **quadrature rules** on
+   idealized shapes. **It does not show that T₁ or R₁ has these shapes, and it does not validate any physical
+   resonance structure.**
+
+   - **Integrand classes.** Each class is tested separately, at every threshold n = 2…11, with E = E(kₓ):
+
+     | Class | f(E) | Tests |
+     |---|---|---|
+     | **S0** smooth | s(E) = 0.5 + 0.3 sin(E/40) (an arbitrary smooth reference; any smooth choice serves) | baseline behaviour of halving on a smooth integrand, the case B4's halving check already relies on |
+     | **S1** continuity with a kink | s(E) + max(E − Eₙ, 0)/Eₙ | continuous, with finite one-sided derivatives: separates "continuous but not smooth" from a cusp |
+     | **S2** square-root opening cusp | s(E) + √(max(E − Eₙ, 0)/Eₙ) | the channel-opening behaviour stated in the protocol (√ cusp above threshold) |
+     | **S3** two-sided square-root cusp | s(E) + [√(max(E − Eₙ, 0)) − √(max(Eₙ − E, 0))]/√Eₙ | cusp structure on both sides (closed-channel influence below threshold) |
+     | **S4** narrow resonance | s(E) + Γ²/((E − E_r)² + Γ²), with E_r = Eₙ − 3Γ and Γ ∈ {0.1, 1, 10}·δEₙ, where δEₙ = kₓ(Eₙ)·h is the local coarse-grid energy spacing at that threshold | sensitivity to features narrower than, equal to and wider than the grid. The widths are defined relative to the grid, not to any physical width |
+
+   - **Amplitude.** Unit amplitude. Every rule is linear in f, so errors and halving differences scale with the
+     amplitude, and their ratio does not depend on it. No amplitude is chosen.
+   - **Reference.** ∫P·f dkₓ by adaptive quadrature split at Eₙ (and at E_r for S4), with tolerance ≤ 10⁻¹³.
    - **Rules compared**, on the coarse and fine grids:
      - **R-a:** the existing rule (moved node, original weight);
-     - **R-b:** plain trapezoid with no move (f is finite at the thresholds);
-     - **R-c:** a trapezoid split at the thresholds (piecewise grids ending exactly at kₓ(Eₙ)), as the possible amended
+     - **R-b:** plain trapezoid with no move;
+     - **R-c:** a trapezoid split at the thresholds (piecewise grids ending exactly at kₓ(Eₙ)), as a possible amended
        method.
-   - **Output:** the true error of each rule and grid; the halving difference; and the ratio (halving difference) /
-     (true coarse error).
-   - **Reliability criterion.** Halving is "reliable" for a rule if that ratio is ≥ 0.5 for every amplitude, i.e. the
-     halving difference does not underestimate the true error by more than 2×.
+   - **Outputs per class, rule and threshold:**
+     - the true error of the coarse result, e_c;
+     - the halving difference H = |coarse − fine|;
+     - the detection ratio r = H/|e_c|.
+   - **Classification.** Halving is **DETECTING** for a class and rule if r ≥ r_S0, i.e. it detects at least the
+     fraction of the error it detects for the smooth integrand, which B4 already relies on. It is **UNDER-DETECTED** if
+     r < r_S0.
+     - For S4, the smallest tested Γ at which halving is DETECTING is reported.
+     - No numerical ratio other than r_S0 is introduced.
+   - **What the classes separate.** S0 vs S1 shows the effect of a derivative jump; S1 vs S2/S3 the effect of an
+     infinite derivative (cusp); S4 the effect of narrow structure. A rule can be DETECTING for S1–S3 and
+     UNDER-DETECTED for narrow S4; these are reported separately.
 3. **RGF local refinement windows** (per configuration; M1 only; at the resolution under consideration from Part 1, or
    dx = 1/1024 if undecided).
    - **Windows:** thresholds n ∈ {4, 6, 8, 10}, each ±8 coarse steps around kₓ(Eₙ).
@@ -484,8 +671,12 @@ used as a gate on the budget assumption. It is **not** a new B4 pass threshold.
      ratio as in item 2.
    - **Absolute window integrals are not reported**, so the pilot cannot be read as partial B4 averages.
    - **Resonance scan:** at the threshold of largest packet weight, n = 6, T₁ and R₁ at spacing h/32 over ±2 coarse
-     steps, to look for structure narrower than h/2. This is reported as found or not found, with the minimum width
-     resolved.
+     steps.
+     - Reported: the local window integral **difference** |I(h/2 subset of the scan) − I(h/32)|, and the narrowest
+       feature resolved.
+     - This real-RGF diagnostic is **separate** from the synthetic test, and it is the only resonance-sensitive element
+       of the pilot.
+     - Resonances at other thresholds, or narrower than h/32, remain **NOT VALIDATED**.
    - **Cost ESTIMATE:** about 4 windows × (17 + 33 + 129) points × 4 configurations ≈ 2900 RGF evaluations, at
      0.8 s ≈ 40 min.
 
@@ -540,8 +731,11 @@ The pilot driver refuses to run if:
   `sparse_wavefunction`, `sparse_exact_lattice`, `reference_solver`, `potential`, `disorder`, `config`,
   `initial_condition`, `validate_rgf_b2` (helpers), `validate_rgf_b3` (geometry), and the pilot modules;
 - `provenance.environment_info`, `OPENBLAS_NUM_THREADS`, the CPU and core count, and the M4 platform-precision report;
-- **per configuration:** the full config dict, the disorder-parameter sha256 over (qx, qy, φ), and the potential-sample
-  sha256 for every RGF device and every TD grid (including the shifted-frame variants);
+- **per configuration:** the full config dict and the disorder-parameter sha256 over (qx, qy, φ) (L1);
+- the potential-sample sha256 for every RGF device and every TD grid, including the shifted-frame variants. Each is
+  recorded with the result of its bitwise direct-call check (L2);
+- the result of every common-coordinate bitwise check (L3), listing the index offset m and the compared index range;
+- for each shifted variant: m, s, L_x, nx, and whether L_x/(nx + 1) equals the production dx bitwise;
 - the command line, wall times, the cache location and the cache-key scheme.
 
 ### 5.5 Reproducibility
@@ -571,11 +765,11 @@ unchanged. **No gate may be passed by weakening any existing B4 threshold.**
 
 | Gate | Required evidence | Pass condition | Fail condition | If it fails | Dated amendment required? |
 |---|---|---|---|---|---|
-| **G-REAL** (same realization) | disorder-parameter hashes and config equality across: the RGF devices (all dx), the TD production grid, the CAP variants (shifted frame), and the B3 records; bitwise RGF slice samples against direct `Potential.numpy` calls (as in B3) | all hashes equal; all bitwise checks true; the region, edge and M identical | any mismatch | **blocking**: no B4 until the cause is found and fixed; any pilot output that depends on the mismatched item is void | no (unless the realization definition itself must change, which would be a new benchmark) |
-| **G-RGF** (resolution) | Part 1 rows for all 14 points × 4 configurations × 3 dx × M1–M3 (M4 where specified), plus the existing B3/B3X/B3Y points | (a) M1–M2–M3 agreement on S ≤ 10⁻¹⁰ (or adjudicated as in B3Y) at every point; **and** (b) for the resolution proposed for B4, at every point: the consecutive change to the next finer grid ≤ 2×10⁻⁴ (existing B3/C11 value), p ∈ [1.8, 2.2], and the Richardson ESTIMATE of the error of T₁ and R₁ ≤ 1×10⁻⁴ (the RGF dx item of the existing B4 budget); **and** (c) the N_y and N_q changes ≤ 2×10⁻⁴ at the top-window points; **and** (d) lead-tail guard met | (a) unexplained; or (b) not met at dx = 1/2048 for some configuration; or (c) not met | (a): treat as a solver defect, so B4 is blocked. (b): the B4 budget item cannot be met as designed for that configuration. Options, each needing a dated amendment: a finer dx after a separate dx = 1/4096 review; or a predeclared Richardson-extrapolated B4 quantity with the order gate; or recording that configuration's B4 outcome as discretization-limited. Never a relaxed 10⁻³. (c): a larger N_y or N_q in B4 | **yes, in every case**: the B4 text does not fix the RGF resolution, so even a pass requires the amendment to state the chosen dx, N_y and N_q |
+| **G-REAL** (same realization) | the three levels of §3.3.2: **L1** parameter hashes and configuration equality across the RGF devices (all dx), the TD production grid, the CAP variants and the B3 records; **L2** bitwise sampler fidelity of every grid against direct `Potential.numpy` calls at its own coordinates (as in B3); **L3** bitwise equality at common physical coordinates (variant ↔ production TD grid; coincident RGF slices across dx), including ψ₀; the shifted-grid dx equality test | L1, L2 and L3 all true where applicable. RGF ↔ TD is judged on L1 + L2 only, and no equality of differently sampled grids is claimed | any mismatch at any level. **Equal hashes with an L2 or L3 mismatch is a FAIL**, not a pass | **blocking**: no B4 until the cause is found and fixed; any pilot output that depends on the mismatched item is void | no (unless the realization definition itself must change, which would be a new benchmark) |
+| **G-RGF** (resolution) | Part 1 rows for all 14 points × 4 configurations × 3 dx × M1–M3 (M4 where specified), plus the existing B3/B3X/B3Y points | (a) M1–M2–M3 agreement on S ≤ 10⁻¹⁰ (or adjudicated as in B3Y) at every point; **and** (b) for the resolution proposed for B4, at every point and **separately for T₁ and R₁** (§1.4): either BELOW FLOOR, or RESOLVED (p_T or p_R in [1.8, 2.2], same sign) with the consecutive change to the next finer grid ≤ 2×10⁻⁴ (existing B3/C11 value) **and** the Richardson ESTIMATE of the error at that resolution ≤ 1×10⁻⁴ (the RGF dx item of the existing B4 budget). NOT RESOLVABLE or OUTSIDE WINDOW for either quantity means (b) is **NOT EVALUABLE** at that point. A resolved T₁ never substitutes for R₁; **and** (c) the N_y and N_q changes ≤ 2×10⁻⁴ at the top-window points; **and** (d) lead-tail guard met | (a) unexplained; or (b) RESOLVED but above a limit at dx = 1/2048 for some configuration; or (c) not met. (b) NOT EVALUABLE at any point means the gate is NOT EVALUABLE (not passed) | (a): treat as a solver defect, so B4 is blocked. (b): the B4 budget item cannot be met as designed for that configuration. Options, each needing a dated amendment: a finer dx after a separate dx = 1/4096 review; or a predeclared Richardson-extrapolated B4 quantity with the order gate; or recording that configuration's B4 outcome as discretization-limited. Never a relaxed 10⁻³. (c): a larger N_y or N_q in B4 | **yes, in every case**: the B4 text does not fix the RGF resolution, so even a pass requires the amendment to state the chosen dx, N_y and N_q |
 | **G-TD** (stopping rule) | Part 2 frames for the four realizations; TD-R1 and TD-R2 | every realization SETTLED with t_max − t_s ≥ 1.0; ρ(t) ≤ 10⁻¹⁰ for all t; the residual and direct P_in consistent; U(t_end,candidate) ≤ 10⁻⁴; TD-R1/R2 do not move t_s past t_max − 1.0 | any realization NOT SETTLED; or U > 10⁻⁴; or ρ > 10⁻¹⁰; or the robustness runs change the settling | NOT SETTLED: B4 cannot meet its P_in ≤ 10⁻⁴ pass condition with the current setup. Options (dated pilot amendment, then a new pilot run): a larger t_max, or a geometry change (which would make it a different benchmark) | **yes**: the amendment must fix the B4 t_end (or rule), the frame spacing, and the frame at which T_TD, R_TD and P_in are read |
-| **G-CAP** (CAP sensitivity) | C-A narrowband curves (modes 1, 4, 6); C-B variants V0–V4 for the four realizations; direction-resolved gap content | criterion §3.3 (i)–(iii) for every realization; the A1 separability check holds (≤ 10⁻⁸) | any of (i)–(iii) > 10⁻⁴; or A1 falsified | the production CAP is not adequate for B4's budget. Options: B4 TD with a CAP variant that passes (i)–(iii) against the even larger variants, or the CAP item entered in the B4 budget as measured. Never a relaxed 10⁻³ | **yes, if the B4 TD settings change**, because the B4 text says "production settings"; **no, if V0 passes** |
-| **G-THR** (threshold quadrature) | §4.1 reproduced; the synthetic cusp test; the RGF local windows; the resonance scan | for the quadrature rule proposed for B4: halving reliable (ratio ≥ 0.5) in the synthetic test; and in the local RGF windows, the sum over thresholds of \|rule(h) − rule(h/8)\| ≤ 1×10⁻⁴ (half of the existing 2×10⁻⁴ halving limit, leaving room for the smooth part); and no unresolved structure narrower than h/2 found in the scan | halving unreliable for R-a; or the local error > 10⁻⁴; or narrow structure found | adopt R-c (threshold-split quadrature) or local refinement for B4, re-verified by the same tests; if narrow resonances exist, local adaptive refinement near thresholds with a predeclared rule | **yes**, if the B4 quadrature changes from the protocol's uniform grid with moved nodes; **no**, if R-a passes |
+| **G-CAP** (CAP sensitivity) | C-A narrowband curves (modes 1, 4, 6); C-B variants V0–V4 for the four realizations, with settling times, the common comparison time t_c and the undetermined probabilities u_j (§3.3.4); the V3 direction-resolved quantities F, D_max, leakage, sampling and calibration terms (§3.3.5); the clean-reference runs | §3.3.6 (i)–(iii) all PASS for every realization, by the conservative rules of §3.3.4–§3.3.5; A1 holds (≤ 10⁻¹⁰, §0.1) | any FAIL of (i)–(iii) (i.e. a difference or return exceeding 10⁻⁴ even after subtracting all uncertainties); or A1 falsified. If no FAIL but any NOT EVALUABLE (an unsettled variant, t_max − t_c < τ_w, or uncertainty terms too large to decide): **NOT EVALUABLE**, i.e. not passed | FAIL: the production CAP is not adequate for B4's budget. Options: B4 TD with a CAP variant that passes (i)–(iii) against the even larger variants, or the CAP item entered in the B4 budget as measured. NOT EVALUABLE: a dated **pilot** amendment (e.g. longer t_max or longer gap windows), then a re-run; no interpretation of the differences. Never a relaxed 10⁻³ or 10⁻⁴ | **yes, if the B4 TD settings change**, because the B4 text says "production settings"; **no, if V0 passes** |
+| **G-THR** (threshold quadrature) | §4.1 reproduced; the synthetic cusp test; the RGF local windows; the resonance scan | for the quadrature rule proposed for B4: halving DETECTING (r ≥ r_S0, §4.2) for S1, S2 and S3 at every threshold (S4 is reported, not gated); **and** in the real-RGF local windows plus the n = 6 resonance scan, the sum of the local differences \|rule(h) − rule(h/8)\| (and \|I(h/2) − I(h/32)\| for the scan), for T₁ and for R₁ separately, ≤ 2×10⁻⁴ (the existing quadrature item; a **necessary, not sufficient** condition, since the smooth part of the window is not included) | UNDER-DETECTED for S1–S3 with the proposed rule; or a local sum > 2×10⁻⁴ | adopt R-c (threshold-split quadrature) or local refinement for B4, re-verified by the same tests; if the scan shows structure that h/2 misses, local adaptive refinement near thresholds with a predeclared rule. A passing synthetic test never replaces the real-RGF diagnostic | **yes**, if the B4 quadrature changes from the protocol's uniform grid with moved nodes; **no**, if R-a passes |
 
 **Proceeding to full B4 requires G0, G-REAL, G-RGF, G-TD, G-CAP and G-THR all PASS**, with the dated amendment
 committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failing) counts as **not passed**.
@@ -592,9 +786,9 @@ committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failin
 | RGF resolution policy | B3 FAIL / B3X C11 FAIL (dx) at W = 200 — statuses unchanged | whether a dx (≤ 1/2048) meets the B4 budget item at all pilot points | continuum accuracy (Richardson values are estimates) |
 | Transverse truncation | converged at E ≤ 371 (B3) | N_y and N_q at E 473–650 | N_y = 255 (not run) |
 | TD solver | V1–V7; B2 TD vs ODE (barrier) PASS | settling of P_in below 10⁻⁴ with a trailing window; exterior content U | behaviour for other seeds; t > 6 |
-| CAP | V5 (mode 1, broadband) | narrowband, mode-resolved return; the variant sensitivity for the four realizations | CAP behaviour for other realizations |
-| Threshold quadrature | B2 halving (single channel, no thresholds) | reliability of halving at multichannel thresholds; a quadrature rule for B4 | resonances narrower than the scan resolution |
-| Same realization | identical disorder hashes for the RGF and TD paths (audit §7) | run-time assertion across all pilot devices and variants | — |
+| CAP | V5 (mode 1, broadband) | narrowband, mode-resolved return; the variant sensitivity at a common, settled comparison time; the V3 directional return estimate with leakage and calibration | CAP behaviour for other realizations; directional resolution for kₓ below the window resolution (OPEN-1) |
+| Threshold quadrature | B2 halving (single channel, no thresholds) | the detection ratio of halving on synthetic kink, cusp and resonance shapes (rules only); real-RGF local window differences at n = 4, 6, 8, 10 and the n = 6 scan | the physical resonance structure in general; resonances narrower than h/32 or at unscanned thresholds |
+| Same realization | identical disorder-parameter hashes for the RGF and TD paths (L1 only; audit §7) | L1 + L2 for every grid; L3 at every common physical coordinate (shifted TD variants, nested RGF slices) | equality of sampled values on grids without common points: not claimed (only L1 + L2) |
 | B1-F | FAIL (provisional phase criterion), unchanged | rcond and U recorded at the near-threshold points at 1/2048 | phase accuracy on long fine grids (not used by B4) |
 | **B4 itself** | **not performed** | **nothing; the pilot produces no B4 comparison** | **everything that B4 is designed to test** |
 
@@ -604,7 +798,11 @@ committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failin
 2. **Pilot tests** (new `tests/test_b4_pilot.py`): the G0 reproduction of §1.2 and §4.1; the region partition; the
    path guard and labels; the absence of full-window RGF averages; the bitwise equivalence of the subclass in §3.4;
    the trailing-window logic on synthetic P(t) curves (including non-monotone ones and late up-crossings); the
-   shifted-frame potential hash; and the synthetic-cusp reference integral.
+   L1/L2/L3 realization checks, including a mutation (shift by m ± 1) that L3 must detect; the dx-equality test of
+   §3.3.1; the order-status classification of §1.4 on synthetic triples (BELOW FLOOR, one-sided floor, sign change,
+   outside window, resolved), separately for T and R; the §3.3.4 PASS/FAIL/NOT EVALUABLE logic; the Parseval
+   normalization and the operator-leakage construction of §3.3.5 on synthetic one-directional fields; and the
+   synthetic-quadrature reference integrals (S0–S4).
 3. **Pilot modules** (new): `b4_pilot_rgf.py` (Parts 1 and 4), `b4_pilot_td.py` (Parts 2 and 3, the subclass),
    `b4_pilot_summary.py` (gates). They reuse existing functions read-only.
 4. **Run order:**
@@ -621,7 +819,33 @@ committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failin
    quadrature rule, with all B4 thresholds unchanged. It is committed before any B4 code is run.
 7. **Only then:** the B4 driver and its tests, as in audit §10, P0.2–P0.3.
 
-### 7.3 Statement of limits
+### 7.3 Open methodological issues (not resolvable from repository evidence)
+
+- **OPEN-1 Directional resolution.**
+  - The window lengths limit the spectral resolution to ≈ 4.9 (V3 right), ≈ 10.9 (V3 left) and ≈ 22.4 (V0 right).
+    This is arithmetic, 2π/L_w.
+  - Mode-converted flux with kₓ below these scales is poorly separated by direction. The operator-leakage term (a) and
+    the calibration (b) quantify this. Whether they make criterion (iii) decidable cannot be known before the run, so
+    NOT EVALUABLE is a possible outcome.
+  - The clean calibration contains only mode-1 broadband flux.
+- **OPEN-2 Comparison-time conservatism.** §3.3.4 counts all slab and exterior probability as undetermined. If u_j at
+  t_c is not small compared with 10⁻⁴, the comparisons will be NOT EVALUABLE. No less conservative assignment is
+  justified by the repository.
+- **OPEN-3 Order floor.** The 10⁻⁸ floor is the B2 (ODE-context) convention. B3Y used no floor. Its adequacy for the
+  RGF rests on the measured method spread (≤ 3.3×10⁻¹¹), not on a derived bound.
+- **OPEN-4 Three grids.** One observed order per quantity cannot establish an asymptotic regime. dx = 1/4096 is not
+  part of the pilot (see §1.5).
+- **OPEN-5 Synthetic shapes.** The S1–S4 classes are idealized. Physical threshold behaviour, including Fano-type
+  lineshapes, is not represented, and the synthetic test validates no physical structure.
+- **OPEN-6 Pilot tolerances (§0.1).** These are set from measured rounding levels or existing conventions; they are not
+  derived bounds.
+- **OPEN-7 Bitwise L3.** Whether `DisorderRealization.numpy` gives shape-independent results bitwise, and whether the
+  shifted-grid dx equality holds on the execution platform, must be shown by test. The design-time arithmetic of
+  §3.3.1 is for this platform only.
+
+All existing limitations and NOT VALIDATED statements of the audit and of B1–B3Y remain in force.
+
+### 7.4 Statement of limits
 
 - **A successful pilot does not constitute a B4 result.** It contains no comparison of stationary and time-dependent
   transmission or reflection for any disordered realization.
