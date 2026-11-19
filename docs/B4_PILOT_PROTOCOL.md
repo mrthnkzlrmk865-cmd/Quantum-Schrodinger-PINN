@@ -588,13 +588,25 @@ fixed nominal time they can differ in how much probability has been *absorbed* v
    values satisfy:
    - T_j(∞) ∈ [T_j(t_c) − U_R,j, T_j(t_c) + P_slab,j + U_L,j];
    - R_j(∞) ∈ [R_j(t_c) − U_L,j, R_j(t_c) + P_slab,j + U_R,j].
+
+   These intervals follow from probability bookkeeping alone, with no amplitude argument:
+   - absorbed probability is final, so T_j(∞) ≥ A_R,j(t_c) and R_j(∞) ≥ A_L,j(t_c);
+   - region probabilities are non-negative;
+   - T + R + P_slab is conserved, with P_slab(∞) = 0.
+
+   Interference between components therefore cannot move a variant's asymptotic T or R outside its interval.
 4. **Pairwise decision** for variants i, j, with Δ = |T_i(t_c) − T_j(t_c)| (the same for R) and u_ij = u_i + u_j:
    - **PASS** if Δ + u_ij ≤ 1×10⁻⁴;
    - **FAIL** if Δ − u_ij > 1×10⁻⁴;
    - otherwise **NOT EVALUABLE**.
 
    All undetermined probability is counted against the criterion, so a timing difference cannot be read as a CAP
-   effect and cannot produce a false PASS.
+   effect and cannot produce a false PASS. Because |T_i(∞) − T_j(∞)| ≤ Δ + u_ij and ≥ Δ − u_ij, PASS and FAIL are
+   rigorous statements about the **difference** of the asymptotic T and R between two CAP variants.
+
+   **What this measures.** It is the direct empirical test of the sensitivity of T and R to the CAP. It is **not** an
+   absolute bound on the CAP-induced error of any one variant. A return common to all compared variants (common mode)
+   would not appear in the differences (OPEN-13).
 5. **Report-only.** The same quantities at t_max, and the full time series T_j(t), R_j(t), P_slab,j(t), U_L,j(t) and
    U_R,j(t).
 
@@ -636,7 +648,7 @@ come from the left CAP.
 |---|---|---|---|
 | **Instantaneous directional probability** | D⁻_R(t) = Σ_n Σ_{k_m<0} \|φ̂_n\|² in W_R; D⁺_L(t) the same with k_m > 0 in W_L | probability | diagnostic time series |
 | **Maximum directional probability** | D⁻_R,max = max over directional frames in [0, t_max] of D⁻_R(t); likewise D⁺_L,max | probability | **diagnostic only** (see "Why D_max is not a lower bound" below) |
-| **Time-integrated directional probability** | F⁻_R = ∫₀^{t_max} J⁻_R dt, with J⁻_R(t) = (1/L_eff) Σ_n Σ_{k_m<0} \|k_m\| \|φ̂_n\|² (density × velocity, ħ = m = 1); likewise F⁺_L | probability | the **estimator of the returned probability**, used only for PASS (an upper-bound use, conditional on test SD) |
+| **Time-integrated directional probability** | F⁻_R = ∫₀^{t_max} J⁻_R dt, with J⁻_R(t) = (1/L_eff) Σ_n Σ_{k_m<0} \|k_m\| \|φ̂_n\|² (density × velocity, ħ = m = 1); likewise F⁺_L | probability | the **estimator of the returned probability**; F_up is a **conditional upper bound on returned probability only** (conditional on SD and on the estimator assumptions). It is **not** a bound on the CAP-induced change of T or R (L-iv) |
 
 - Only the time-integrated quantity has the meaning "probability returned by the CAP". Integrating D(t) over time
   would have units of probability × time and **cannot** support a 10⁻⁴ probability criterion.
@@ -688,13 +700,24 @@ returned by the right CAP only if all of the following held:
   can exceed the 0.10 offset from the slab, and the repository gives no bound on it.
 - **(L-iii)** D_leak⁺⁻(t) bounds the actual right→left misassignment at every frame. It is a model estimate (a1); no
   bound is established.
-- **(L-iv)** Returned probability can be identified with the error the CAP causes in T or R. **It cannot.** A returned
-  wave can re-scatter and end on the same side, so the effect on T or R can be far smaller than the returned amount.
-  Returned probability is therefore an **upper**-bound proxy for the CAP effect, never a lower bound.
+- **(L-iv)** Returned probability can be identified with the error the CAP causes in T or R. **It cannot, in either
+  direction.**
+  - **Not a lower bound.** A returned wave can re-scatter and end on the same side, so the effect on T or R can be far
+    smaller than the returned amount.
+  - **Not an upper bound.** The returned wave adds **coherently** to the amplitudes that are already there. If r is an
+    outgoing reflection amplitude (energy- and channel-resolved) and δr the CAP-induced returned contribution in the
+    same channel, then
+    ΔR = |r + δr|² − |r|² = 2 Re(r*·δr) + |δr|².
+    With |δr|² = p small, the interference term can be as large as 2|r|√p, which is ≫ p. The same holds for
+    transmission amplitudes.
+  - **Illustration only, not adopted.** Under an idealized linear decomposition, which the pilot does not establish
+    (ψ = ψ_ideal + δψ, with all of the returned probability in δψ), Cauchy–Schwarz would give
+    |ΔR| ≤ 2√(R·p) + p. At p = 10⁻⁴ this is of order 2×10⁻²·√R, far above 10⁻³. So even then a returned-probability
+    bound at the 10⁻⁴ level would **not** support the 10⁻⁴ CAP budget item.
 
-(L-ii) and (L-iii) cannot be established from repository evidence, and (L-iv) is false in general. **D_max is
-therefore a diagnostic only. It is not used to declare G-CAP FAIL, and no lower bound F_low is used.** This is
-recorded as OPEN-9.
+(L-ii) and (L-iii) cannot be established from repository evidence, and (L-iv) is false in general, in both
+directions. **D_max is therefore a diagnostic only. It is not used to declare G-CAP FAIL, and no lower bound F_low is
+used.** This is recorded as OPEN-9.
 
 **Synthetic directional tests SD** (no physics; required before (iii) is evaluated). Each test uses analytic fields on
 the actual window grids (V3 W_R and W_L; V0 W_R), per transverse mode, with known exact directional content and exact
@@ -715,7 +738,8 @@ flux through the window over time (free propagation):
 
 **Criterion (iii), evaluated on V3** (production CAP, resolvable windows):
 
-- **Upper bound** on the returned probability, and hence on the CAP-induced change of T or R (L-iv):
+- **Conditional upper bound on the returned probability** (conditional on SD and on the estimator assumptions). **It
+  is not a bound on the CAP-induced change of T or R** (L-iv):
   F_up = F⁻_R + F_leak,R⁻⁺ + F⁺_L + F_leak,L⁺⁻ + δ_s,R + δ_s,L + δ_late,R + δ_late,L + ε_cal.
   - **Notation:** superscript "ab" means content moving in direction a, assigned by the window to direction b.
   - Only the **missed**-content terms are added: F_leak,R⁻⁺ (returned, left-moving content in W_R assigned to k > 0)
@@ -723,6 +747,8 @@ flux through the window over time (free propagation):
   - The spurious-content terms (F_leak,R⁺⁻, F_leak,L⁻⁺) already inflate the measured F and are conservatively **not**
     subtracted.
 - **PASS** if SD passed for the relevant kₓ range **and** F_up ≤ 1×10⁻⁴; otherwise **NOT EVALUABLE**.
+  - A PASS of (iii) means only that *the returned probability* is conditionally ≤ 10⁻⁴.
+  - It does **not** mean that the CAP changes T or R by ≤ 10⁻⁴. By (L-iv), no such implication holds.
 - **(iii) has no FAIL outcome.** A large F (or D_max) is reported as "CAP return not bounded below 10⁻⁴", which is
   diagnostic. A G-CAP FAIL can only come from (i) or (ii).
 - **V0** (right window only, resolution ≈ 22.4) is **report-only**. A V0 value is interpreted only if its F_up itself
@@ -737,13 +763,28 @@ For every realization, all of the following:
 - **(ii)** Each pair among V1, V2 and V4: PASS for T and for R by the §3.3.4 rule. This shows that the enlarged CAPs
   agree with each other, so the V0 comparison is against a stable reference.
 - **(iii)** PASS by §3.3.5. It requires SD to be passed and F_up ≤ 10⁻⁴; it has no FAIL outcome.
+  - (iii) is a **corroborating** condition: small returned probability makes a large common-mode CAP return, which
+    (i)/(ii) cannot see, less likely.
+  - It does **not** independently bound the CAP contribution to T or R.
 - **A1:** separability holds (§3.2).
 
 **Outcome.** Any FAIL means G-CAP FAILS. Any NOT EVALUABLE, without a FAIL, means G-CAP is **NOT EVALUABLE**, which
 counts as not passed (§6).
 
 The value 10⁻⁴ is the CAP item of the **existing** B4 error budget (≈ 10⁻⁴), i.e. 10 % of the 10⁻³ tolerance. It is
-used as a gate on the budget assumption. It is **not** a new B4 pass threshold, and it is not relaxed.
+used as a gate on the evidence for the budget assumption. It is **not** a new B4 pass threshold, and it is not relaxed.
+
+**What a G-CAP PASS establishes, and what it does not.**
+
+- **It establishes:**
+  - **(a)** rigorously (§3.3.4), that the asymptotic T and R of the production CAP differ from those of the enlarged
+    CAP variants, and the enlarged variants from each other, by ≤ 10⁻⁴;
+  - **(b)** conditionally (§3.3.5), that the probability returned by the production CAP is ≤ 10⁻⁴.
+- **It does not establish** a rigorous upper bound on the absolute CAP-induced error of T or R, for two reasons:
+  - **(a)** bounds only differences between variants (a common-mode return is invisible to it);
+  - **(b)** bounds a probability, not an amplitude-level effect (L-iv).
+- **Consequence for B4.** A PASS is evidence *consistent with* the budget item "CAP ≈ 10⁻⁴". It is **not a proof** of
+  it, and the B4 amendment must say so (OPEN-13).
 
 ### 3.4 Code changes needed later (new files only; no existing file modified)
 
@@ -954,7 +995,7 @@ unchanged. **No gate may be passed by weakening any existing B4 threshold.**
 | **G-REAL** (same realization) | the three levels of §3.3.2: **L1** parameter hashes and configuration equality across the RGF devices (all dx), the TD production grid, the CAP variants and the B3 records; **L2** bitwise sampler fidelity of every grid against direct `Potential.numpy` calls at its own coordinates (as in B3); **L3** bitwise equality at common physical coordinates (variant ↔ production TD grid; coincident RGF slices across dx), including ψ₀; the shifted-grid dx equality test | L1, L2 and L3 all true where applicable. RGF ↔ TD is judged on L1 + L2 only, and no equality of differently sampled grids is claimed | any mismatch at any level. **Equal hashes with an L2 or L3 mismatch is a FAIL**, not a pass | **blocking**: no B4 until the cause is found and fixed; any pilot output that depends on the mismatched item is void | no (unless the realization definition itself must change, which would be a new benchmark) |
 | **G-RGF** (resolution) | Part 1 rows for all 14 points × 4 configurations × 3 dx × M1–M3 (M4 where specified), plus the three B3 energies re-run with M1 (§1.6) | (a) M1–M2–M3 agreement on S ≤ 10⁻¹⁰ (or adjudicated as in B3Y) at every point; **and** (b) the §1.6 algorithm yields a dx_sel for every configuration, i.e. a dx admissible (ADMISSIBLE, ADMISSIBLE-R or ADMISSIBLE-F) at every point of the §1.6 set, for T₁ and for R₁ separately. A resolved T₁ never substitutes for R₁; **and** (c) the N_y and N_q changes ≤ 2×10⁻⁴ at the top-window points; **and** (d) lead-tail guard met | (a) unexplained; or §1.6 step 3(b) for some configuration (all points classified, a limit exceeded even at 1/2048); or (c) not met. §1.6 step 3(a) (an unclassifiable point) gives **NOT EVALUABLE**, i.e. not passed | (a): treat as a solver defect, so B4 is blocked. (b): the B4 budget item cannot be met as designed for that configuration. Options, each needing a dated amendment: a finer dx after a separate dx = 1/4096 review (NOT EVALUABLE: a dated pilot amendment adding 1/4096); or a predeclared Richardson-extrapolated B4 quantity with the order gate; or recording that configuration's B4 outcome as discretization-limited. Never a relaxed 10⁻³. (c): a larger N_y or N_q in B4 | **yes, in every case**: the B4 text does not fix the RGF resolution, so even a pass requires the amendment to state the chosen dx, N_y and N_q |
 | **G-TD** (stopping rule) | Part 2 frames for the four realizations; TD-R1 and TD-R2 | all four realizations SETTLED (§2.3); t_end,cand = max_r t_s,r with t_max − t_end,cand ≥ τ_w = 1.0; bookkeeping drift |ρ(t) − ρ(0)| ≤ 10⁻¹⁰ for all t and the consistency check |P_in,res − P_slab − ρ| ≤ 10⁻¹⁰ (§2.2, §0.1); ρ(0) reported; U(t_end,cand) ≤ 10⁻⁴ for every realization; TD-R1 and TD-R2 both ROBUST (§2.4) | any realization NOT SETTLED; or t_max − t_end,cand < τ_w; or U(t_end,cand) > 10⁻⁴; or an accounting check > 10⁻¹⁰; or TD-R1 or TD-R2 NOT ROBUST. The report-only differences of §2.4 never decide the gate | NOT SETTLED: B4 cannot meet its P_in ≤ 10⁻⁴ pass condition with the current setup. Options (dated pilot amendment, then a new pilot run): a larger t_max, or a geometry change (which would make it a different benchmark) | **yes**: the amendment must fix the B4 t_end (or rule), the frame spacing, and the frame at which T_TD, R_TD and P_in are read |
-| **G-CAP** (CAP sensitivity) | C-A narrowband curves (modes 1, 4, 6); C-B variants V0–V4 for the four realizations, with settling times, the common comparison time t_c and the undetermined probabilities u_j (§3.3.4); the V3 direction-resolved quantities F, the two-way leakage terms, sampling, late-return and calibration terms (§3.3.5; D_max diagnostic only); the synthetic directional tests SD1–SD5; the clean-reference runs with B_free | §3.3.6 (i)–(iii) all PASS for every realization, by the conservative rules of §3.3.4–§3.3.5; A1 holds (≤ 10⁻¹⁰, §0.1) | a FAIL of (i) or (ii) (a variant difference exceeding 10⁻⁴ even after subtracting all undetermined probability, §3.3.4); or A1 falsified. (iii) has **no FAIL outcome** (§3.3.5: returned probability does not bound the CAP effect from below). If there is no FAIL but any NOT EVALUABLE (an unsettled variant; t_max − t_c < τ_w; uncertainty terms too large to decide; SD not passed; or F_up > 10⁻⁴): **NOT EVALUABLE**, i.e. not passed | FAIL: the production CAP is not adequate for B4's budget. Options: B4 TD with a CAP variant that passes (i)–(iii) against the even larger variants, or the CAP item entered in the B4 budget as measured. NOT EVALUABLE: a dated **pilot** amendment (e.g. longer t_max or longer gap windows), then a re-run; no interpretation of the differences. Never a relaxed 10⁻³ or 10⁻⁴ | **yes, if the B4 TD settings change**, because the B4 text says "production settings"; **no, if V0 passes** |
+| **G-CAP** (CAP sensitivity) | C-A narrowband curves (modes 1, 4, 6); C-B variants V0–V4 for the four realizations, with settling times, the common comparison time t_c and the undetermined probabilities u_j (§3.3.4); the V3 direction-resolved quantities F, the two-way leakage terms, sampling, late-return and calibration terms (§3.3.5; D_max diagnostic only); the synthetic directional tests SD1–SD5; the clean-reference runs with B_free | §3.3.6 (i)–(iii) all PASS for every realization, by the conservative rules of §3.3.4–§3.3.5; A1 holds (≤ 10⁻¹⁰, §0.1). **A PASS means** that the T/R differences between CAP variants are ≤ 10⁻⁴ (rigorous) and that the returned probability is conditionally ≤ 10⁻⁴. It is **not** a proven bound on the absolute CAP-induced T/R error (§3.3.6; OPEN-13) | a FAIL of (i) or (ii) (a variant difference exceeding 10⁻⁴ even after subtracting all undetermined probability, §3.3.4); or A1 falsified. (iii) has **no FAIL outcome** (§3.3.5: returned probability does not bound the CAP effect from below). If there is no FAIL but any NOT EVALUABLE (an unsettled variant; t_max − t_c < τ_w; uncertainty terms too large to decide; SD not passed; or F_up > 10⁻⁴): **NOT EVALUABLE**, i.e. not passed | FAIL: the production CAP is not adequate for B4's budget. Options: B4 TD with a CAP variant that passes (i)–(iii) against the even larger variants, or the measured variant differences entered in the B4 budget, stating that they are not an absolute CAP error bound (OPEN-13). NOT EVALUABLE: a dated **pilot** amendment (e.g. longer t_max or longer gap windows), then a re-run; no interpretation of the differences. Never a relaxed 10⁻³ or 10⁻⁴ | **yes, if the B4 TD settings change**, because the B4 text says "production settings"; **no, if V0 passes** |
 | **G-THR** (threshold quadrature) | §4.1 reproduced; the synthetic cusp test; the RGF local windows; the resonance scan | for the quadrature rule proposed for B4: halving DETECTING (r ≥ r_S0, §4.2) for S1, S2 and S3 at every threshold (S4 is reported, not gated); **and** in the real-RGF local windows plus the n = 6 resonance scan, the sum of the local differences \|rule(h) − rule(h/8)\| (and \|I(h/2) − I(h/32)\| for the scan), for T₁ and for R₁ separately, ≤ 2×10⁻⁴ (the existing quadrature item; a **necessary, not sufficient** condition, since the smooth part of the window is not included) | UNDER-DETECTED for S1–S3 with the proposed rule; or a local sum > 2×10⁻⁴ | adopt R-c (threshold-split quadrature) or local refinement for B4, re-verified by the same tests; if the scan shows structure that h/2 misses, local adaptive refinement near thresholds with a predeclared rule. A passing synthetic test never replaces the real-RGF diagnostic | **yes**, if the B4 quadrature changes from the protocol's uniform grid with moved nodes; **no**, if R-a passes |
 
 **Proceeding to full B4 requires G0, G-REAL, G-RGF, G-TD, G-CAP and G-THR all PASS**, with the dated amendment
@@ -972,7 +1013,7 @@ committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failin
 | RGF resolution policy | B3 FAIL / B3X C11 FAIL (dx) at W = 200 — statuses unchanged | whether a dx (≤ 1/2048) meets the B4 budget item at all pilot points | continuum accuracy (Richardson values are estimates) |
 | Transverse truncation | converged at E ≤ 371 (B3) | N_y and N_q at E 473–650 | N_y = 255 (not run) |
 | TD solver | V1–V7; B2 TD vs ODE (barrier) PASS | settling of P_in below 10⁻⁴ with a trailing window; exterior content U | behaviour for other seeds; t > 6 |
-| CAP | V5 (mode 1, broadband) | narrowband, mode-resolved return; the variant sensitivity at a common, settled comparison time; the V3 directional return estimate with leakage and calibration | CAP behaviour for other realizations; directional resolution for kₓ below the window resolution (OPEN-1) |
+| CAP | V5 (mode 1, broadband) | narrowband, mode-resolved return; the variant sensitivity at a common, settled comparison time; the V3 directional return estimate with leakage and calibration | CAP behaviour for other realizations; directional resolution for kₓ below the window resolution (OPEN-1); a rigorous bound on the absolute CAP-induced T/R error (OPEN-13) |
 | Threshold quadrature | B2 halving (single channel, no thresholds) | the detection ratio of halving on synthetic kink, cusp and resonance shapes (rules only); real-RGF local window differences at n = 4, 6, 8, 10 and the n = 6 scan | the physical resonance structure in general; resonances narrower than h/32 or at unscanned thresholds |
 | Same realization | identical disorder-parameter hashes for the RGF and TD paths (L1 only; audit §7) | L1 + L2 for every grid; L3 at every common physical coordinate (shifted TD variants, nested RGF slices) | equality of sampled values on grids without common points: not claimed (only L1 + L2) |
 | B1-F | FAIL (provisional phase criterion), unchanged | rcond and U recorded at the near-threshold points at 1/2048 | phase accuracy on long fine grids (not used by B4) |
@@ -1034,16 +1075,29 @@ committed. A gate that is NOT EVALUABLE (for example the M4 platform gate failin
 - **OPEN-8 Free-propagation baseline.** B_free (§3.2) is exact only for free propagation on the infinite line. The
   box walls, the CAPs, the discrete DST representation and the truncation of ψ₀ at x = 0 are neglected. The pilot
   reports |W_back,grid − W_back| but cannot bound the remaining baseline error.
-- **OPEN-9 Directional lower bound.** The assumptions (L-ii) no evanescent content in the window, and (L-iii) the
-  leakage estimate bounds the misassignment, cannot be established from the repository, and (L-iv) is false in
-  general. D_max is diagnostic only, and criterion (iii) has no FAIL outcome. The upper-bound use of F is conditional on
-  the synthetic tests SD.
+- **OPEN-9 Directional bounds.**
+  - The assumptions (L-ii), no evanescent content in the window, and (L-iii), that the leakage estimate bounds the
+    misassignment, cannot be established from the repository.
+  - (L-iv) is false in general, in both directions: returned probability neither lower- nor upper-bounds the
+    CAP-induced change of T or R, because returned amplitudes interfere coherently with existing ones.
+  - D_max is diagnostic only, and criterion (iii) has no FAIL outcome.
+  - F_up is a conditional upper bound on *returned probability* only (conditional on SD), never on ΔT or ΔR.
 - **OPEN-10 BELOW FLOOR.** Two consecutive changes below 10⁻⁸ do not establish an error bound (§1.4). ADMISSIBLE-F
   points are carried into the amendment with that label.
 - **OPEN-11 dx = 1/2048 selection.** No change to a finer grid is available. Selection of 1/2048 (ADMISSIBLE-R) rests on
   the observed-order assumption from three grids.
 - **OPEN-12 TD robustness magnitudes.** No tolerance for Δt_s, ΔP_slab(t), ΔT or ΔR is justified by the repository, so
   their quantitative comparison is NOT EVALUABLE. Only the ROBUST / NOT ROBUST rule of §2.4 decides.
+- **OPEN-13 No rigorous absolute CAP error bound.**
+  - The pilot cannot establish a rigorous upper bound on the CAP-induced error of the production T and R.
+  - The variant comparisons (§3.3.4) bound only *differences* between CAP variants; a common-mode return would be
+    invisible to them.
+  - The directional estimator (§3.3.5) bounds only returned *probability*, which does not bound the amplitude-level
+    effect (L-iv).
+  - A rigorous absolute bound would need a reference free of CAP return (for example an exact transparent boundary).
+    No such reference exists in the repository.
+  - The B4 budget item "CAP ≈ 10⁻⁴" therefore remains an assumption supported, at best, by consistent evidence. No
+    replacement bound or tolerance is proposed.
 
 All existing limitations and NOT VALIDATED statements of the audit and of B1–B3Y remain in force.
 
@@ -1056,3 +1110,6 @@ All existing limitations and NOT VALIDATED statements of the audit and of B1–B
   unchanged, and B4 has not been performed.
 - **It establishes no continuum convergence, no physical transport statement, and no statement about Anderson
   localization.**
+- **It establishes no rigorous bound on the CAP-induced error of T or R.** The CAP pilot bounds T/R differences
+  between CAP variants and, conditionally, the returned probability. Neither is an absolute bound on the CAP
+  contribution to the B4 error budget (§3.3.6, OPEN-13).
