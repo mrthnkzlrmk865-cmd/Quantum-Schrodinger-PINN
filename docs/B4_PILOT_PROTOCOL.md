@@ -761,10 +761,11 @@ For every realization, all of the following:
 
 - **(i)** V0 vs each of V1–V4: PASS for T and for R by the §3.3.4 rule.
 - **(ii)** Each pair among V1, V2 and V4: PASS for T and for R by the §3.3.4 rule. This shows that the enlarged CAPs
-  agree with each other, so the V0 comparison is against a stable reference.
+  agree with each other, so the V0 comparison is against a mutually consistent reference. This agreement does not
+  show that any variant is free of CAP-induced error.
 - **(iii)** PASS by §3.3.5. It requires SD to be passed and F_up ≤ 10⁻⁴; it has no FAIL outcome.
-  - (iii) is a **corroborating** condition: small returned probability makes a large common-mode CAP return, which
-    (i)/(ii) cannot see, less likely.
+  - (iii) is a corroborating diagnostic of the returned probability under the assumptions of §3.3.5. It does not
+    constrain a common-mode CAP-induced change in T or R, which may remain invisible to (i) and (ii).
   - It does **not** independently bound the CAP contribution to T or R.
 - **A1:** separability holds (§3.2).
 
