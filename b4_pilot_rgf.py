@@ -217,3 +217,100 @@ def select_resolution(values: Mapping, required_points: Sequence, *, solver_agre
                                 "(point, quantity); remedy: dated pilot amendment adding dx = 1/4096 (§1.5)",))
     return SelectionResult(FAIL, None, orders, cands, {}, mismatch,
                            ("every (point, quantity) is classified but a limit is exceeded even at dx = 1/2048",))
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# T3.1 — §1.4 point flag: status mismatch OR |ΔT1 + ΔR1| exceeding the recorded unitarity residuals
+# ----------------------------------------------------------------------------------------------------------------
+# Derivation (exact in real arithmetic on the stored S; protocol §1.4 and PHASE2_METHOD_SELECTION.md §3):
+#   S = [[r_L, t_LR], [t_RL, r_R]] (rows outgoing [L; R], columns incoming [L; R]; smatrix_spec.assemble_S).
+#   Column 1 = incidence in left channel 1, so (S†S)_11 = Σ_m |(r_L)_m1|² + Σ_m |(t_RL)_m1|² = R1 + T1.
+#   Hence T1 + R1 - 1 is a diagonal entry of S†S - I and |T1 + R1 - 1| <= max|S†S - I| <= U,
+#   with U = max over both products (S†S and SS†), as recorded (validate_rgf_b3.unitarity, protocol §1.4).
+#   With s = T1 + R1:  ΔT1 + ΔR1 = s(fine) - s(coarse) = (s(fine) - 1) - (s(coarse) - 1), so
+#       |Δ₁T1 + Δ₁R1| <= U(1/512)  + U(1/1024)
+#       |Δ₂T1 + Δ₂R1| <= U(1/1024) + U(1/2048)
+#   These bounds are identities of consistent data, not tolerances. They hold only if U, T1 and R1 at each dx come
+#   from the SAME S (same method, point and dx). A violation therefore signals an extraction/consistency defect,
+#   which §1.4 requires to be flagged and adjudicated; it is not by itself a gate failure.
+#   Floating point: T1, R1 and U are computed with rounding, so a flag at the level of a few ulp of the residual sum
+#   is possible for consistent data. No rounding allowance is defined by the protocol, so none is added here; such a
+#   flag is resolved by the §1.4 adjudication.
+
+@dataclass(frozen=True)
+class UnitarityConsistency:
+    sum_delta1: float              # Δ₁T1 + Δ₁R1
+    sum_delta2: float              # Δ₂T1 + Δ₂R1
+    bound1: float                  # U(1/512) + U(1/1024)
+    bound2: float                  # U(1/1024) + U(1/2048)
+    exceeds1: bool                 # |Δ₁T1 + Δ₁R1| > bound1  (strict: equality is consistent)
+    exceeds2: bool
+    flagged: bool                  # exceeds1 or exceeds2
+    per_dx_defect: tuple           # report-only: |1 - T1 - R1| - U at each dx (> 0 would contradict the identity)
+    classification: str = CLASSIFICATION
+
+
+@dataclass(frozen=True)
+class PointFlag:
+    point: object
+    status_mismatch: bool          # §1.4 condition 1: T1 and R1 statuses differ
+    unitarity_inconsistent: bool   # §1.4 condition 2: residual-based bound exceeded
+    flagged: bool                  # condition 1 OR condition 2
+    reasons: tuple                 # human-readable reasons (empty if not flagged)
+    t1_status: str
+    r1_status: str
+    unitarity: UnitarityConsistency
+    classification: str = CLASSIFICATION
+
+
+def unitarity_consistency(t1: Sequence, r1: Sequence, u: Sequence) -> UnitarityConsistency:
+    """Residual-based §1.4 check for one point. t1, r1, u: values at dx = (1/512, 1/1024, 1/2048); u must be the
+    recorded unitarity residual U >= 0 of the SAME S from which t1 and r1 were extracted at each dx."""
+    for name, v in (("t1", t1), ("r1", r1), ("u", u)):
+        if v is None or len(v) != 3:
+            raise ValueError(f"{name}: expected three values (dx = 1/512, 1/1024, 1/2048), got {v!r}")
+    t = [_finite(x, f"t1[{i}]") for i, x in enumerate(t1)]
+    r = [_finite(x, f"r1[{i}]") for i, x in enumerate(r1)]
+    uu = [_finite(x, f"u[{i}]") for i, x in enumerate(u)]
+    if any(x < 0 for x in uu):
+        raise ValueError(f"unitarity residuals must be >= 0, got {uu!r}")
+    s1 = (t[1] - t[0]) + (r[1] - r[0])
+    s2 = (t[2] - t[1]) + (r[2] - r[1])
+    b1, b2 = uu[0] + uu[1], uu[1] + uu[2]
+    e1, e2 = abs(s1) > b1, abs(s2) > b2
+    defect = tuple(abs(1.0 - t[k] - r[k]) - uu[k] for k in range(3))
+    return UnitarityConsistency(s1, s2, b1, b2, e1, e2, e1 or e2, defect)
+
+
+def point_flags(values: Mapping, residuals: Mapping, required_points: Sequence) -> dict:
+    """§1.4 point flag for every required point. values as in select_resolution; residuals maps point ->
+    (U(1/512), U(1/1024), U(1/2048)) of method M1 (the method that produced T1 and R1). Missing, extra or invalid
+    inputs raise. Returns {point: PointFlag}; the status-mismatch reason of select_resolution is preserved."""
+    points = list(required_points)
+    if not points:
+        raise ValueError("required_points is empty")
+    if len(set(points)) != len(points):
+        raise ValueError("required_points contains duplicates")
+    expected = {(x, q) for x in points for q in QUANTITIES}
+    miss_v = sorted(expected - set(values.keys()), key=repr)
+    extra_v = sorted(set(values.keys()) - expected, key=repr)
+    miss_u = sorted(set(points) - set(residuals.keys()), key=repr)
+    extra_u = sorted(set(residuals.keys()) - set(points), key=repr)
+    if miss_v or extra_v or miss_u or extra_u:
+        raise ValueError(f"incomplete or inconsistent inputs: missing values {miss_v}; unexpected values {extra_v}; "
+                         f"missing residuals {miss_u}; unexpected residuals {extra_u}")
+    out = {}
+    for x in points:
+        t, r = values[(x, "T1")], values[(x, "R1")]
+        st, sr = classify_order(*t).status, classify_order(*r).status
+        uc = unitarity_consistency(t, r, residuals[x])
+        mism = st != sr
+        reasons = []
+        if mism:
+            reasons.append(f"status mismatch: T1 {st}, R1 {sr}")
+        if uc.exceeds1:
+            reasons.append(f"|Δ₁T1 + Δ₁R1| = {abs(uc.sum_delta1):.3e} > U(1/512) + U(1/1024) = {uc.bound1:.3e}")
+        if uc.exceeds2:
+            reasons.append(f"|Δ₂T1 + Δ₂R1| = {abs(uc.sum_delta2):.3e} > U(1/1024) + U(1/2048) = {uc.bound2:.3e}")
+        out[x] = PointFlag(x, mism, uc.flagged, mism or uc.flagged, tuple(reasons), st, sr, uc)
+    return out

@@ -1,4 +1,4 @@
-"""B4 limited diagnostic pilot — tests, phases T1 and T2 only.
+"""B4 limited diagnostic pilot — tests, phases T1–T3 (including T3.1).
 
 Classification: DIAGNOSTIC / NOT B4. Nothing here is a B4 result, and no test marks any pilot gate as passed.
 
@@ -11,6 +11,9 @@ T1  design-time arithmetic and protected-artifact integrity:
     protected source files / documents / B1–B3Y (+ validation, transport) artifacts against BASELINE.
 T2  same realization: L1 disorder-parameter hashes (RGF path, TD production path, B3/B3X records) and
     L2 sampler fidelity on the production TD grid (bitwise). Shifted variants and L3 are NOT implemented here.
+T3  b4_pilot_rgf: §1.4 observed-order classification, §1.6 admissibility and deterministic resolution selection,
+    and (T3.1) the §1.4 point flag (status mismatch OR |ΔT1 + ΔR1| above the recorded unitarity residuals).
+    Synthetic inputs only; passing these tests does NOT mean gate G-RGF passed.
 
 No solver propagation, RGF energy, or pilot driver is run. Git must be available: the baseline is read from the
 repository object database; a missing git or commit is a test failure, never a skip.
@@ -747,3 +750,87 @@ def test_T3_module_is_pure():
                      "Sequence"}, names
     calls = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
     assert "open" not in calls
+
+
+# ----------------------------------------------------------------------
+# T3.1 — §1.4 point flag: status mismatch OR |ΔT1 + ΔR1| > recorded unitarity residuals
+# Bound (derived in b4_pilot_rgf): |Δ₁T1 + Δ₁R1| <= U(1/512) + U(1/1024), |Δ₂T1 + Δ₂R1| <= U(1/1024) + U(1/2048),
+# because T1 + R1 - 1 = (S†S - I)_11 and |(S†S - I)_11| <= U. Dyadic inputs; expected sums and bounds by hand.
+# ----------------------------------------------------------------------
+_T_OK = CASE_ALL                                                           # (0, 2^-15, 2^-15 + 2^-17), RESOLVED p = 2
+_R_OK = _mirror(CASE_ALL)                                                  # ΔR = -ΔT exactly -> sums 0
+_R_SHIFTED = (1.0, 1.0 - 2.0 ** -15 + 2.0 ** -25, 1.0 - 2.0 ** -15 + 2.0 ** -25 - 2.0 ** -17 + 2.0 ** -27)
+#   ΔR = (-(2^-15 - 2^-25), -(2^-17 - 2^-27)): ratio 4 -> RESOLVED p = 2; sums = (2^-25, 2^-27)
+_R_MISMATCH = (1.0, 1.0 - 2.0 ** -15, 1.0 - 2.0 ** -15 + 2.0 ** -17)     # opposite signs -> NOT RESOLVABLE; sums (0, 2^-16)
+
+
+def test_T3_1_inputs_are_exact():
+    assert _R_SHIFTED[1] - _R_SHIFTED[0] == -(2.0 ** -15 - 2.0 ** -25)
+    assert _R_SHIFTED[2] - _R_SHIFTED[1] == -(2.0 ** -17 - 2.0 ** -27)
+    assert _R_MISMATCH[2] - _R_MISMATCH[1] == 2.0 ** -17
+
+
+def test_T3_1_neither_condition():
+    f = rgf.point_flags({("x", "T1"): _T_OK, ("x", "R1"): _R_OK}, {"x": (2.0 ** -40,) * 3}, ["x"])["x"]
+    assert f.unitarity.sum_delta1 == 0.0 and f.unitarity.sum_delta2 == 0.0
+    assert not f.status_mismatch and not f.unitarity_inconsistent and not f.flagged and f.reasons == ()
+    assert f.classification == "DIAGNOSTIC / NOT B4"
+
+
+def test_T3_1_residual_flag_alone():
+    f = rgf.point_flags({("x", "T1"): _T_OK, ("x", "R1"): _R_SHIFTED}, {"x": (2.0 ** -40,) * 3}, ["x"])["x"]
+    assert f.t1_status == f.r1_status == "RESOLVED" and not f.status_mismatch
+    u = f.unitarity
+    assert (u.sum_delta1, u.sum_delta2) == (2.0 ** -25, 2.0 ** -27)
+    assert (u.bound1, u.bound2) == (2.0 ** -39, 2.0 ** -39)
+    assert u.exceeds1 and u.exceeds2 and f.unitarity_inconsistent and f.flagged
+    assert len(f.reasons) == 2 and all("U(1/" in s for s in f.reasons)
+
+
+def test_T3_1_status_mismatch_alone():
+    # sums (0, 2^-16); U = (0, 2^-17, 2^-17): bound2 = 2^-16 = |sum2| (equality is consistent), bound1 = 2^-17 >= 0
+    f = rgf.point_flags({("x", "T1"): _T_OK, ("x", "R1"): _R_MISMATCH}, {"x": (0.0, 2.0 ** -17, 2.0 ** -17)},
+                        ["x"])["x"]
+    assert (f.t1_status, f.r1_status) == ("RESOLVED", "NOT RESOLVABLE") and f.status_mismatch
+    assert f.unitarity.sum_delta2 == 2.0 ** -16 and f.unitarity.bound2 == 2.0 ** -16
+    assert not f.unitarity_inconsistent and f.flagged and len(f.reasons) == 1 and "status mismatch" in f.reasons[0]
+
+
+def test_T3_1_both_conditions_keep_both_reasons():
+    f = rgf.point_flags({("x", "T1"): _T_OK, ("x", "R1"): _R_MISMATCH}, {"x": (0.0, 0.0, 0.0)}, ["x"])["x"]
+    assert f.status_mismatch and f.unitarity_inconsistent and f.flagged
+    assert f.unitarity.exceeds2 and not f.unitarity.exceeds1                # sum1 = 0 = bound1
+    assert len(f.reasons) == 2
+
+
+def test_T3_1_equality_at_the_derived_boundary_is_not_flagged():
+    t, r = (0.5, 0.5 + 2.0 ** -20, 0.5 + 2.0 ** -20), (0.5, 0.5, 0.5)     # sums (2^-20, 0)
+    eq = rgf.unitarity_consistency(t, r, (2.0 ** -21, 2.0 ** -21, 0.0))   # bound1 = 2^-20 exactly
+    assert eq.sum_delta1 == 2.0 ** -20 == eq.bound1 and not eq.exceeds1 and not eq.flagged
+    over = rgf.unitarity_consistency(t, r, (2.0 ** -22, 2.0 ** -21, 0.0))  # bound1 = 0.75 * 2^-20
+    assert over.bound1 == 0.75 * 2.0 ** -20 and over.exceeds1 and over.flagged
+    # report-only per-dx defect |1 - T1 - R1| - U, by hand: 1/512: 0 - 2^-21; 1/1024: 2^-20 - 2^-21; 1/2048: 2^-20 - 0.
+    # Positive entries mean these synthetic data violate |T1 + R1 - 1| <= U (they are deliberately inconsistent).
+    assert eq.per_dx_defect == (-(2.0 ** -21), 2.0 ** -21, 2.0 ** -20)
+
+
+def test_T3_1_missing_or_invalid_residuals_rejected():
+    v = {("x", "T1"): _T_OK, ("x", "R1"): _R_OK}
+    with pytest.raises(ValueError, match="missing residuals"):
+        rgf.point_flags(v, {}, ["x"])
+    with pytest.raises(ValueError, match="unexpected residuals"):
+        rgf.point_flags(v, {"x": (0.0,) * 3, "y": (0.0,) * 3}, ["x"])
+    with pytest.raises(ValueError, match="missing values"):
+        rgf.point_flags({("x", "T1"): _T_OK}, {"x": (0.0,) * 3}, ["x"])
+    for bad in ((0.0, -1e-16, 0.0), (0.0, float("nan"), 0.0), (0.0, 0.0), None):
+        with pytest.raises((ValueError, TypeError)):
+            rgf.point_flags(v, {"x": bad}, ["x"])
+    with pytest.raises(TypeError):
+        rgf.unitarity_consistency(_T_OK, _R_OK, (0.0, "1e-16", 0.0))
+
+
+def test_T3_1_status_mismatch_agrees_with_select_resolution():
+    v = {("x1", "T1"): _T_OK, ("x1", "R1"): _R_OK, ("x2", "T1"): _T_OK, ("x2", "R1"): _R_MISMATCH}
+    flags = rgf.point_flags(v, {"x1": (0.0,) * 3, "x2": (0.0,) * 3}, ["x1", "x2"])
+    sel = rgf.select_resolution(v, ["x1", "x2"], solver_agreement=True)
+    assert tuple(x for x in ("x1", "x2") if flags[x].status_mismatch) == sel.status_mismatch_points == ("x2",)
