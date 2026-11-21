@@ -323,6 +323,9 @@ def test_printed_decimal_lx_is_not_a_safe_construction_for_m115():
 # ----------------------------------------------------------------------
 def _protected_paths():
     paths = list(PROTECTED_SOURCES) + list(PROTECTED_DOCS)
+    baseline_tests = _baseline_ls("tests")                         # every test file tracked at the A6 baseline
+    assert baseline_tests and "tests/test_b4_pilot.py" not in baseline_tests
+    paths += baseline_tests
     for d in PROTECTED_RESULT_DIRS:
         tracked = _baseline_ls(d)
         assert tracked, f"no tracked files under {d} in baseline {BASELINE}; refusing to omit it silently"
@@ -471,3 +474,276 @@ def test_L2_comparison_detects_a_one_ulp_change():
 
 def test_module_is_labelled_diagnostic():
     assert CLASSIFICATION == "DIAGNOSTIC / NOT B4" and CLASSIFICATION in (__doc__ or "")
+
+
+# ======================================================================
+# T3 — RGF observed-order classification (§1.4) and deterministic resolution selection (§1.6)
+# Synthetic, hand-constructed inputs only; no RGF evaluation. Passing these tests does NOT mean G-RGF passed.
+# Dyadic inputs (Q(1/512) = 0 or 1, changes = powers of two) make every subtraction exact, so the expected Δ, p and
+# Richardson values below are computed by hand from the literals, independently of the implementation.
+# ======================================================================
+import math  # noqa: E402
+
+import b4_pilot_rgf as rgf  # noqa: E402
+
+
+def _tri(d1, d2, q0=0.0):
+    """(Q(1/512), Q(1/1024), Q(1/2048)) with exact consecutive changes d1, d2 (dyadic inputs)."""
+    q1 = q0 + d1
+    q2 = q1 + d2
+    assert q1 - q0 == d1 and q2 - q1 == d2, "synthetic input is not exact"
+    return (q0, q1, q2)
+
+
+def _mirror(t):
+    return tuple(1.0 - v for v in t)
+
+
+# p = 2 cases (|Δ₁| = 4 |Δ₂|); hand values: e(1/2048) = |Δ₂|/3, e(1/1024) = 4|Δ₂|/3, e(1/512) = 16|Δ₂|/3
+CASE_ALL = _tri(2.0 ** -15, 2.0 ** -17)        # |Δ₂| = 7.63e-6:  e = 4.07e-5 / 1.02e-5 / 2.54e-6 -> all admissible
+CASE_1024 = _tri(2.0 ** -12, 2.0 ** -14)       # |Δ₂| = 6.10e-5:  e(512) = 3.26e-4 > 1e-4; e(1024) = 8.14e-5; e(2048) = 2.03e-5
+CASE_2048 = _tri(2.0 ** -11, 2.0 ** -13)       # |Δ₂| = 1.22e-4:  e(1024) = 1.63e-4 > 1e-4; e(2048) = 4.07e-5, |Δ₂| <= 2e-4
+CASE_NONE = _tri(2.0 ** -10, 2.0 ** -12)       # |Δ₂| = 2.44e-4 > 2e-4 (e(2048) = 8.14e-5 <= 1e-4): nothing admissible
+
+
+def test_T3_protocol_values_and_label():
+    assert rgf.CLASSIFICATION == "DIAGNOSTIC / NOT B4" and "DIAGNOSTIC / NOT B4" in rgf.__doc__
+    assert rgf.ORDER_FLOOR == 1e-8 and rgf.ORDER_WINDOW == (1.8, 2.2)
+    assert rgf.CHANGE_LIMIT == 2e-4 and rgf.ERROR_LIMIT == 1e-4
+    assert rgf.DX_CANDIDATES == ("1/512", "1/1024", "1/2048") and rgf.RICHARDSON_K == {"1/512": 2, "1/1024": 1,
+                                                                                         "1/2048": 0}
+    sec = _section(_protocol_text(), "### 1.6 Deterministic resolution decision", "## 2. Part 2")
+    assert "k = 2, 1, 0 for dx_c = 1/512, 1/1024, 1/2048" in sec and "**coarsest** candidate" in sec
+
+
+def test_T3_both_changes_below_floor():
+    r = rgf.classify_order(0.5, 0.5 + 3e-9, 0.5 + 3e-9 + 2e-9)
+    assert r.status == "BELOW FLOOR" and r.p is None
+
+
+def test_T3_floor_is_strict_exactly_one_below():
+    # |Δ₁| = 1e-8 exactly (Q(1/512) = 0) is NOT below the floor; |Δ₂| = 1e-9 is -> exactly one below
+    r = rgf.classify_order(0.0, 1e-8, 1e-8 + 1e-9)
+    assert r.delta1 == 1e-8 and r.status == "NOT RESOLVABLE" and r.p is None
+    r = rgf.classify_order(0.0, 1e-6, 1e-6 + 1e-9)
+    assert r.status == "NOT RESOLVABLE" and r.p is None
+
+
+def test_T3_opposite_signs_not_resolvable():
+    r = rgf.classify_order(0.0, 2.0 ** -15, 2.0 ** -15 - 2.0 ** -18)
+    assert r.delta1 > 0 > r.delta2 and r.status == "NOT RESOLVABLE" and r.p is None
+
+
+def test_T3_p_below_window():
+    r = rgf.classify_order(*_tri(2.0 ** -16, 2.0 ** -17))      # p = 1 exactly
+    assert r.p == 1.0 and r.status == "OUTSIDE WINDOW"
+
+
+def test_T3_p_exactly_1_8_is_resolved():
+    q = (0.25, 0.26360235255150194, 0.26750860255150194)       # exact: Δ₁ = 0.01360235255150194, Δ₂ = 2^-8
+    assert q[1] - q[0] == 0.01360235255150194 and q[2] - q[1] == 2.0 ** -8
+    assert math.log2(0.01360235255150194 / 2.0 ** -8) == 1.8
+    r = rgf.classify_order(*q)
+    assert r.p == 1.8 and r.status == "RESOLVED"
+
+
+def test_T3_p_inside_window():
+    r = rgf.classify_order(*CASE_ALL)
+    assert r.p == 2.0 and r.status == "RESOLVED"
+
+
+def test_T3_p_exactly_2_2_is_resolved():
+    q = (0.0, 6.846775740367383e-08, 8.336891859752149e-08)    # exact: Δ₂ = 2^-26 = 1.4901161193847656e-08
+    assert q[2] - q[1] == 2.0 ** -26 and math.log2((q[1] - q[0]) / 2.0 ** -26) == 2.2
+    r = rgf.classify_order(*q)
+    assert r.p == 2.2 and r.status == "RESOLVED"
+
+
+def test_T3_p_above_window():
+    r = rgf.classify_order(*_tri(2.0 ** -14, 2.0 ** -17))      # p = 3 exactly
+    assert r.p == 3.0 and r.status == "OUTSIDE WINDOW"
+
+
+def test_T3_negative_same_sign_changes_classified_like_positive():
+    r = rgf.classify_order(*_mirror(CASE_ALL))
+    assert r.delta1 < 0 and r.delta2 < 0 and r.p == 2.0 and r.status == "RESOLVED"
+
+
+def test_T3_T1_and_R1_classified_independently():
+    t = rgf.classify_order(*CASE_ALL)
+    r = rgf.classify_order(1.0, 1.0 - 2.0 ** -20, 1.0 - 2.0 ** -20 + 2.0 ** -21)   # opposite signs
+    assert t.status == "RESOLVED" and r.status == "NOT RESOLVABLE"
+
+
+def test_T3_non_numeric_or_non_finite_input_rejected():
+    with pytest.raises(ValueError):
+        rgf.classify_order(0.0, float("nan"), 1.0)
+    with pytest.raises(TypeError):
+        rgf.classify_order(0.0, None, 1.0)
+
+
+def test_T3_richardson_estimates_by_hand():
+    o = rgf.classify_order(*CASE_ALL)
+    d2 = 2.0 ** -17
+    assert rgf.richardson_error(o, "1/2048") == pytest.approx(d2 / 3, rel=1e-15)
+    assert rgf.richardson_error(o, "1/1024") == pytest.approx(4 * d2 / 3, rel=1e-15)
+    assert rgf.richardson_error(o, "1/512") == pytest.approx(16 * d2 / 3, rel=1e-15)
+    # k = 2 identity of §1.6: e(1/512) = 2^p |Δ₁| / (2^p - 1)
+    assert rgf.richardson_error(o, "1/512") == pytest.approx(4 * 2.0 ** -15 / 3, rel=1e-15)
+
+
+@pytest.mark.parametrize("q", [(0.5, 0.5 + 3e-9, 0.5 + 5e-9), (0.0, 1e-6, 1e-6 + 1e-9), _tri(2.0 ** -16, 2.0 ** -17)])
+def test_T3_no_richardson_estimate_for_non_resolved(q):
+    o = rgf.classify_order(*q)
+    assert o.status != "RESOLVED"
+    with pytest.raises(ValueError):
+        rgf.richardson_error(o, "1/1024")
+    assert all(c.error_estimate is None for c in rgf.admissibility(o).values())
+
+
+def _labels(q):
+    a = rgf.admissibility(rgf.classify_order(*q))
+    return tuple(a[dx].label for dx in ("1/512", "1/1024", "1/2048"))
+
+
+def test_T3_admissibility_rule_1_512():
+    assert _labels(CASE_ALL)[0] == "ADMISSIBLE"              # |Δ₁| = 3.05e-5, e = 4.07e-5
+    assert _labels(CASE_1024)[0] == "INADMISSIBLE"           # e(1/512) = 3.26e-4 > 1e-4
+
+
+def test_T3_admissibility_rule_1_1024():
+    assert _labels(CASE_1024)[1] == "ADMISSIBLE"             # |Δ₂| = 6.10e-5, e = 8.14e-5
+    assert _labels(CASE_2048)[1] == "INADMISSIBLE"           # e(1/1024) = 1.63e-4 > 1e-4
+
+
+def test_T3_admissibility_rule_1_2048():
+    assert _labels(CASE_2048)[2] == "ADMISSIBLE-R"           # |Δ₂| = 1.22e-4 <= 2e-4, e = 4.07e-5
+    assert _labels(CASE_NONE)[2] == "INADMISSIBLE"           # |Δ₂| = 2.44e-4 > 2e-4 although e = 8.14e-5 <= 1e-4
+
+
+def test_T3_below_floor_and_unclassifiable_labels():
+    assert _labels((0.5, 0.5 + 3e-9, 0.5 + 5e-9)) == ("ADMISSIBLE-F",) * 3
+    assert _labels((0.0, 1e-6, 1e-6 + 1e-9)) == ("INADMISSIBLE-U",) * 3
+    assert _labels(_tri(2.0 ** -16, 2.0 ** -17)) == ("INADMISSIBLE-U",) * 3        # OUTSIDE WINDOW
+
+
+def test_T3_admissible_F_is_never_an_error_bound():
+    meaning = rgf.LABEL_MEANING["ADMISSIBLE-F"]
+    assert "not an error bound" in meaning.lower()
+    a = rgf.admissibility(rgf.classify_order(0.5, 0.5 + 3e-9, 0.5 + 5e-9))
+    assert all(c.label == "ADMISSIBLE-F" and c.error_estimate is None for c in a.values())
+
+
+@pytest.mark.parametrize("q", [CASE_ALL, CASE_1024, CASE_2048, CASE_NONE, _mirror(CASE_2048)])
+def test_T3_admissible_R_only_at_1_2048(q):
+    lab = _labels(q)
+    assert "ADMISSIBLE-R" not in lab[:2] and lab[2] != "ADMISSIBLE"
+
+
+def _vals(spec):
+    """spec: {point: (T1 triple, R1 triple)} -> values mapping."""
+    out = {}
+    for x, (t, r) in spec.items():
+        out[(x, "T1")] = t
+        out[(x, "R1")] = r
+    return out
+
+
+def test_T3_selection_coarsest_admissible():
+    spec = {"x1": (CASE_ALL, _mirror(CASE_ALL)), "x2": (CASE_1024, _mirror(CASE_1024))}
+    s = rgf.select_resolution(_vals(spec), ["x1", "x2"], solver_agreement=True)
+    assert s.outcome == "SELECTED" and s.dx_selected == "1/1024"   # 1/512 fails at x2; 1/1024 admissible everywhere
+    assert set(s.labels_at_selected.values()) == {"ADMISSIBLE"} and len(s.labels_at_selected) == 4
+    assert s.statements == ()
+
+
+def test_T3_selection_finest_with_richardson_only_statement():
+    spec = {"x1": (CASE_ALL, _mirror(CASE_ALL)), "x2": (CASE_2048, _mirror(CASE_2048))}
+    s = rgf.select_resolution(_vals(spec), ["x1", "x2"], solver_agreement=True)
+    assert s.outcome == "SELECTED" and s.dx_selected == "1/2048"
+    assert set(s.labels_at_selected.values()) == {"ADMISSIBLE-R"}
+    assert any("no next-finer change" in t for t in s.statements)
+
+
+def test_T3_selection_preserves_mixed_labels_and_F_statement():
+    below = (0.5, 0.5 + 3e-9, 0.5 + 5e-9)
+    spec = {"x1": (CASE_ALL, _mirror(CASE_ALL)), "x2": (below, _mirror(below))}
+    s = rgf.select_resolution(_vals(spec), ["x1", "x2"], solver_agreement=True)
+    assert s.outcome == "SELECTED" and s.dx_selected == "1/512"
+    assert s.labels_at_selected[("x1", "T1")] == "ADMISSIBLE" and s.labels_at_selected[("x2", "R1")] == "ADMISSIBLE-F"
+    assert any("NOT an error bound" in t for t in s.statements)
+
+
+def test_T3_selection_requires_both_quantities_admissible():
+    # T1 admissible everywhere at 1/512, but R1 at x1 only at 1/1024 -> 1/1024
+    spec = {"x1": (CASE_ALL, _mirror(CASE_1024)), "x2": (CASE_ALL, _mirror(CASE_ALL))}
+    s = rgf.select_resolution(_vals(spec), ["x1", "x2"], solver_agreement=True)
+    assert s.dx_selected == "1/1024"
+
+
+def test_T3_not_evaluable_when_any_unclassifiable():
+    nr = (1.0, 1.0 - 2.0 ** -20, 1.0 - 2.0 ** -20 + 2.0 ** -21)   # opposite signs
+    spec = {"x1": (CASE_ALL, _mirror(CASE_ALL)), "x2": (CASE_ALL, nr)}
+    s = rgf.select_resolution(_vals(spec), ["x1", "x2"], solver_agreement=True)
+    assert s.outcome == "G-RGF NOT EVALUABLE" and s.dx_selected is None and s.labels_at_selected == {}
+    assert s.status_mismatch_points == ("x2",)
+
+
+def test_T3_fail_when_all_classified_but_limits_exceeded():
+    spec = {"x1": (CASE_ALL, _mirror(CASE_ALL)), "x2": (CASE_NONE, _mirror(CASE_NONE))}
+    s = rgf.select_resolution(_vals(spec), ["x1", "x2"], solver_agreement=True)
+    assert s.outcome == "G-RGF FAIL" and s.dx_selected is None
+
+
+def test_T3_not_evaluable_takes_precedence_over_fail():
+    spec = {"x1": (CASE_NONE, _mirror(CASE_NONE)), "x2": (_tri(2.0 ** -14, 2.0 ** -17), _mirror(CASE_ALL))}
+    s = rgf.select_resolution(_vals(spec), ["x1", "x2"], solver_agreement=True)
+    assert s.outcome == "G-RGF NOT EVALUABLE"
+
+
+def test_T3_step0_solver_agreement_is_mandatory():
+    v = _vals({"x1": (CASE_ALL, _mirror(CASE_ALL))})
+    assert rgf.select_resolution(v, ["x1"], solver_agreement=False).outcome == "STOP: SOLVER AGREEMENT NOT ESTABLISHED"
+    with pytest.raises(TypeError):
+        rgf.select_resolution(v, ["x1"], solver_agreement=None)
+    with pytest.raises(TypeError):
+        rgf.select_resolution(v, ["x1"])                                        # keyword is required
+
+
+def test_T3_missing_quantity_point_or_extra_input_rejected():
+    v = _vals({"x1": (CASE_ALL, _mirror(CASE_ALL)), "x2": (CASE_ALL, _mirror(CASE_ALL))})
+    no_r = {k: q for k, q in v.items() if k != ("x2", "R1")}
+    with pytest.raises(ValueError, match="missing"):
+        rgf.select_resolution(no_r, ["x1", "x2"], solver_agreement=True)
+    with pytest.raises(ValueError, match="missing"):
+        rgf.select_resolution(v, ["x1", "x2", "x3"], solver_agreement=True)    # required point without data
+    with pytest.raises(ValueError, match="unexpected"):
+        rgf.select_resolution(v, ["x1"], solver_agreement=True)                # data for a non-required point
+    with pytest.raises(ValueError):
+        rgf.select_resolution(v, [], solver_agreement=True)
+    with pytest.raises(ValueError):
+        rgf.select_resolution(v, ["x1", "x1", "x2"], solver_agreement=True)
+    bad = dict(v)
+    bad[("x1", "T1")] = (0.0, 1.0)
+    with pytest.raises(ValueError):
+        rgf.select_resolution(bad, ["x1", "x2"], solver_agreement=True)
+
+
+def test_T3_selection_is_deterministic():
+    spec = {"x1": (CASE_ALL, _mirror(CASE_ALL)), "x2": (CASE_1024, _mirror(CASE_1024)),
+            "x3": ((0.5, 0.5 + 3e-9, 0.5 + 5e-9), _mirror((0.5, 0.5 + 3e-9, 0.5 + 5e-9)))}
+    a = rgf.select_resolution(_vals(spec), ["x1", "x2", "x3"], solver_agreement=True)
+    b = rgf.select_resolution(dict(reversed(list(_vals(spec).items()))), ["x1", "x2", "x3"], solver_agreement=True)
+    assert a == b and a.dx_selected == "1/1024" and a.outcome == "SELECTED"
+
+
+def test_T3_module_is_pure():
+    import ast
+    tree = ast.parse(open(os.path.join(REPO, "b4_pilot_rgf.py"), encoding="utf-8").read())
+    names = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))
+             for a in n.names} | {n.module.split(".")[0] for n in ast.walk(tree)
+                                  if isinstance(n, ast.ImportFrom) and n.module}
+    assert names <= {"__future__", "math", "dataclasses", "typing", "annotations", "dataclass", "field", "Mapping",
+                     "Sequence"}, names
+    calls = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    assert "open" not in calls
