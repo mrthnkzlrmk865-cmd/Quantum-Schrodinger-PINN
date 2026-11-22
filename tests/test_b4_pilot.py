@@ -1,4 +1,4 @@
-"""B4 limited diagnostic pilot — tests, phases T1–T3 (including T3.1).
+"""B4 limited diagnostic pilot — tests, phases T1–T3 (including T3.1) and T5.
 
 Classification: DIAGNOSTIC / NOT B4. Nothing here is a B4 result, and no test marks any pilot gate as passed.
 
@@ -14,6 +14,10 @@ T2  same realization: L1 disorder-parameter hashes (RGF path, TD production path
 T3  b4_pilot_rgf: §1.4 observed-order classification, §1.6 admissibility and deterministic resolution selection,
     and (T3.1) the §1.4 point flag (status mismatch OR |ΔT1 + ΔR1| above the recorded unitarity residuals).
     Synthetic inputs only; passing these tests does NOT mean gate G-RGF passed.
+T5  b4_pilot_io: §5.1–§5.5 output guard (allowlist/denylist), DIAGNOSTIC / NOT B4 labels, metadata (pinned protocol
+    SHA-256 reference separate from the A6 baseline commit; HEAD; per-file code fingerprints), clean-tree abort and
+    atomic publication via staging outside the repository. Publication tests use a throwaway git repository under
+    tmp_path; the real results/ directory is never written. No G0/G-REAL is executed.
 
 No solver propagation, RGF energy, or pilot driver is run. Git must be available: the baseline is read from the
 repository object database; a missing git or commit is a test failure, never a skip.
@@ -834,3 +838,243 @@ def test_T3_1_status_mismatch_agrees_with_select_resolution():
     flags = rgf.point_flags(v, {"x1": (0.0,) * 3, "x2": (0.0,) * 3}, ["x1", "x2"])
     sel = rgf.select_resolution(v, ["x1", "x2"], solver_agreement=True)
     assert tuple(x for x in ("x1", "x2") if flags[x].status_mismatch) == sel.status_mismatch_points == ("x2",)
+
+
+# ======================================================================
+# T5 — output guard, labels, metadata, clean-tree abort, atomic publication (b4_pilot_io)
+# No physical calculation; G0 is NOT executed. G0Outcome objects below are synthetic test records.
+# ======================================================================
+import shutil  # noqa: E402
+
+import b4_pilot_io as pio  # noqa: E402
+
+_PINNED = "sha256:3cd620d2affc6ba5e59e6bd26bdd407afdc6eed7269ee91dd5448a30a0a035ab"   # independent literal (plan R1)
+
+
+def _git_tmp(repo, *args):
+    r = subprocess.run(["git", "-C", str(repo), "-c", "user.email=pilot@example.invalid", "-c", "user.name=pilot",
+                        "-c", "commit.gpgsign=false", *args], capture_output=True)
+    assert r.returncode == 0, r.stderr.decode()
+    return r.stdout.decode().strip()
+
+
+@pytest.fixture
+def tmp_repo(tmp_path):
+    """Throwaway git repository containing a byte copy of the committed protocol and an official results dir."""
+    repo = tmp_path / "repo"
+    (repo / "docs").mkdir(parents=True)
+    (repo / "docs" / "B4_PILOT_PROTOCOL.md").write_bytes(_baseline_contents([PROTOCOL])[PROTOCOL])
+    (repo / "results" / "rgf_b3_validation").mkdir(parents=True)
+    (repo / "results" / "rgf_b3_validation" / "summary.json").write_text("{}")
+    _git_tmp(repo, "init", "-q")
+    _git_tmp(repo, "add", "-A")
+    _git_tmp(repo, "commit", "-q", "-m", "init")
+    return repo
+
+
+def _scratch(tmp_path):
+    d = tmp_path / "scratch"
+    d.mkdir(exist_ok=True)
+    return str(d)
+
+
+def test_T5_pinned_protocol_reference_is_independent_and_correct():
+    assert pio.PROTOCOL_SHA256_REFERENCE == _PINNED
+    assert pio.A6_BASELINE_COMMIT == BASELINE and pio.A6_BASELINE_COMMIT != pio.PROTOCOL_SHA256_REFERENCE
+    # consistency of the pinned literal with the committed file (computed here from the baseline blob, not by pio)
+    assert _sha256(_baseline_contents([PROTOCOL])[PROTOCOL]) == _PINNED
+    src = open(os.path.join(REPO, "b4_pilot_io.py"), encoding="utf-8").read()
+    assert f'PROTOCOL_SHA256_REFERENCE = "{_PINNED}"' in src        # a literal, not computed at import
+
+
+def test_T5_check_protocol_on_the_real_repository_is_read_only():
+    assert pio.check_protocol(REPO) == _PINNED
+
+
+def test_T5_check_protocol_detects_a_changed_byte(tmp_repo):
+    assert pio.check_protocol(str(tmp_repo)) == _PINNED
+    p = tmp_repo / "docs" / "B4_PILOT_PROTOCOL.md"
+    p.write_bytes(p.read_bytes() + b" ")
+    with pytest.raises(pio.PilotGuardError, match="protocol SHA-256 mismatch"):
+        pio.check_protocol(str(tmp_repo))
+    with pytest.raises(pio.PilotGuardError):
+        pio.check_protocol(str(tmp_repo), reference="sha256:" + "0" * 64)
+
+
+def test_T5_clean_tree_abort_on_untracked_and_modified(tmp_repo):
+    head = pio.require_clean_tree(str(tmp_repo))
+    assert len(head) == 40
+    (tmp_repo / "new_file.py").write_text("x = 1\n")
+    with pytest.raises(pio.PilotGuardError, match="not clean"):
+        pio.require_clean_tree(str(tmp_repo))
+    (tmp_repo / "new_file.py").unlink()
+    (tmp_repo / "results" / "rgf_b3_validation" / "summary.json").write_text('{"x": 1}')
+    with pytest.raises(pio.PilotGuardError, match="not clean"):
+        pio.require_clean_tree(str(tmp_repo))
+
+
+def test_T5_output_guard_allowlist_and_denylist(tmp_repo, tmp_path):
+    r = str(tmp_repo)
+    assert pio.check_output_path(os.path.join(r, "results/b4_pilot/rgf_resolution/x.csv"), r)
+    for bad in ("results/rgf_b3_validation/x.csv", "results/rgf_b3y_validation", "results/transport/a.npz",
+                "results/validation/v.csv", "results/stationary_validation", "results/rgf_b4_validation/x",
+                "results/other/x.csv", "docs/x.md", "x.csv", "results/b4_pilot_evil/x.csv"):
+        with pytest.raises(pio.PilotGuardError):
+            pio.check_output_path(os.path.join(r, bad), r)
+    with pytest.raises(pio.PilotGuardError):
+        pio.check_output_path(str(tmp_path / "outside.csv"), r)
+    # a symlink inside results/b4_pilot that resolves into an official directory is refused
+    (tmp_repo / "results" / "b4_pilot").mkdir()
+    os.symlink(tmp_repo / "results" / "rgf_b3_validation", tmp_repo / "results" / "b4_pilot" / "link")
+    with pytest.raises(pio.PilotGuardError, match="official result directory"):
+        pio.check_output_path(os.path.join(r, "results/b4_pilot/link/x.csv"), r)
+
+
+def test_T5_staging_must_be_outside_the_repository(tmp_repo, tmp_path):
+    with pytest.raises(pio.PilotGuardError, match="outside the repository"):
+        pio.Staging(str(tmp_repo), scratch_root=str(tmp_repo / "results"))
+    with pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path)) as st:
+        assert not st.path.startswith(os.path.realpath(str(tmp_repo)) + os.sep)
+        with pytest.raises(pio.PilotGuardError, match="escapes"):
+            st.write_csv("../diagnostic_x.csv", ["a"], [])
+
+
+def test_T5_labelled_writers(tmp_repo, tmp_path):
+    with pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path)) as st:
+        c = st.write_csv("rgf_resolution/diagnostic_rows.csv", ["a", "b"], [{"a": 1, "b": 2}])
+        with open(c, encoding="utf-8") as f:
+            assert f.readline().rstrip("\n") == "# DIAGNOSTIC / NOT B4 — docs/B4_PILOT_PROTOCOL.md"
+            assert f.readline().strip() == "a,b"
+        j = st.write_json("diagnostic_gates.json", {"x": 1})
+        assert json.load(open(j))["classification"] == "DIAGNOSTIC / NOT B4"
+        n = st.write_npz("diagnostic_S.npz", S=np.eye(2, dtype=complex))
+        with np.load(n) as z:
+            assert str(z["classification"]) == "DIAGNOSTIC / NOT B4" and z["S"].shape == (2, 2)
+        for bad in ("rows.csv", "diagnostic_rows.txt"):
+            with pytest.raises(pio.PilotGuardError):
+                st.write_csv(bad, ["a"], [])
+        with pytest.raises(pio.PilotGuardError):
+            st.write_json("diagnostic_bad.json", {"classification": "B4 RESULT"})
+        with pytest.raises(pio.PilotGuardError):
+            st.write_npz("diagnostic_bad.npz", classification=np.array("B4"))
+
+
+def _meta(repo, head):
+    return pio.build_metadata(str(repo), head=head, protected_before={"a": "sha256:x"},
+                              code_files=("docs/B4_PILOT_PROTOCOL.md",), command="test")
+
+
+def test_T5_metadata_fields(tmp_repo):
+    head = pio.require_clean_tree(str(tmp_repo))
+    m = _meta(tmp_repo, head)
+    assert m["classification"] == "DIAGNOSTIC / NOT B4"
+    assert m["protocol_sha256"] == _PINNED and m["a6_baseline_commit"] == BASELINE
+    assert m["git_commit"] == head and m["clean_tree"] is True
+    fp = m["provenance"]["code_fingerprint"]
+    assert fp["code_files"] == {"docs/B4_PILOT_PROTOCOL.md": _PINNED} and fp["code_fingerprint"].startswith("sha256:")
+    assert {"python", "numpy", "OPENBLAS_NUM_THREADS", "cpu_count"} <= set(m["environment"])
+    with pytest.raises(pio.PilotGuardError):
+        pio.build_metadata(str(tmp_repo), head=head, protected_before={}, code_files=("missing.py",))
+    with pytest.raises(pio.PilotGuardError):
+        pio.build_metadata(str(tmp_repo), head=head, protected_before={}, code_files=(),
+                           extra={"protocol_sha256": "x"})
+
+
+def test_T5_real_code_fingerprint_covers_the_pilot_modules():
+    fp = pio.code_fingerprint(REPO)
+    assert {"b4_pilot_rgf.py", "b4_pilot_io.py", "stationary.py", "reference_solver.py"} <= set(fp["code_files"])
+    with open(os.path.join(REPO, "stationary.py"), "rb") as f:
+        assert fp["code_files"]["stationary.py"] == _sha256(f.read())
+
+
+def test_T5_failed_g0_publishes_nothing(tmp_repo, tmp_path):
+    head = pio.require_clean_tree(str(tmp_repo))
+    st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+    st.write_csv("diagnostic_controls.csv", ["x"], [{"x": 1}])
+    with pytest.raises(pio.PilotGuardError, match="G0 has not passed"):
+        pio.publish(st, pio.G0Outcome(False, _PINNED, head), _meta(tmp_repo, head))
+    assert not (tmp_repo / "results" / "b4_pilot").exists()
+    assert not os.path.exists(st.path) and st.discarded
+    assert [n for n in os.listdir(tmp_repo / "results") if n.startswith(".b4_pilot")] == []
+    assert pio.dirty_entries(str(tmp_repo)) == []                  # repository untouched
+
+
+def test_T5_exception_before_publication_leaves_no_output(tmp_repo, tmp_path):
+    with pytest.raises(RuntimeError, match="boom"):
+        with pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path)) as st:
+            st.write_csv("diagnostic_controls.csv", ["x"], [{"x": 1}])
+            path = st.path
+            raise RuntimeError("boom")
+    assert not os.path.exists(path) and not (tmp_repo / "results" / "b4_pilot").exists()
+
+
+@pytest.mark.parametrize("bad", ["wrong_hash", "head_mismatch", "unlabelled_file", "not_a_record"])
+def test_T5_publication_refusals_leave_no_output(tmp_repo, tmp_path, bad):
+    head = pio.require_clean_tree(str(tmp_repo))
+    st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+    st.write_csv("diagnostic_controls.csv", ["x"], [{"x": 1}])
+    outcome, meta = pio.G0Outcome(True, _PINNED, head), _meta(tmp_repo, head)
+    if bad == "wrong_hash":
+        outcome = pio.G0Outcome(True, "sha256:" + "0" * 64, head)
+    elif bad == "head_mismatch":
+        meta = dict(meta, git_commit="0" * 40)
+    elif bad == "unlabelled_file":
+        with open(os.path.join(st.path, "stray.txt"), "w") as f:
+            f.write("x")
+    else:
+        outcome = {"passed": True}
+    with pytest.raises(pio.PilotGuardError):
+        pio.publish(st, outcome, meta)
+    assert not (tmp_repo / "results" / "b4_pilot").exists() and not os.path.exists(st.path)
+
+
+def test_T5_successful_publication_is_complete_and_labelled(tmp_repo, tmp_path):
+    head = pio.require_clean_tree(str(tmp_repo))
+    with pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path)) as st:
+        st.write_readme("synthetic test publication")
+        st.write_csv("rgf_resolution/diagnostic_controls.csv", ["x"], [{"x": 1}])
+        st.write_npz("rgf_resolution/diagnostic_S.npz", S=np.eye(2))
+        target = pio.publish(st, pio.G0Outcome(True, _PINNED, head), _meta(tmp_repo, head))
+    assert target == os.path.join(os.path.realpath(str(tmp_repo)), "results", "b4_pilot")
+    files = sorted(os.path.relpath(os.path.join(d, f), target) for d, _, fs in os.walk(target) for f in fs)
+    assert files == ["README.md", "diagnostic_run_metadata.json", "rgf_resolution/diagnostic_S.npz",
+                     "rgf_resolution/diagnostic_controls.csv"]
+    meta = json.load(open(os.path.join(target, "diagnostic_run_metadata.json")))
+    assert meta["protocol_sha256"] == _PINNED and meta["git_commit"] == head
+    assert [n for n in os.listdir(tmp_repo / "results") if n.startswith(".b4_pilot")] == []
+    assert not os.path.exists(st.path)
+    # official directory untouched; a second publication is refused (no overwrite or merge)
+    assert (tmp_repo / "results" / "rgf_b3_validation" / "summary.json").read_text() == "{}"
+    st2 = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+    with pytest.raises(pio.PilotGuardError, match="already exists"):
+        pio.publish(st2, pio.G0Outcome(True, _PINNED, head), _meta(tmp_repo, head))
+
+
+def test_T5_leftover_partial_directory_blocks_publication(tmp_repo, tmp_path):
+    head = pio.require_clean_tree(str(tmp_repo))
+    (tmp_repo / "results" / ".b4_pilot.partial-deadbeef").mkdir()
+    st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+    with pytest.raises(pio.PilotGuardError, match="leftover partial"):
+        pio.publish(st, pio.G0Outcome(True, _PINNED, head), _meta(tmp_repo, head))
+    assert not (tmp_repo / "results" / "b4_pilot").exists()
+
+
+def test_T5_snapshots_detect_changes(tmp_repo):
+    paths = ["docs/B4_PILOT_PROTOCOL.md", "results/rgf_b3_validation/summary.json", "missing.txt"]
+    before = pio.protected_snapshot(str(tmp_repo), paths)
+    assert before["missing.txt"] is None and before["docs/B4_PILOT_PROTOCOL.md"] == _PINNED
+    assert pio.compare_snapshots(before, pio.protected_snapshot(str(tmp_repo), paths)) == []
+    (tmp_repo / "results" / "rgf_b3_validation" / "summary.json").write_text("[]")
+    diff = pio.compare_snapshots(before, pio.protected_snapshot(str(tmp_repo), paths))
+    assert len(diff) == 1 and "summary.json" in diff[0]
+
+
+def test_T5_baseline_hashes_use_file_bytes_at_the_a6_commit():
+    h = pio.baseline_hashes(REPO, [PROTOCOL, "stationary.py", "no/such/file"])
+    assert h[PROTOCOL] == _PINNED and h["no/such/file"] is None
+    assert h["stationary.py"] == _sha256(_baseline_contents(["stationary.py"])["stationary.py"])
+
+
+def test_T5_real_results_b4_pilot_does_not_exist():
+    assert not os.path.exists(os.path.join(REPO, "results", "b4_pilot"))
+    assert [n for n in os.listdir(os.path.join(REPO, "results")) if n.startswith(".b4_pilot")] == []
