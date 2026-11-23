@@ -5,8 +5,15 @@ Classification: DIAGNOSTIC / NOT B4.
 Implements docs/B4_PILOT_PROTOCOL.md §5.1–§5.5 infrastructure and the T4-plan rules R1/R2 and §3.1 (G0 atomicity):
 
 * every pilot file is written first into a STAGING directory OUTSIDE the repository;
-* results/b4_pilot/ is created only by `publish`, and only with a passed G0 outcome; it is never created or populated
-  before that, and a failed G0 (or any exception) leaves no pilot output in the repository;
+* results/b4_pilot/ is created only by `publish`, and only with a passed G0 outcome, by ONE atomic no-replace rename
+  (renameat2(RENAME_NOREPLACE)) of the staging directory, which must be on the same filesystem as results/; nothing is
+  ever created inside results/ before that rename, an existing target (even an empty directory) is never overwritten,
+  and a failed G0, a refused check or any exception leaves no pilot output in the repository;
+* the staging filesystem must equal the results/ filesystem; this is checked when Staging is created (before any pilot
+  data is written) and again, independently, at publication;
+* immediately before the rename, after the metadata write, the label checks and the resolution of renameat2, HEAD,
+  the clean tree and both protocol hashes are revalidated live; nothing but the already-resolved renameat2 call
+  follows that revalidation;
 * the publication target must be exactly <repo>/results/b4_pilot, which is checked against the §5.3 allowlist/denylist;
 * every CSV/JSON/NPZ file carries the label DIAGNOSTIC / NOT B4 and every file name starts with "diagnostic_";
 * G0 helpers: the protocol SHA-256 is compared with a PINNED literal reference (never derived from the file being
@@ -18,6 +25,9 @@ A G0Outcome is a record supplied by the (future) G0 runner; constructing one her
 from __future__ import annotations
 
 import csv
+import ctypes
+import ctypes.util
+import errno
 import hashlib
 import json
 import os
@@ -26,7 +36,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import uuid
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -48,13 +57,12 @@ FORBIDDEN_RESULT_DIRS = (                                        # §5.3 denylis
     "results/rgf_b1_validation", "results/rgf_b2_validation", "results/rgf_b3_validation",
     "results/rgf_b3x_validation", "results/rgf_b3y_validation",
 )
-PARTIAL_PREFIX = ".b4_pilot.partial-"                            # hidden same-filesystem staging inside results/
 
 # §5.4 modules whose per-file SHA-256 is recorded (decision A1: pilot-local, under provenance.code_fingerprint)
 CODE_FILES = (
     "stationary.py", "smatrix_spec.py", "sparse_reference.py", "sparse_wavefunction.py", "sparse_exact_lattice.py",
     "reference_solver.py", "potential.py", "disorder.py", "config.py", "initial_condition.py",
-    "validate_rgf_b2.py", "validate_rgf_b3.py", "b4_pilot_rgf.py", "b4_pilot_io.py",
+    "validate_rgf_b2.py", "validate_rgf_b3.py", "b4_pilot_rgf.py", "b4_pilot_io.py", "b4_pilot_rgf_records.py",
 )
 
 
@@ -76,7 +84,9 @@ def sha256_file(path: str) -> str:
 
 def _git(repo: str, *args: str, input_bytes: bytes | None = None) -> bytes:
     try:
-        r = subprocess.run(["git", "-C", repo, *args], input=input_bytes, capture_output=True, check=False)
+        # --no-optional-locks: `git status` must not rewrite .git/index (no filesystem write during revalidation)
+        r = subprocess.run(["git", "--no-optional-locks", "-C", repo, *args], input=input_bytes,
+                           capture_output=True, check=False)
     except FileNotFoundError as exc:
         raise PilotGuardError(f"git is required: {exc}") from exc
     if r.returncode != 0:
@@ -200,6 +210,71 @@ def check_staging_path(path: str, repo: str) -> str:
     return rp
 
 
+def revalidate_for_publication(repo: str, outcome) -> None:
+    """Live publication-time checks (T5 correction): actual HEAD == G0 HEAD, clean tree, and the working-tree and HEAD
+    protocol hashes equal to the pinned reference. Raises PilotGuardError; performs no filesystem write."""
+    actual = head_commit(repo)
+    if actual != outcome.head:
+        raise PilotGuardError(f"HEAD changed since G0: G0 {outcome.head}, now {actual}")
+    require_clean_tree(repo)
+    check_protocol(repo)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# same filesystem and no-replace atomic rename
+# ----------------------------------------------------------------------------------------------------------------
+AT_FDCWD = -100
+RENAME_NOREPLACE = 1
+_UNSUPPORTED = {errno.ENOSYS, errno.EINVAL, getattr(errno, "ENOTSUP", errno.EOPNOTSUPP), errno.EOPNOTSUPP}
+
+
+def _device(path: str) -> int:
+    return os.stat(path).st_dev
+
+
+def _libc_renameat2():
+    """The libc renameat2 function via ctypes, or None if unavailable (then publication fails closed)."""
+    try:
+        name = ctypes.util.find_library("c")
+        if not name:
+            return None
+        fn = getattr(ctypes.CDLL(name, use_errno=True), "renameat2", None)
+    except OSError:
+        return None
+    if fn is None:
+        return None
+    fn.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    fn.restype = ctypes.c_int
+    return fn
+
+
+def _resolve_renameat2():
+    """Resolve the libc renameat2 function (library lookup, dlopen/dlsym). Called BEFORE the final revalidation; fails
+    closed if unavailable. No fallback exists."""
+    fn = _libc_renameat2()
+    if fn is None:
+        raise PilotGuardError("renameat2 is unavailable: publication fails closed (no unsafe fallback)")
+    return fn
+
+
+def _rename_noreplace(fn, src: bytes, dst: bytes) -> None:
+    """Atomic rename that never replaces an existing dst, using the ALREADY-RESOLVED renameat2 function `fn` and
+    pre-encoded paths. The foreign call is the first operation (no lookup, subprocess, file opening or filesystem
+    inspection precedes it); errno is examined only afterwards. No fallback: if the flag is unsupported, dst exists, or
+    src/dst are on different filesystems, raise."""
+    rc = fn(AT_FDCWD, src, AT_FDCWD, dst, RENAME_NOREPLACE)
+    if rc == 0:
+        return
+    err = ctypes.get_errno()
+    if err == errno.EEXIST:
+        raise PilotGuardError(f"target already exists; it is never overwritten: {os.fsdecode(dst)}")
+    if err == errno.EXDEV:
+        raise PilotGuardError("cross-filesystem rename refused (fail closed)")
+    if err in _UNSUPPORTED:
+        raise PilotGuardError(f"no-replace rename not supported here ({errno.errorcode.get(err, err)}): fail closed")
+    raise PilotGuardError(f"no-replace rename failed ({errno.errorcode.get(err, err)}): fail closed")
+
+
 # ----------------------------------------------------------------------------------------------------------------
 # labelled writers (staging only)
 # ----------------------------------------------------------------------------------------------------------------
@@ -226,6 +301,13 @@ class Staging:
     def __init__(self, repo: str, scratch_root: str | None = None):
         self.repo = _real(repo)
         root = check_staging_path(scratch_root or tempfile.gettempdir(), self.repo)
+        # early same-filesystem verification, before the staging directory or any pilot data is created
+        results = os.path.dirname(pilot_target(self.repo))
+        if not os.path.isdir(results):
+            raise PilotGuardError("results/ does not exist; it is never created by the pilot (fail closed)")
+        if _device(root) != _device(results):
+            raise PilotGuardError("staging root and results/ are on different filesystems: the no-replace atomic "
+                                  "rename is impossible (fail closed)")
         self.path = check_staging_path(tempfile.mkdtemp(prefix="b4_pilot_staging_", dir=root), self.repo)
         self.published = False
         self.discarded = False
@@ -312,36 +394,50 @@ def _verify_labels(root: str) -> None:
 
 
 def publish(staging: Staging, outcome: G0Outcome, metadata: dict) -> str:
-    """Atomically publish the staging contents as <repo>/results/b4_pilot. Requires a passed G0 outcome with the pinned
-    protocol reference, consistent metadata, an absent target and labelled files only. On any refusal the staging
-    directory is discarded and the repository is left without pilot output."""
+    """Atomically publish the staging directory as <repo>/results/b4_pilot.
+
+    Order (T5 correction):
+      1. record checks (no filesystem operation);
+      2. target checks (reads only): exact target, allowlist/denylist, existing parent, same filesystem;
+      3. staging finalisation (writes outside the repository only): metadata file, label checks;
+      4. resolution of renameat2 (library lookup) and pre-encoding of both paths;
+      5. final live revalidation: HEAD == G0 HEAD, clean tree, protocol hashes;
+      6. immediately: the already-resolved renameat2(RENAME_NOREPLACE) call; nothing runs between 5 and 6.
+    Any refusal or exception discards the staging directory; the repository is left without pilot output."""
     try:
+        # 1. record checks
         if not isinstance(outcome, G0Outcome) or outcome.passed is not True:
             raise PilotGuardError("G0 has not passed: nothing is published")
         if outcome.protocol_sha256 != PROTOCOL_SHA256_REFERENCE:
             raise PilotGuardError("G0 outcome does not carry the pinned protocol reference")
         if metadata.get("protocol_sha256") != PROTOCOL_SHA256_REFERENCE or metadata.get("git_commit") != outcome.head:
             raise PilotGuardError("metadata inconsistent with the G0 outcome")
+        if metadata.get("clean_tree") is not True:
+            raise PilotGuardError("metadata does not record a verified clean tree")
+        if not isinstance(metadata.get("provenance", {}).get("environment_info"), dict):
+            raise PilotGuardError("metadata lacks provenance.environment_info")
+        # 2. target checks (reads only)
         target = pilot_target(staging.repo)
         check_output_path(target, staging.repo)
-        results = os.path.dirname(target)
+        parent = os.path.dirname(target)
+        if not os.path.isdir(parent):
+            raise PilotGuardError(f"publication parent {os.path.relpath(parent, staging.repo)} does not exist; "
+                                  "it is never created by the pilot")
+        if _device(staging.path) != _device(parent):
+            raise PilotGuardError("cross-filesystem publication refused (fail closed): staging and results/ are on "
+                                  "different filesystems")
         if os.path.lexists(target):
             raise PilotGuardError(f"{PILOT_DIR} already exists; refusing to overwrite or merge")
-        leftovers = [n for n in os.listdir(results) if n.startswith(PARTIAL_PREFIX)] if os.path.isdir(results) else []
-        if leftovers:
-            raise PilotGuardError(f"leftover partial publication directories in results/: {leftovers}")
+        # 3. staging finalisation (outside the repository)
         staging.write_json("diagnostic_run_metadata.json", metadata)
         _verify_labels(staging.path)
-        os.makedirs(results, exist_ok=True)
-        partial = os.path.join(results, PARTIAL_PREFIX + uuid.uuid4().hex)
-        try:
-            shutil.copytree(staging.path, partial)
-            os.rename(partial, target)                 # atomic on one filesystem: target appears complete or not at all
-        finally:
-            if os.path.lexists(partial):
-                shutil.rmtree(partial, ignore_errors=True)
+        # 4. resolve the primitive and encode the paths BEFORE the final revalidation
+        renameat2 = _resolve_renameat2()
+        src, dst = os.fsencode(staging.path), os.fsencode(target)
+        # 5. final live revalidation, immediately followed by 6. the already-resolved no-replace atomic rename
+        revalidate_for_publication(staging.repo, outcome)
+        _rename_noreplace(renameat2, src, dst)
         staging.published = True
-        shutil.rmtree(staging.path, ignore_errors=True)
         return target
     except Exception:
         staging.discard()
@@ -353,9 +449,17 @@ def publish(staging: Staging, outcome: G0Outcome, metadata: dict) -> str:
 # ----------------------------------------------------------------------------------------------------------------
 def build_metadata(repo: str, *, head: str, protected_before: dict, protected_after: dict | None = None,
                    code_files=CODE_FILES, command: str | None = None, extra: dict | None = None) -> dict:
-    """§5.4 metadata. head must come from require_clean_tree (plan R2). Environment fields are read-only."""
+    """§5.4 metadata. The clean-tree state and HEAD are verified against the actual repository (never assumed);
+    environment information is recorded under provenance.environment_info (same key names as
+    provenance.environment_info(), collected locally; no git state of another repository, no torch import)."""
+    dirty = dirty_entries(repo)
+    if dirty:
+        raise PilotGuardError("cannot build metadata: repository is not clean: " + "; ".join(dirty))
+    actual = head_commit(repo)
+    if actual != head:
+        raise PilotGuardError(f"cannot build metadata: HEAD is {actual}, not {head}")
     env = dict(python=platform.python_version(), platform=platform.platform(), machine=platform.machine(),
-               cpu_count=os.cpu_count(), numpy=np.__version__,
+               processor=platform.processor(), cpu_count=os.cpu_count(), numpy=np.__version__,
                OPENBLAS_NUM_THREADS=os.environ.get("OPENBLAS_NUM_THREADS"))
     try:
         import scipy
@@ -367,10 +471,10 @@ def build_metadata(repo: str, *, head: str, protected_before: dict, protected_af
         "protocol_path": PROTOCOL_PATH,
         "protocol_sha256": PROTOCOL_SHA256_REFERENCE,
         "a6_baseline_commit": A6_BASELINE_COMMIT,
-        "git_commit": head,
-        "clean_tree": True,
-        "provenance": {"code_fingerprint": code_fingerprint(repo, code_files)},
-        "environment": env,
+        "git_commit": actual,
+        "clean_tree": len(dirty) == 0,
+        "dirty_entries": dirty,
+        "provenance": {"code_fingerprint": code_fingerprint(repo, code_files), "environment_info": env},
         "protected_before": protected_before,
         "protected_after": protected_after,
         "command": command if command is not None else " ".join(sys.argv),
