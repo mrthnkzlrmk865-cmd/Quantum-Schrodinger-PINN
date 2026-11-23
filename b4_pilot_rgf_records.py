@@ -25,6 +25,8 @@ import csv
 import hashlib
 import math
 import re
+import types
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -78,7 +80,8 @@ METHOD_CODE_FILES = {                                         # repository impor
     "M3": ("sparse_wavefunction.py",),
     "M4": ("sparse_exact_lattice.py",),
 }
-EXTRACTION_CODE_FILES = ("validate_rgf_b3.py", "b4_pilot_rgf_records.py")
+EXTRACTION_CODE_FILES = ("smatrix_spec.py", "validate_rgf_b3.py", "b4_pilot_rgf_records.py")   # _observables uses
+# smatrix_spec.split_S and validate_rgf_b3 for EVERY method, so all three are common dependencies
 
 OBSERVABLES = ("T1", "R1", "one_minus_T1_R1", "U", "U_StS", "U_SSt", "Q", "Q_full", "Q_rL", "Q_rR", "Q_t", "Q_prob",
                "same_dir_RL_report_only", "same_dir_LR_report_only")
@@ -104,6 +107,13 @@ def _int(x, name):
     if isinstance(x, (bool, np.bool_)) or not isinstance(x, (int, np.integer)):
         raise PilotRecordError(f"{name} must be an integer, got {type(x).__name__}")
     return int(x)
+
+
+def _strict_bool(x, name):
+    """Only a genuine bool / np.bool_ is accepted (no coercion of strings, integers, None or other objects)."""
+    if not isinstance(x, (bool, np.bool_)):
+        raise PilotRecordError(f"{name} must be a bool, got {type(x).__name__} {x!r}")
+    return bool(x)
 
 
 def _sha(x, name):
@@ -321,20 +331,18 @@ class RGFRecord:
             raise PilotRecordError(f"S shape {S.shape} != (2 n_open, 2 n_open) = {(2 * n_open, 2 * n_open)}")
         if not np.all(np.isfinite(S)):
             raise PilotRecordError("S contains non-finite entries")
-        Sc = np.array(S, copy=True, order="C")
-        Sc.setflags(write=False)
+        # immutable backing buffer: the array cannot be made writeable again (setflags(write=True) raises)
+        Sc = np.frombuffer(np.ascontiguousarray(S).tobytes(), dtype=S.dtype).reshape(S.shape)
         object.__setattr__(self, "S", Sc)
         ext = self.extras
-        if not isinstance(ext, dict) or set(ext) != set(EXTRAS[self.method]):
-            got = sorted(ext) if isinstance(ext, dict) else ext
+        if not isinstance(ext, Mapping) or set(ext) != set(EXTRAS[self.method]):
+            got = sorted(ext) if isinstance(ext, Mapping) else ext
             raise PilotRecordError(f"extras for {self.method} must be exactly {sorted(EXTRAS[self.method])}, got {got}")
         clean = {}
         for k, typ in EXTRAS[self.method].items():
             v = ext[k]
             if typ is bool:
-                if not isinstance(v, (bool, np.bool_)):
-                    raise PilotRecordError(f"extras[{k!r}] must be a bool")
-                clean[k] = bool(v)
+                clean[k] = _strict_bool(v, f"extras[{k!r}]")
             elif typ is int:
                 clean[k] = _int(v, f"extras[{k!r}]")
             else:
@@ -342,7 +350,7 @@ class RGFRecord:
         if self.method == "M4" and clean["gates_passed"] != all(
                 clean[k] for k in ("X4_state_passed", "X4_green_passed", "X5_passed", "X7_passed")):
             raise PilotRecordError("extras['gates_passed'] must equal X4_state and X4_green and X5 and X7")
-        object.__setattr__(self, "extras", clean)
+        object.__setattr__(self, "extras", types.MappingProxyType(clean))     # private copy, read-only view
         obs = _observables(Sc, n_open)
         for k in OBSERVABLES:
             v = _real(getattr(self, k), k)
@@ -433,8 +441,13 @@ def extract_m4_record(*, config, point, inv_dx, n_y, n_q, E, kx, solver_out, V_l
     try:
         S, n_open = solver_out["S"], solver_out["n_open"]
         e_ind = _real(solver_out["error_indicator"], "error_indicator")
-        x4s = bool(solver_out["refinement_gate"]["passed"])
-        x4g = bool(solver_out["green_refinement_gate"]["passed"])
+        gates = {}
+        for g in ("refinement_gate", "green_refinement_gate"):
+            obj = solver_out[g]
+            if not isinstance(obj, Mapping) or "passed" not in obj:
+                raise PilotRecordError(f"{g} must be a mapping with a 'passed' entry, got {obj!r}")
+            gates[g] = _strict_bool(obj["passed"], f"{g}['passed']")
+        x4s, x4g = gates["refinement_gate"], gates["green_refinement_gate"]
         x5 = bool(_real(solver_out["fl_vs_state_max_abs"], "fl_vs_state_max_abs") <= xp.FL_WF_TOL)
         x7 = bool(e_ind <= xp.ERROR_INDICATOR_MAX)
         extras = dict(eta_final=solver_out["eta_final"], error_indicator=e_ind, X4_state_passed=x4s,
@@ -565,10 +578,16 @@ def _check_rows(rows, configs) -> dict:
         try:
             k = (r["config"], r["point"], r["inv_dx"], r["pair"])
             dS, exceeds, trig = r["dS"], r["exceeds"], r["m4_trigger"]
+            limit, cls = r["limit"], r["classification"]
         except (KeyError, TypeError) as exc:
             raise PilotRecordError(f"malformed agreement row: {r!r}") from exc
         if k in keyed:
             raise PilotRecordError(f"duplicate agreement row {k}")
+        if isinstance(limit, (bool, np.bool_)) or not isinstance(limit, (float, int, np.floating)) \
+                or float(limit) != S_AGREEMENT:
+            raise PilotRecordError(f"row {k}: altered limit {limit!r} (protocol value {S_AGREEMENT!r})")
+        if cls != CLASSIFICATION:
+            raise PilotRecordError(f"row {k}: classification {cls!r} is not {CLASSIFICATION!r}")
         dS = _real(dS, "dS")
         if exceeds is not bool(dS > S_AGREEMENT):
             raise PilotRecordError(f"row {k}: 'exceeds' inconsistent with dS")
@@ -647,7 +666,10 @@ def m4_adjudication_inputs(records, platform_report, *, required_keys) -> list:
                 or k[2] not in INV_DX):
             raise PilotRecordError(f"invalid required key {k!r}")
     req = sorted(req, key=_key3_order)
-    recs = [r for r in records if isinstance(r, RGFRecord)]
+    recs = list(records)
+    for r in recs:
+        if not isinstance(r, RGFRecord):
+            raise PilotRecordError(f"m4_adjudication_inputs accepts RGFRecord objects only, got {type(r).__name__}")
     sort_records(recs)
     m4 = {(r.config, r.point, r.inv_dx): r for r in recs if r.method == "M4"}
     if not _platform_evaluable(platform_report):
@@ -913,6 +935,14 @@ def parse_points_csv(path, metadata) -> list:
                     continue
                 e[col] = _parse(col, raw[col])
             _check_placement(e["config"], e["point"], e["n_y"], e["n_q"], e["inv_dx"], m)
+            if not 1 <= e["n_open"] <= e["n_y"] - 1:
+                raise PilotRecordError(f"line {ln}: n_open = {e['n_open']} outside 1..n_y - 1 = {e['n_y'] - 1}")
+            if e["n_closed"] != e["n_y"] - e["n_open"]:
+                raise PilotRecordError(f"line {ln}: n_closed = {e['n_closed']} != n_y - n_open")
+            if e["n_slices"] <= 0:
+                raise PilotRecordError(f"line {ln}: n_slices = {e['n_slices']} must be > 0")
+            if e["wall_time_s"] < 0:
+                raise PilotRecordError(f"line {ln}: wall_time_s = {e['wall_time_s']!r} must be >= 0")
             for col in ("potential_sha256", "s_sha256", "method_fingerprint"):
                 _sha(e[col], col)
             out.append(e)
