@@ -63,6 +63,7 @@ CODE_FILES = (
     "stationary.py", "smatrix_spec.py", "sparse_reference.py", "sparse_wavefunction.py", "sparse_exact_lattice.py",
     "reference_solver.py", "potential.py", "disorder.py", "config.py", "initial_condition.py",
     "validate_rgf_b2.py", "validate_rgf_b3.py", "b4_pilot_rgf.py", "b4_pilot_io.py", "b4_pilot_rgf_records.py",
+    "b4_pilot_checks.py", "b4_pilot_run_g0.py", "b4_pilot_run_greal.py",
 )
 
 

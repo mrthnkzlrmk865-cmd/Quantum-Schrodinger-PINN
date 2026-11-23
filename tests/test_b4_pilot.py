@@ -1,4 +1,4 @@
-"""B4 limited diagnostic pilot — tests, phases T1–T3 (including T3.1), T5 and T7.
+"""B4 limited diagnostic pilot — tests, phases T1–T3 (including T3.1), T5, T6 and T7.
 
 Classification: DIAGNOSTIC / NOT B4. Nothing here is a B4 result, and no test marks any pilot gate as passed.
 
@@ -23,6 +23,11 @@ T7  b4_pilot_rgf_records: §1.4 record extraction from ONE method's raw output (
     same-problem checks, raw M1-M2 / M1-M3 / M2-M3 agreement rows and the §1.3 M4 requirement (M1-M2 or M1-M3 only;
     an M2-M3-only exceedance is reported as a protocol gap), raw M4 adjudication inputs (no classification), and
     lossless serialization (complex128; clongdouble as exact hi/lo pairs) through T5 Staging. Synthetic S only.
+T6  b4_pilot_checks (+ b4_pilot_run_g0 / b4_pilot_run_greal wiring): gate G0 (protocol hash, clean tree, §1.2/§4.1,
+    control references B3X/B3/B3Y, S_pre/S_post protected snapshots around the controls, |T1 - committed| <= 1e-12)
+    and gate G-REAL (L1 identity, L2 bitwise sampler fidelity, L3 x/V/psi0 at j = i + m, V1 = V2, nested RGF
+    slices; non-blocking dx evidence), fail-closed orchestration and the T5 G0Outcome. Fakes for every physical
+    dependency; G0 runs in a throwaway git repository; no solver call and no G0/G-REAL execution.
 
 No solver propagation, RGF energy, or pilot driver is run. Git must be available: the baseline is read from the
 repository object database; a missing git or commit is a test failure, never a skip.
@@ -2285,3 +2290,820 @@ def test_T7_m4_adjudication_inputs_refuse_non_record_objects(platform, intruder)
     recs = _full_set() + (_m4_set() if platform["evaluable"] else []) + [intruder]
     with pytest.raises(rr.PilotRecordError, match="RGFRecord objects only"):
         rr.m4_adjudication_inputs(recs, platform, required_keys=_M4_KEYS)
+
+
+# ======================================================================================================================
+# T6 — b4_pilot_checks (+ runner wiring): gates G0 and G-REAL. Fakes for every physical dependency: no solver call,
+# no real potential sampling, no G0/G-REAL execution. G0 runs in a throwaway git repository.
+# ======================================================================================================================
+import b4_pilot_checks as chk  # noqa: E402
+import b4_pilot_run_g0 as rg0  # noqa: E402
+import b4_pilot_run_greal as rgr  # noqa: E402
+
+_T6_SPEC = chk.ProtectedSpec(sources=(), docs=(PROTOCOL,), result_dirs=("results/rgf_b3_validation",),
+                             tests_dir=None, expected_result_count=1)
+_LADDER_E = {"B3-E1": 88.5, "C1": 140.25, "B3-E2": 204.75, "B3-E3": 281.5, "C2": 371.25}   # synthetic, exact
+_KX = {p: 10.0 + i for i, p in enumerate(chk.LADDER_POINTS)}
+
+
+def _fake_tables(t1=1.0, b3_t1=None, b3y_t1=None, b3x_E_shift=None):
+    ladder, b3rows, b3y = [], [], []
+    for c in chk.CONFIGS:
+        for p in chk.LADDER_POINTS:
+            E = _LADDER_E[p] if not (b3x_E_shift and b3x_E_shift == (c, p)) else np.nextafter(_LADDER_E[p], 1e9)
+            ladder.append(dict(config=chk.B3X_NAME[c], E=repr(E), label="diagnostic",
+                               **{f"T1_dx_1_{i}": repr(t1) for i in (256, 512, 1024, 2048)}))
+            b3rows.append(dict(case=c, E=repr(_LADDER_E[p]), T1_RGF=repr(t1 if b3_t1 is None or (c, p) !=
+                                                                         b3_t1[0] else b3_t1[1])))
+    for inv in (512, 1024):
+        b3y.append(dict(config=chk.B3X_NAME["D"], E=repr(_LADDER_E["C1"]), inv_dx=str(inv),
+                        T1_M1=repr(t1 if b3y_t1 is None or inv != b3y_t1[0] else b3y_t1[1])))
+    b3y.append(dict(config="W200_z0.02", E=repr(1.0), inv_dx="512", T1_M1="0.5"))     # not a B4 configuration
+    tables = {chk.B3X_LADDER: ladder, chk.B3_COMPARISON: b3rows, chk.B3Y_COMPARISON: b3y}
+    return lambda rel: [dict(r) for r in tables[rel]]
+
+
+def _fake_m1(calls, S=None, hook=None):
+    def m1(config, point, inv, E, kx, code_files):
+        calls.append((config, point, inv))
+        if hook:
+            hook(len(calls))
+        S_ = _S0() if S is None else S
+        return rr.extract_record(config=config, point=point, inv_dx=inv, method="M1", n_y=63, n_q=127, E=E, kx=kx,
+                                 solver_out=dict(S=S_, n_open=S_.shape[0] // 2, min_rcond=0.5, argmin_rcond=1),
+                                 V_lead_max=0.0, potential_sha256=_psha(config, inv, (63, 127)),
+                                 n_slices=_NSL[inv], x_start=-0.5, wall_time_s=0.0, code_files=code_files)
+    return m1
+
+
+def _g0_deps(calls, read_csv=None, energies=None, **m1kw):
+    return chk.G0Deps(protocol_text=lambda r: open(os.path.join(r, PROTOCOL), encoding="utf-8").read(),
+                      grid=b2, read_csv=read_csv or _fake_tables(),
+                      expected_energies=energies or (lambda c: {p: (_KX[p], _LADDER_E[p]) for p in chk.LADDER_POINTS}),
+                      code_files=lambda r: dict(_CODE_FILES), m1_control=_fake_m1(calls, **m1kw))
+
+
+def _run_g0(repo, calls=None, **kw):
+    calls = [] if calls is None else calls
+    base = _git_tmp(repo, "rev-parse", "HEAD")
+    return chk.run_g0(str(repo), _g0_deps(calls, **kw), baseline=base, spec=_T6_SPEC), calls
+
+
+# ---- result types --------------------------------------------------------------------------------------------
+def test_T6_report_status_must_match_the_derived_predicate():
+    ok = chk.CheckResult("G0-1", "G0", chk.PASS)
+    bad = chk.CheckResult("G0-2", "G0", chk.FAIL)
+    ne = chk.CheckResult("L2/x", "L2", chk.NOT_EVALUABLE)
+    assert chk.GateReport("G0", chk.PASS, (ok,), (), "h", _PINNED).passed
+    for status, res, nr in ((chk.PASS, (ok, bad), ()), (chk.PASS, (ok,), ("G0-2",)), (chk.PASS, (ok, ne), ()),
+                            (chk.PASS, (), ()), (chk.FAIL, (ok, ne), ())):
+        with pytest.raises(chk.PilotCheckError, match="inconsistent"):
+            chk.GateReport("G0", status, res, nr, "h", _PINNED)
+    assert chk.GateReport("G-REAL", chk.NOT_EVALUABLE, (ok, ne), (), "h", _PINNED).status == chk.NOT_EVALUABLE
+
+
+def test_T6_nonblocking_entries_are_restricted_and_excluded_from_the_predicate():
+    dx_fail = chk.CheckResult("DX/V1", "DX", chk.FAIL, blocking=False, evidence=dict(dx_equal=False))
+    na = chk.not_applicable("L3/A/RGF-TD", "no common points")
+    rep = chk.GateReport("G-REAL", chk.PASS, (chk.CheckResult("L1/A", "L1", chk.PASS), dx_fail, na), (), "h", _PINNED)
+    assert rep.passed and rep.nonblocking_failures == ("DX/V1",)
+    with pytest.raises(chk.PilotCheckError, match="non-blocking"):
+        chk.CheckResult("DX/V1", "DX", chk.PASS, blocking=True)
+    with pytest.raises(chk.PilotCheckError):
+        chk.CheckResult("L2/x", "L2", chk.FAIL, blocking=False)
+    with pytest.raises(chk.PilotCheckError):
+        chk.CheckResult("L2/x", "L2", chk.NOT_APPLICABLE, blocking=False)
+
+
+def test_T6_results_and_reports_are_immutable():
+    r = chk.CheckResult("G0-1", "G0", chk.PASS, evidence=dict(a=[1, 2], b={"c": 1}))
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        r.status = chk.FAIL
+    with pytest.raises(TypeError):
+        r.evidence["a"] = 3
+    with pytest.raises(TypeError):
+        r.evidence["b"]["c"] = 2
+    assert r.evidence["a"] == (1, 2)
+    rep = chk.GateReport("G0", chk.PASS, (r,), (), "h", _PINNED)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        rep.status = chk.FAIL
+
+
+def test_T6_protected_lists_equal_the_T1_lists():
+    assert chk.PROTECTED_SOURCES == PROTECTED_SOURCES and chk.PROTECTED_DOCS == PROTECTED_DOCS
+    assert chk.PROTECTED_RESULT_DIRS == PROTECTED_RESULT_DIRS and chk.PROTECTED_RESULT_COUNT == 109
+    paths = chk.protected_paths(REPO, chk.ProtectedSpec(), BASELINE)
+    assert sorted(paths) == sorted(_protected_paths())
+
+
+def test_T6_control_keys_and_device_scope():
+    assert len(chk.CONTROL_KEYS) == 52 and len(set(chk.CONTROL_KEYS)) == 52
+    assert len(chk.RGF_DEVICES) == 5 and chk.RGF_NESTED_PAIRS == ((512, 1024), (512, 2048), (1024, 2048))
+
+
+# ---- G0-4 / G0-5 runtime ports -------------------------------------------------------------------------------
+def test_T6_protocol_ports_pass_on_the_committed_protocol():
+    text = _protocol_text()
+    assert chk.g0_point_table(text, b2).status == chk.PASS
+    assert chk.g0_moved_nodes(text, b2).status == chk.PASS
+    assert [r[0] for r in _point_rows()] == [r[0] for r in chk._rows(chk._section(
+        text, "### 1.2 Predeclared energy points", "### 1.3"), r"(L[123]|T(3|10|11)[−+]|U[123]|C[12])")]
+
+
+@pytest.mark.parametrize("old,new,which", [("| L2 | 116 | 6.989624 |", "| L2 | 116 | 6.989625 |", "points"),
+                                           ("| U3 | 1273 |", "| U4 | 1273 |", "points"),
+                                           ("| 452 | 15.388253 |", "| 452 | 15.388254 |", "moved"),
+                                           ("**2.44 grid steps**", "**2.45 grid steps**", "moved")])
+def test_T6_protocol_ports_detect_mutated_tables(old, new, which):
+    text = _protocol_text()
+    assert text.count(old) == 1
+    bad = text.replace(old, new)
+    fn = chk.g0_point_table if which == "points" else chk.g0_moved_nodes
+    assert fn(bad, b2).status == chk.FAIL
+
+
+# ---- control references and controls ----------------------------------------------------------------------
+def _energies(c):
+    return {p: (_KX[p], _LADDER_E[p]) for p in chk.LADDER_POINTS}
+
+
+def test_T6_reference_consistency_passes_and_detects_mismatches():
+    res, refs = chk.g0_references(_fake_tables(), _energies)
+    assert res.status == chk.PASS and set(refs) == set(chk.CONTROL_KEYS) and res.evidence["n_b3y_overlap"] == 2
+    one_bit = np.nextafter(1.0, 0.0)
+    for kw in (dict(b3_t1=(("B", "C2"), one_bit)), dict(b3y_t1=(1024, one_bit)), dict(b3x_E_shift=("C", "B3-E2"))):
+        with pytest.raises(chk.PilotCheckError):
+            chk.g0_references(_fake_tables(**kw), _energies)
+    res, _ = chk.g0_references(_fake_tables(), lambda c: {**_energies(c), "C1": (1.0, np.nextafter(140.25, 0))})
+    assert res.status == chk.FAIL and "construction" in res.message
+
+
+@pytest.mark.parametrize("drop", [chk.B3X_LADDER, chk.B3_COMPARISON, chk.B3Y_COMPARISON])
+def test_T6_missing_reference_file_fails(drop):
+    base = _fake_tables()
+
+    def rd(rel):
+        if rel == drop:
+            raise FileNotFoundError(rel)
+        return base(rel)
+    with pytest.raises(FileNotFoundError):
+        chk.g0_references(rd, _energies)
+
+
+def test_T6_missing_reference_configuration_or_energy_fails():
+    base = _fake_tables()
+    no_d = lambda rel: [r for r in base(rel) if r.get("config") != chk.B3X_NAME["D"]] if rel == chk.B3X_LADDER \
+        else base(rel)
+    with pytest.raises(chk.PilotCheckError, match="5 diagnostic rows"):
+        chk.control_references(no_d)
+    four = lambda rel: [r for r in base(rel) if not (r.get("case") == "A" and r["E"] == repr(88.5))] \
+        if rel == chk.B3_COMPARISON else base(rel)
+    with pytest.raises(chk.PilotCheckError, match="expected 5 rows"):
+        chk.control_references(four)
+
+
+def _control_records(t1_S=None):
+    calls = []
+    m1 = _fake_m1(calls, S=t1_S)
+    return [m1(c, p, i, _LADDER_E[p], _KX[p], _CODE_FILES) for (c, p, i) in chk.CONTROL_KEYS]
+
+
+def test_T6_controls_tolerance_and_record_validation():
+    refs, _ = chk.control_references(_fake_tables())
+    assert chk.g0_controls(refs, _control_records(), _CODE_FILES).status == chk.PASS
+    near, _ = chk.control_references(_fake_tables(t1=1.0 - 2.0 ** -40))          # |ΔT1| = 9.1e-13 <= 1e-12
+    assert chk.g0_controls(near, _control_records(), _CODE_FILES).status == chk.PASS
+    far, _ = chk.control_references(_fake_tables(t1=1.0 - 2.0 ** -39))           # 1.8e-12 > 1e-12
+    assert chk.g0_controls(far, _control_records(), _CODE_FILES).status == chk.FAIL
+    assert chk.within_tolerance(0.0, 1e-12) and not chk.within_tolerance(0.0, np.nextafter(1e-12, 1.0))
+    recs = _control_records()
+    with pytest.raises(chk.PilotCheckError, match="missing"):
+        chk.g0_controls(refs, recs[1:], _CODE_FILES)
+    with pytest.raises(chk.PilotCheckError, match="duplicate"):
+        chk.g0_controls(refs, recs + recs[:1], _CODE_FILES)
+    with pytest.raises(chk.PilotCheckError, match="type"):
+        chk.g0_controls(refs, recs[:-1] + [{"T1": 1.0}], _CODE_FILES)
+    wrongE = list(recs)
+    wrongE[3] = dataclasses.replace(recs[3], E=recs[3].E + 1.0)
+    assert "E " in chk.g0_controls(refs, wrongE, _CODE_FILES).message
+    other = dict(_CODE_FILES, **{"stationary.py": "sha256:" + "9" * 64})
+    assert "fingerprint" in chk.g0_controls(refs, recs, other).message
+
+
+# ---- G0 orchestration in a throwaway repository -----------------------------------------------------------------
+def test_T6_g0_passes_with_snapshots_before_and_after(tmp_repo):
+    run, calls = _run_g0(tmp_repo)
+    rep = run.report
+    assert rep.passed and rep.not_run == () and len(calls) == 52 and len(run.control_records) == 52
+    assert [r.check_id for r in rep.results] == list(chk.G0_PLAN)
+    pre, post = chk.snapshots(rep)
+    assert pre == post and set(pre) == {PROTOCOL, "results/rgf_b3_validation/summary.json"}
+    assert rep.protocol_sha256 == _PINNED and rep.head == _git_tmp(tmp_repo, "rev-parse", "HEAD")
+
+
+def test_T6_g0_protocol_or_dirty_tree_failure_stops_before_any_solve(tmp_repo):
+    p = tmp_repo / PROTOCOL
+    p.write_bytes(p.read_bytes() + b"\n")
+    run, calls = _run_g0(tmp_repo)
+    assert run.report.stopped_at == "G0-1" and calls == [] and "G0-CTRL" in run.report.not_run
+    p.write_bytes(p.read_bytes()[:-1])
+    (tmp_repo / "stray.txt").write_text("x")
+    run, calls = _run_g0(tmp_repo)
+    assert run.report.stopped_at == "G0-2" and calls == [] and run.report.status == chk.FAIL
+
+
+def test_T6_s_pre_failure_prevents_every_control_solve(tmp_repo):
+    base = _git_tmp(tmp_repo, "rev-parse", "HEAD")
+    (tmp_repo / "results" / "rgf_b3_validation" / "summary.json").write_text('{"changed": 1}')
+    _git_tmp(tmp_repo, "commit", "-q", "-am", "artifact changed")                  # tree clean, artifact changed
+    calls = []
+    run = chk.run_g0(str(tmp_repo), _g0_deps(calls), baseline=base, spec=_T6_SPEC)
+    assert run.report.stopped_at == "G0-3b" and calls == [] and run.report.status == chk.FAIL
+    assert "summary.json" in run.report.result("G0-3b").message
+
+
+def test_T6_s_post_detects_an_artifact_changed_during_the_controls(tmp_repo):
+    target = tmp_repo / "results" / "rgf_b3_validation" / "summary.json"
+
+    def hook(n):
+        if n == 30:
+            target.write_text('{"touched": true}')
+    run, calls = _run_g0(tmp_repo, hook=hook)
+    assert len(calls) == 52 and run.report.stopped_at == "G0-3c" and not run.report.passed
+    msg = run.report.result("G0-3c").message
+    assert "changed since S_pre" in msg and "summary.json" in msg
+    assert run.report.result("G0-3b").status == chk.PASS and "G0-6/7" in run.report.not_run
+
+
+def test_T6_extra_file_in_a_protected_result_directory_fails(tmp_repo):
+    def hook(n):
+        if n == 1:
+            (tmp_repo / "results" / "rgf_b3_validation" / "new.csv").write_text("x")
+    run, _ = _run_g0(tmp_repo, hook=hook)
+    assert run.report.stopped_at == "G0-3c" and "extra files" in run.report.result("G0-3c").message
+
+
+def test_T6_g0_8_detects_a_tree_dirtied_by_the_controls(tmp_repo):
+    run, _ = _run_g0(tmp_repo, hook=lambda n: (tmp_repo / "stray.txt").write_text("x") if n == 52 else None)
+    assert run.report.stopped_at == "G0-8" and run.report.status == chk.FAIL
+
+
+def test_T6_a_failing_control_solve_stops_G0_and_still_takes_S_post(tmp_repo):
+    def hook(n):
+        if n == 5:
+            raise RuntimeError("solver failure")
+    run, calls = _run_g0(tmp_repo, hook=hook)
+    assert run.report.stopped_at == "G0-CTRL" and len(calls) == 5 and run.control_records == ()
+    assert run.report.result("G0-3c").status == chk.PASS and "G0-6/7" in run.report.not_run
+
+
+def test_T6_baseline_must_be_an_ancestor_and_cover_the_list(tmp_repo):
+    calls = []
+    run = chk.run_g0(str(tmp_repo), _g0_deps(calls), baseline="0" * 40, spec=_T6_SPEC)
+    assert run.report.stopped_at == "G0-3a" and calls == []
+    wrong_count = dataclasses.replace(_T6_SPEC, expected_result_count=2)
+    run = chk.run_g0(str(tmp_repo), _g0_deps(calls), baseline=_git_tmp(tmp_repo, "rev-parse", "HEAD"),
+                     spec=wrong_count)
+    assert run.report.stopped_at == "G0-3a" and "count" in run.report.result("G0-3a").message and calls == []
+
+
+def test_T6_reference_inconsistency_stops_G0_before_controls(tmp_repo):
+    run, calls = _run_g0(tmp_repo, read_csv=_fake_tables(b3_t1=(("A", "C1"), 0.5)))
+    assert run.report.stopped_at == "G0-REF" and calls == []
+
+
+def test_T6_control_mismatch_fails_G0(tmp_repo):
+    run, calls = _run_g0(tmp_repo, read_csv=_fake_tables(t1=1.0 - 2.0 ** -39))
+    assert len(calls) == 52 and run.report.stopped_at == "G0-6/7" and "G0-8" in run.report.not_run
+
+
+# ---- G-REAL synthetic world --------------------------------------------------------------------------------------
+class _FakeDisorder:
+    def __init__(self, W, zeta, seed, M=512, edge=0.02, region=(1.9, 2.9)):
+        rng = np.random.default_rng(int(seed * 1000 + W * 7 + zeta * 1e4))
+        self.qx, self.qy, self.phi = rng.standard_normal(M), rng.standard_normal(M), rng.standard_normal(M)
+        self.strength, self.corr_length, self.seed, self.n_modes, self.edge, self.region = W, zeta, seed, M, edge, \
+            region
+
+
+def _fdis(cfg, seed):
+    return _FakeDisorder(cfg.disorder_strength, cfg.disorder_corr_length, seed)
+
+
+def _field(X, Y):                                   # exact IEEE arithmetic only: shape-independent bitwise
+    return 0.5 * X * X + 3.0 * Y
+
+
+def _psi(X, Y):
+    return (X + 1j * Y) * 2.0
+
+
+def _fake_rgf(c, inv, ny, nq):
+    nb = 103 * inv // 512
+    dx = 1.0 / inv
+    x0 = 1.9 - nb * dx
+    n = {512: 719, 1024: 1437, 2048: 2873}[inv]
+    xs = x0 + dx * np.arange(n)
+    y = np.arange(1, nq + 1) * (1.0 / (nq + 1))
+    X, Y = np.meshgrid(xs, y, indexing="ij")
+    xd = x0 + dx * np.arange(n)
+    Xd, Yd = np.meshgrid(xd, np.arange(1, nq + 1) * (1.0 / (nq + 1)), indexing="ij")
+    return chk.GridSample(f"RGF {c} {inv} {ny}x{nq}", _field(X, Y), _field(Xd, Yd), xs, xd, y, y.copy(),
+                          info=dict(V_lead_max=0.0))
+
+
+def _fake_prod(c, cfg):
+    dx, dy = cfg.Lx / (cfg.nx + 1), cfg.Ly / (cfg.ny + 1)
+    x, y = np.arange(1, cfg.nx + 1) * dx, np.arange(1, cfg.ny + 1) * dy
+    X, Y = np.meshgrid(x, y, indexing="ij")
+    return chk.GridSample(f"TD {c}", _field(X, Y), _field(X, Y), x, x.copy(), y, y.copy(), psi0=_psi(X, Y)), dx
+
+
+def _fake_var(c, cfg, geo):
+    y = np.arange(1, cfg.ny + 1) * (cfg.Ly / (cfg.ny + 1))
+    X, Y = np.meshgrid(geo.x_phys, y, indexing="ij")
+    xd = np.array([float(j + 1 - geo.spec.m) for j in range(geo.cfg.nx)]) * geo.dx_prod
+    Xd, Yd = np.meshgrid(xd, y, indexing="ij")
+    return chk.GridSample(f"TD {geo.spec.name} {c}", _field(X, Y), _field(Xd, Yd), geo.x_phys, xd, y, y.copy(),
+                          psi0=_psi(X, Y)), geo.dx_variant
+
+
+def _records(c):
+    d = _fdis(b3.case_config(c), 0)
+    rec = dict(W=d.strength, zeta=d.corr_length, seed=0, disorder_n_modes=512, disorder_edge=0.02,
+               disorder_region=[1.9, 2.9], disorder_params_hash=chk.disorder_params_hash(d))
+    return {"B3_record": dict(rec), "B3X_record": dict(rec)}
+
+
+def _greal_deps(**over):
+    base = dict(protocol_text=lambda r: _protocol_text(), case_disorder=lambda c: _fdis(b3.case_config(c), 0),
+                case_config=b3.case_config, td_config=b3.case_config, disorder_from_config=_fdis,
+                record_identities=_records, rgf_device=_fake_rgf, td_production=_fake_prod, td_variant=_fake_var)
+    base.update(over)
+    return chk.GRealDeps(**base)
+
+
+def _pass_g0(repo):
+    head = _git_tmp(repo, "rev-parse", "HEAD")
+    return chk.GateReport("G0", chk.PASS, (chk.CheckResult("G0-1", "G0", chk.PASS),), (), head, _PINNED)
+
+
+def test_T6_greal_passes_on_a_consistent_synthetic_world(tmp_repo):
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(), g0=_pass_g0(tmp_repo))
+    assert rep.passed and rep.nonblocking_failures == ()
+    lv = [r.level for r in rep.results]
+    assert lv.count("L1") == 4 and lv.count("L2") == 4 * (5 + 1 + 5) and lv.count("DX") == 16
+    l3 = [r for r in rep.results if r.level == "L3"]
+    assert sum(r.status == chk.PASS for r in l3) == 4 * (3 + 5 + 1) and sum(r.status == chk.NOT_APPLICABLE
+                                                                         for r in l3) == 8
+    v3 = rep.result("L3/B/TD/V3")
+    assert v3.evidence["variant_index_range"] == (64, 64 + 248) and v3.evidence["max_abs_V_outside"] > 0
+
+
+def test_T6_greal_refuses_without_a_passed_G0(tmp_repo):
+    calls = []
+    deps = _greal_deps(rgf_device=lambda *a: calls.append(a))
+    failed = chk.GateReport("G0", chk.FAIL, (chk.CheckResult("G0-1", "G0", chk.FAIL),), (), "h", _PINNED)
+    ne = chk.GateReport("G0", chk.NOT_EVALUABLE, (chk.CheckResult("G0-1", "G0", chk.NOT_EVALUABLE),), (), "h",
+                        _PINNED)
+    for g0 in (failed, ne, None, {"status": "PASS"}):
+        with pytest.raises(chk.PilotCheckError):
+            chk.run_greal(str(tmp_repo), deps, g0=g0)
+    stale = dataclasses.replace(_pass_g0(tmp_repo), head="0" * 40)
+    with pytest.raises(chk.PilotCheckError, match="HEAD changed"):
+        chk.run_greal(str(tmp_repo), deps, g0=stale)
+    assert calls == []
+
+
+@pytest.mark.parametrize("mut", ["seed", "zeta", "M", "edge", "region", "permute_qx", "record_hash",
+                                 "variant_cfg"])
+def test_T6_L1_detects_a_different_draw_or_definition(tmp_repo, mut):
+    def dis(cfg, seed):
+        d = _fdis(cfg, seed)
+        if cfg.Lx > 4.0 and mut == "variant_cfg":
+            d = _FakeDisorder(d.strength, d.corr_length, 7)
+        return d
+
+    def case_dis(c):
+        d = _fdis(b3.case_config(c), 0)
+        if c != "C":
+            return d
+        if mut == "seed":
+            d.seed = 1
+        elif mut == "zeta":
+            d.corr_length = 0.021
+        elif mut == "M":
+            d.n_modes = 511
+        elif mut == "edge":
+            d.edge = 0.03
+        elif mut == "region":
+            d.region = (1.9, 3.0)
+        elif mut == "permute_qx":
+            d.qx = d.qx[::-1].copy()
+        return d
+
+    def recs(c):
+        r = _records(c)
+        if mut == "record_hash" and c == "C":
+            r["B3X_record"]["disorder_params_hash"] = "sha256:" + "0" * 64
+        return r
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(case_disorder=case_dis, disorder_from_config=dis,
+                                                   record_identities=recs), g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.FAIL and rep.stopped_at.startswith("L1/")
+    assert not any(r.level == "L2" for r in rep.results)
+
+
+def _bump(a, idx):
+    a = np.array(a, copy=True)
+    a[idx] = np.nextafter(a[idx], np.inf)
+    return a
+
+
+@pytest.mark.parametrize("where", ["rgf_V", "rgf_x", "prod_V", "variant_V", "variant_shape", "variant_nan"])
+def test_T6_L2_detects_sampling_and_coordinate_defects(tmp_repo, where):
+    def rgf(c, inv, ny, nq):
+        s = _fake_rgf(c, inv, ny, nq)
+        if c == "B" and inv == 1024 and nq == 254:
+            if where == "rgf_V":
+                s = dataclasses.replace(s, V_stored=_bump(s.V_stored, (3, 4)))
+            elif where == "rgf_x":
+                s = dataclasses.replace(s, x_stored=_bump(s.x_stored, 7))
+        return s
+
+    def prod(c, cfg):
+        s, dx = _fake_prod(c, cfg)
+        if where == "prod_V" and c == "D":
+            s = dataclasses.replace(s, V_stored=_bump(s.V_stored, (0, 0)))
+        return s, dx
+
+    def var(c, cfg, geo):
+        s, dx = _fake_var(c, cfg, geo)
+        if c == "A" and geo.spec.name == "V4":
+            if where == "variant_V":
+                s = dataclasses.replace(s, V_direct=_bump(s.V_direct, (400, 2)))
+            elif where == "variant_shape":
+                s = dataclasses.replace(s, V_direct=s.V_direct[:-1])
+            elif where == "variant_nan":
+                V = np.array(s.V_stored)
+                V[5, 5] = np.nan
+                s = dataclasses.replace(s, V_stored=V, V_direct=V.copy())
+        return s, dx
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(rgf_device=rgf, td_production=prod, td_variant=var),
+                        g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.FAIL and rep.stopped_at.startswith("L2/") and not any(r.level == "L3"
+                                                                                  for r in rep.results)
+
+
+def test_T6_lead_guard_makes_G_REAL_not_evaluable_and_blocks_clearance(tmp_repo):
+    def rgf(c, inv, ny, nq):
+        if (c, inv) == ("D", 2048):
+            raise chk.NotEvaluable("lead-tail guard")
+        return _fake_rgf(c, inv, ny, nq)
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(rgf_device=rgf), g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.NOT_EVALUABLE and not rep.passed and rep.stopped_at == "L2/D/RGF/2048/63x127"
+    with pytest.raises(chk.PilotCheckError, match="NOT EVALUABLE"):
+        chk.require_clearance(_pass_g0(tmp_repo), rep)
+
+
+# ---- L3 coordinate verification -----------------------------------------------------------------------------
+def _prod_and_variant(name="V3"):
+    cfg = b3.case_config("A")
+    prod, _ = _fake_prod("A", cfg)
+    spec = next(v for v in chk.VARIANTS if v.name == name)
+    geo = chk.variant_geometry(cfg, spec)
+    var, _ = _fake_var("A", cfg, geo)
+    return prod, var, geo
+
+
+def test_T6_L3_verifies_x_V_and_psi0_at_j_equals_i_plus_m():
+    prod, var, geo = _prod_and_variant()
+    m = geo.spec.m
+    assert chk.l3_variant("t", prod, var, m).status == chk.PASS
+    assert np.array_equal(var.x_stored[m:m + 249], prod.x_stored)              # x_variant[i + m] == x_prod[i]
+    for field_name, idx in (("x_stored", m + 100), ("V_stored", (m + 100, 5)), ("psi0", (m + 248, 62))):
+        bad = dataclasses.replace(var, **{field_name: _bump(getattr(var, field_name).real if field_name != "psi0"
+                                                            else getattr(var, field_name), idx)
+                                          if field_name != "psi0" else _bump_complex(var.psi0, idx)})
+        r = chk.l3_variant("t", prod, bad, m)
+        assert r.status == chk.FAIL and {"x_stored": "x:", "V_stored": "V:", "psi0": "psi0:"}[field_name] in r.message
+    for mm in (m - 1, m + 1):
+        assert chk.l3_variant("t", prod, var, mm).status == chk.FAIL
+
+
+def _bump_complex(a, idx):
+    a = np.array(a, copy=True)
+    a[idx] = complex(np.nextafter(a[idx].real, np.inf), a[idx].imag)
+    return a
+
+
+def test_T6_L3_detects_coordinates_built_as_x_minus_s():
+    prod, var, geo = _prod_and_variant("V1")
+    m, dx = geo.spec.m, geo.dx_prod
+    x_minus_s = np.arange(1, geo.cfg.nx + 1) * dx - m * dx                    # forbidden construction
+    assert not np.array_equal(x_minus_s, var.x_stored)
+    bad = dataclasses.replace(var, x_stored=x_minus_s)
+    assert chk.l3_variant("t", prod, bad, m).status == chk.FAIL
+
+
+def test_T6_V1_V2_full_grid_identity_and_V0_against_production():
+    cfg = b3.case_config("A")
+    g1, g2 = (chk.variant_geometry(cfg, v) for v in chk.VARIANTS[1:3])
+    assert g1.cfg.cap_strength == 300.0 and g2.cfg.cap_strength == 150.0 and g1.cfg.Lx == g2.cfg.Lx
+    v1, v2 = _fake_var("A", cfg, g1)[0], _fake_var("A", cfg, g2)[0]
+    assert chk.l3_full_equal("t", v1, v2).status == chk.PASS
+    for f, idx in (("V_stored", (10, 10)), ("x_stored", 10)):
+        assert chk.l3_full_equal("t", v1, dataclasses.replace(v2, **{f: _bump(getattr(v2, f), idx)})).status \
+            == chk.FAIL
+    assert chk.l3_full_equal("t", v1, dataclasses.replace(v2, psi0=_bump_complex(v2.psi0, (1, 1)))).status \
+        == chk.FAIL
+    prod, v0, _ = _prod_and_variant("V0")
+    assert chk.l3_full_equal("t", prod, v0).status == chk.PASS
+
+
+def test_T6_greal_L3_failure_stops_the_gate(tmp_repo):
+    def var(c, cfg, geo):
+        s, dx = _fake_var(c, cfg, geo)
+        if c == "B" and geo.spec.name == "V2":
+            V = _bump(s.V_stored, (300, 1))                                     # outside the production window
+            s = dataclasses.replace(s, V_stored=V, V_direct=V.copy())             # L2 consistent, L3 broken
+        return s, dx
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(td_variant=var), g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.FAIL and rep.stopped_at == "L3/B/TD/V1=V2"
+
+
+def test_T6_rgf_nested_L3_detects_slice_and_origin_defects():
+    a, b = _fake_rgf("A", 512, 63, 127), _fake_rgf("A", 2048, 63, 127)
+    assert chk.l3_rgf_nested("A", 512, 2048, a, b).status == chk.PASS
+    assert chk.l3_rgf_nested("A", 512, 2048, a, dataclasses.replace(b, V_stored=_bump(b.V_stored, (400, 3)))
+                             ).status == chk.FAIL
+    shifted = dataclasses.replace(b, x_stored=b.x_stored + 1.0 / 2048)
+    assert chk.l3_rgf_nested("A", 512, 2048, a, shifted).status == chk.FAIL
+    with pytest.raises(chk.PilotCheckError, match="nested"):
+        chk.l3_rgf_nested("A", 1024, 1536, a, b)
+
+
+# ---- DX: non-blocking evidence --------------------------------------------------------------------------------
+def test_T6_dx_equality_evidence_for_the_protocol_variants():
+    cfg = b3.case_config("A")
+    for v in chk.VARIANTS[1:]:
+        g = chk.variant_geometry(cfg, v)
+        assert g.evidence["dx_equal"] and chk.dx_evidence(g, g.dx_variant).status == chk.PASS
+    g38 = chk.variant_geometry(cfg, chk.VariantSpec("V38", 38, True, 300.0))
+    r = chk.dx_evidence(g38)
+    assert r.status == chk.FAIL and not r.blocking and r.evidence["dx_variant"] != r.evidence["dx_production"]
+    assert 7.488 / 480 != chk.variant_geometry(cfg, chk.VARIANTS[4]).dx_prod
+
+
+def test_T6_failed_dx_check_is_recorded_but_does_not_block_G_REAL(tmp_repo):
+    def var(c, cfg, geo):
+        s, _ = _fake_var(c, cfg, geo)
+        return s, np.nextafter(geo.dx_variant, 1.0) if geo.spec.name == "V3" else geo.dx_variant
+    g0 = _pass_g0(tmp_repo)
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(td_variant=var), g0=g0)
+    assert rep.passed and rep.nonblocking_failures == ("DX/V3",) * 4             # one per configuration
+    extra = chk.metadata_extra(g0, rep)
+    assert extra["nonblocking_failures"] == ["DX/V3"] * 4
+    bad = [d for d in extra["shifted_grid_dx"] if d["status"] == chk.FAIL]
+    assert len(bad) == 4 and all(d["dx_solver_equal"] is False and "dx_solver" in d for d in bad)
+
+
+# ---- orchestration, clearance, staging and T5 publication ------------------------------------------------------
+def test_T6_g0_failure_prevents_G_REAL_and_discards_staging(tmp_repo, tmp_path):
+    st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+    sampled = []
+    deps = _greal_deps(rgf_device=lambda *a: sampled.append(a) or _fake_rgf(*a))
+    (tmp_repo / "stray.txt").write_text("x")
+    calls = []
+    g0, greal = chk.run_gates(str(tmp_repo), st, _g0_deps(calls), deps,
+                              baseline=_git_tmp(tmp_repo, "rev-parse", "HEAD"), spec=_T6_SPEC)
+    assert not g0.report.passed and greal is None and sampled == [] and calls == []
+    assert st.discarded and not os.path.exists(st.path)
+    assert not os.path.lexists(tmp_repo / "results" / "b4_pilot") and _no_partial(tmp_repo)
+
+
+def test_T6_greal_failure_blocks_later_stages_and_discards_staging(tmp_repo, tmp_path):
+    st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+
+    def rgf(c, inv, ny, nq):
+        raise chk.NotEvaluable("lead-tail guard")
+    g0, greal = chk.run_gates(str(tmp_repo), st, _g0_deps([]), _greal_deps(rgf_device=rgf),
+                              baseline=_git_tmp(tmp_repo, "rev-parse", "HEAD"), spec=_T6_SPEC)
+    assert g0.report.passed and greal.status == chk.NOT_EVALUABLE and st.discarded
+    for fn in (lambda: chk.require_clearance(g0.report, greal), lambda: chk.to_g0_outcome(g0.report, greal,
+                                                                                         str(tmp_repo)),
+               lambda: chk.metadata_extra(g0.report, greal)):
+        with pytest.raises(chk.PilotCheckError):
+            fn()
+    assert not os.path.lexists(tmp_repo / "results" / "b4_pilot")
+
+
+def test_T6_passed_gates_become_a_T5_outcome_accepted_by_publish(tmp_repo, tmp_path):
+    st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+    g0, greal = chk.run_gates(str(tmp_repo), st, _g0_deps([]), _greal_deps(),
+                              baseline=_git_tmp(tmp_repo, "rev-parse", "HEAD"), spec=_T6_SPEC)
+    assert g0.report.passed and greal.passed and not st.discarded
+    cl = chk.require_clearance(g0.report, greal)
+    out = chk.to_g0_outcome(g0.report, greal, str(tmp_repo))
+    assert isinstance(out, pio.G0Outcome) and out.passed is True and out.head == cl.head
+    pre, post = chk.snapshots(g0.report)
+    meta = pio.build_metadata(str(tmp_repo), head=out.head, protected_before=pre, protected_after=post,
+                              code_files=(PROTOCOL,), command="test", extra=chk.metadata_extra(g0.report, greal))
+    assert meta["protected_before"] == meta["protected_after"] == pre
+    assert len(meta["disorder_identity"]) == 4 and meta["nonblocking_failures"] == []
+    st.write_csv("diagnostic_controls.csv", ["x"], [{"x": 1}])
+    target = pio.publish(st, out, meta)
+    assert os.path.isdir(target)
+
+
+def test_T6_outcome_refused_on_stale_head_or_wrong_hash(tmp_repo, tmp_path):
+    st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
+    g0, greal = chk.run_gates(str(tmp_repo), st, _g0_deps([]), _greal_deps(),
+                              baseline=_git_tmp(tmp_repo, "rev-parse", "HEAD"), spec=_T6_SPEC)
+    wrong = dataclasses.replace(g0.report, protocol_sha256="sha256:" + "1" * 64)
+    with pytest.raises(chk.PilotCheckError):
+        chk.to_g0_outcome(wrong, dataclasses.replace(greal, protocol_sha256=wrong.protocol_sha256), str(tmp_repo))
+    (tmp_repo / "later.txt").write_text("x")
+    _git_tmp(tmp_repo, "add", "later.txt")
+    _git_tmp(tmp_repo, "commit", "-q", "-m", "later")
+    with pytest.raises(chk.PilotCheckError, match="HEAD changed"):
+        chk.to_g0_outcome(g0.report, greal, str(tmp_repo))
+    st.discard()
+
+
+def test_T6_variant_table_is_cross_checked_against_the_protocol():
+    rows = chk.parse_variant_table(_protocol_text())
+    assert [r["m"] for r in rows] == [0, 39, 39, 64, 115] and [r["strength"] for r in rows][2] == 150.0
+    bad = _protocol_text().replace("| 39 | 0.6084 | 1.2084 | 150 |", "| 39 | 0.6084 | 1.2084 | 160 |")
+    assert bad != _protocol_text()
+    with pytest.raises(chk.PilotCheckError, match="disagrees"):
+        chk.parse_variant_table(bad)
+
+
+# ---- runner wiring with fake physical dependencies ----------------------------------------------------------
+class _NoRunSolver:
+    constructed = []
+
+    def __init__(self, cfg, potentials=None):
+        _NoRunSolver.constructed.append(cfg)
+        V = potentials if isinstance(potentials, np.ndarray) else np.stack([p.numpy(*self._grid(cfg)) for p in
+                                                                             potentials])
+        self.V = (V if V.ndim == 3 else V[None]).astype(np.float64)
+        self.X, self.Y = self._grid(cfg)
+        self.dx = cfg.Lx / (cfg.nx + 1)
+
+    @staticmethod
+    def _grid(cfg):
+        dx, dy = cfg.Lx / (cfg.nx + 1), cfg.Ly / (cfg.ny + 1)
+        return np.meshgrid(np.arange(1, cfg.nx + 1) * dx, np.arange(1, cfg.ny + 1) * dy, indexing="ij")
+
+    def run(self, *a, **k):
+        raise AssertionError("SplitStepDST.run must never be called by G-REAL")
+
+
+class _FakePotential:
+    def __init__(self, cfg, disorder=None):
+        self.cfg = cfg
+
+    def numpy(self, X, Y):
+        return _field(np.asarray(X, float), np.asarray(Y, float))
+
+
+def test_T6_greal_runner_constructs_only_and_never_propagates(monkeypatch):
+    _NoRunSolver.constructed = []
+    monkeypatch.setattr(rgr, "SplitStepDST", _NoRunSolver)
+    monkeypatch.setattr(rgr, "Potential", _FakePotential)
+    monkeypatch.setattr(rgr, "disorder_from_config", lambda cfg, seed=0: _fdis(cfg, seed))
+    monkeypatch.setattr(rgr, "initial_condition_numpy", lambda cfg, X, Y: _psi(X, Y))
+    cfg = b3.case_config("A")
+    prod, dxp = rgr.td_production("A", cfg)
+    assert chk.l2_fidelity("t", prod).status == chk.PASS and dxp == chk.variant_geometry(cfg, chk.VARIANTS[0]).dx_prod
+    for v in chk.VARIANTS:
+        geo = chk.variant_geometry(cfg, v)
+        s, sdx = rgr.td_variant("A", cfg, geo)
+        assert chk.l2_fidelity("t", s).status == chk.PASS and chk.l3_variant("t", prod, s, v.m).status == chk.PASS
+        assert s.V_stored.shape == (249 + 2 * v.m, 63) and sdx == geo.dx_variant
+    assert len(_NoRunSolver.constructed) == 6 and [c.nx for c in _NoRunSolver.constructed[1:]] == \
+        [249, 327, 327, 377, 479]
+
+
+def test_T6_rgf_runner_builds_devices_and_maps_the_lead_guard(monkeypatch):
+    class _Basis:
+        def __init__(self, y):
+            self.y = y
+
+    class _Dev:
+        def __init__(self, xs, y):
+            self.xs, self.basis, self.n_slices, self.V_lead_max = xs, _Basis(y), xs.size, 0.0
+
+    built = []
+
+    def fake_build(rec, x0, x1, dx, Ly, ny, nq, lead_tol=1e-6):
+        built.append((dx, ny, nq))
+        n = int(round((x1 - x0) / dx))
+        xs = x0 + dx * np.arange(n + 1)
+        y = np.arange(1, nq + 1) * Ly / (nq + 1)
+        X, Y = np.meshgrid(xs, y, indexing="ij")
+        rec(X, Y)
+        return _Dev(xs, y)
+
+    def fake_direct(case, x0, dx, n, Ly, nq):
+        xs = x0 + dx * np.arange(n)
+        y = np.arange(1, nq + 1) * Ly / (nq + 1)
+        X, Y = np.meshgrid(xs, y, indexing="ij")
+        return xs, y, _field(X, Y)
+    monkeypatch.setattr(rgr, "build_device", fake_build)
+    monkeypatch.setattr(rgr.b3, "case_potential", lambda c: (b3.case_config(c), _FakePotential(None)))
+    monkeypatch.setattr(rgr.b3, "direct_reference_samples", fake_direct)
+    for (inv, ny, nq) in chk.RGF_DEVICES:
+        s = rgr.rgf_device("A", inv, ny, nq)
+        assert chk.l2_fidelity("t", s).status == chk.PASS and s.V_stored.shape[1] == nq
+    assert len(built) == 5 and [b[0] for b in built] == [1 / 512, 1 / 1024, 1 / 2048, 1 / 1024, 1 / 1024]
+
+    def guard(*a, **k):
+        raise ValueError("potential on the first lead slices is 1e-3 > lead_tol")
+    monkeypatch.setattr(rgr, "build_device", guard)
+    with pytest.raises(chk.NotEvaluable):
+        rgr.rgf_device("A", 512, 63, 127)
+
+
+def test_T6_g0_runner_wires_exactly_one_M1_solve_per_control(monkeypatch):
+    solves = []
+
+    class _Dev:
+        V_lead_max, n_slices = 0.0, 719
+
+    def fake_build(rec, x0, x1, dx, Ly, ny, nq):
+        rec(np.zeros((2, 2)), np.zeros((2, 2)))
+        return _Dev()
+
+    def fake_solve(E, dev):
+        solves.append(E)
+        return dict(S=_S0(), n_open=1, min_rcond=0.5, argmin_rcond=0)
+    monkeypatch.setattr(rg0, "build_device", fake_build)
+    monkeypatch.setattr(rg0, "scattering_matrix", fake_solve)
+    monkeypatch.setattr(rg0.b3, "case_potential", lambda c: (b3.case_config(c), _FakePotential(None)))
+    r = rg0.m1_control("A", "C1", 1024, 140.25, 16.0, _CODE_FILES)
+    assert solves == [140.25] and r.method == "M1" and r.inv_dx == 1024 and r.point == "C1"
+    assert rg0.J_TO_POINT == {-2: "B3-E1", -1: "C1", 0: "B3-E2", 1: "B3-E3", 2: "C2"}
+
+
+def test_T6_runner_entry_points_refuse_without_execute(capsys):
+    assert rg0.main([]) == 2 and rgr.main([]) == 2
+    assert "refusing" in capsys.readouterr().err
+
+
+# ---- module purity (AST) ---------------------------------------------------------------------------------------
+def _ast_calls(path):
+    import ast
+    tree = ast.parse(open(os.path.join(REPO, path), encoding="utf-8").read())
+    imports = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    imports |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
+    names = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call):
+            f = n.func
+            names.add(f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", None))
+    return tree, imports, names
+
+
+_WRITES = {"save", "savez", "savez_compressed", "savetxt", "tofile", "remove", "unlink", "rename", "replace_file",
+           "mkdir", "makedirs", "rmtree", "write_text", "write_bytes", "write_csv", "write_npz", "write_json",
+           "publish", "system", "popen"}
+
+
+def test_T6_checks_module_is_solver_free_and_write_free():
+    tree, imports, names = _ast_calls("b4_pilot_checks.py")
+    assert imports <= {"__future__", "hashlib", "math", "os", "re", "types", "collections", "dataclasses", "numpy",
+                       "b4_pilot_io", "b4_pilot_rgf_records"}, imports
+    assert not names & (_WRITES | {"scattering_matrix", "build_device", "run", "SplitStepDST", "energy_average",
+                                   "open"}), names & (_WRITES | {"run", "open"})
+
+
+def test_T6_greal_runner_never_propagates_or_writes():
+    import ast
+    tree, imports, names = _ast_calls("b4_pilot_run_greal.py")
+    assert "run" not in names and "scattering_matrix" not in names and "energy_average" not in names
+    assert not names & _WRITES and "transport" not in imports and "validate_rgf_b2" not in imports
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "open":
+            mode = n.args[1] if len(n.args) > 1 else next((k.value for k in n.keywords if k.arg == "mode"), None)
+            assert mode is None or (isinstance(mode, ast.Constant) and not set(mode.value) & set("wax+"))  # default r
+
+
+def test_T6_g0_runner_solves_only_inside_the_control_function():
+    import ast
+    tree, imports, names = _ast_calls("b4_pilot_run_g0.py")
+    assert not names & _WRITES and "run" not in names
+    owners = []
+    for fn in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]:
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "scattering_matrix":
+                owners.append(fn.name)
+    assert owners == ["m1_control"]
+
+
+def test_T6_new_modules_are_fingerprinted():
+    assert {"b4_pilot_checks.py", "b4_pilot_run_g0.py", "b4_pilot_run_greal.py"} <= set(pio.CODE_FILES)
+    fp = pio.code_fingerprint(REPO)["code_files"]
+    assert all(fp[f].startswith("sha256:") for f in ("b4_pilot_checks.py", "b4_pilot_run_g0.py",
+                                                     "b4_pilot_run_greal.py"))
