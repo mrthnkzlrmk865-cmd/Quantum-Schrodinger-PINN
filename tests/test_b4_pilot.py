@@ -1629,10 +1629,12 @@ def test_T7_full_complex_S_is_preserved_bitwise_and_read_only():
     S = _S0()
     r = _rec(S=S)
     assert r.S.dtype == np.complex128 and r.S.tobytes() == S.tobytes()
-    S[0, 0] = 0
+    S[0, 0] = 0.25
     assert r.S[0, 0] == _A                                             # a copy, not a view
     with pytest.raises(ValueError):
         r.S[0, 0] = 1
+    with pytest.raises(ValueError):
+        r.S.setflags(write=True)                                       # immutable backing buffer
 
 
 def test_T7_a_phase_change_alters_the_stored_S_not_the_probabilities():
@@ -2107,7 +2109,9 @@ def test_T7_method_fingerprints_are_derived_per_method():
     after = {m: rr.method_fingerprint(m, changed) for m in rr.METHODS}
     assert [m for m in rr.METHODS if after[m] != fps[m]] == ["M1"]
     shared = dict(_CODE_FILES, **{"smatrix_spec.py": "sha256:" + "4" * 64})
-    assert [m for m in rr.METHODS if rr.method_fingerprint(m, shared) != fps[m]] == ["M1", "M2"]
+    assert [m for m in rr.METHODS if rr.method_fingerprint(m, shared) != fps[m]] == ["M1", "M2", "M3", "M4"]
+    assert "smatrix_spec.py" in rr.EXTRACTION_CODE_FILES and all("smatrix_spec.py" in rr.method_files(m)
+                                                                  for m in rr.METHODS)
     assert _rec(method="M2").method_fingerprint == fps["M2"]
 
 
@@ -2160,10 +2164,10 @@ def test_T7_module_is_read_only_and_solver_free():
     tree = ast.parse(src)
     imported = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     imported |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
-    assert imported <= {"__future__", "csv", "hashlib", "math", "re", "dataclasses", "numpy", "smatrix_spec",
-                        "sparse_exact_lattice", "validate_rgf_b3", "b4_pilot_io"}, imported
+    assert imported <= {"__future__", "csv", "hashlib", "math", "re", "types", "collections", "dataclasses", "numpy",
+                        "smatrix_spec", "sparse_exact_lattice", "validate_rgf_b3", "b4_pilot_io"}, imported
     from_names = {a.name for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names}
-    assert from_names <= {"annotations", "dataclass", "field", "CLASSIFICATION", "CSV_HEADER"}, from_names
+    assert from_names <= {"annotations", "Mapping", "dataclass", "field", "CLASSIFICATION", "CSV_HEADER"}, from_names
     forbidden_attr = {"save", "savez", "savez_compressed", "savetxt", "tofile", "remove", "unlink", "rename",
                       "replace", "mkdir", "makedirs", "rmdir", "rmtree", "write_text", "write_bytes", "system",
                       "popen", "scattering_matrix", "sparse_scattering_matrix", "wavefunction_scattering_matrix",
@@ -2183,3 +2187,101 @@ def test_T7_module_is_read_only_and_solver_free():
     for s in [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)]:
         assert not re.search(r"results/(rgf_b|stationary_validation|transport|validation|b4_pilot)", s), s
     assert "energy_average" not in src and "split_step" not in src and "td_" not in src.lower().replace("std_", "")
+
+
+# ---- T7 corrections: immutability, strict gate Booleans, row and CSV validation, strict M4 input types -------
+def test_T7_extras_are_immutable_and_isolated_from_the_caller():
+    failed = _rec(point="L1", inv=2048, method="M4", error_indicator=1e-9)          # X7 fails -> gates_passed False
+    assert failed.extras["gates_passed"] is False
+    with pytest.raises(TypeError):
+        failed.extras["gates_passed"] = True
+    with pytest.raises((TypeError, AttributeError)):
+        failed.extras.clear()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        failed.extras = {}
+    src = dict(min_rcond=0.125, argmin_rcond=7)
+    r = dataclasses.replace(_rec(), extras=src)
+    src["min_rcond"] = 99.0                                                       # caller's dict changed later
+    assert r.extras["min_rcond"] == 0.125
+    r2 = dataclasses.replace(r, wall_time_s=1.0)                                  # replace still works
+    assert r2.wall_time_s == 1.0 and dict(r2.extras) == dict(r.extras) and type(r2.extras) is type(r.extras)
+    m4 = [failed] + [_rec(point=p, inv=2048, method="M4", error_indicator=1e-9) for p in rr.M4_PROTOCOL_POINTS[1:]]
+    out = rr.m4_adjudication_inputs(_full_set() + m4, _EVAL, required_keys=_M4_KEYS)
+    assert {o["m4_status"] for o in out} == {rr.M4_NE_GATE}
+
+
+@pytest.mark.parametrize("method", ["M1", "M4"])
+def test_T7_S_cannot_be_made_writeable(method):
+    S = _S0()
+    r = _rec(method=method, inv=2048, S=S)
+    before = r.s_sha256
+    with pytest.raises(ValueError):
+        r.S.setflags(write=True)
+    with pytest.raises(ValueError):
+        r.S[0, 0] = 5
+    expect = S.astype(_CLD) if method == "M4" else S
+    assert r.S.dtype == expect.dtype and r.S.tobytes() == expect.tobytes() and r.s_sha256 == before
+
+
+@pytest.mark.parametrize("gate", ["refinement_gate", "green_refinement_gate"])
+@pytest.mark.parametrize("value", ["False", "True", 0, 1, None, 1.0, {"passed": "False"}, {"passed": 1},
+                                   {"passed": None}, "GATE_OBJECT_NONE", True, {}, [True], ("passed", True)],
+                         ids=lambda v: repr(v))
+def test_T7_malformed_M4_gate_values_never_produce_a_record(gate, value):
+    obj = value if not isinstance(value, (str, int, float)) or isinstance(value, bool) else {"passed": value}
+    if value is None:
+        obj = {"passed": None}                                      # a None 'passed' value
+    if value == "GATE_OBJECT_NONE":
+        obj = None                                                  # the gate object itself is None
+    with pytest.raises(rr.PilotRecordError):
+        _rec(point="L1", inv=2048, method="M4", **{gate: obj})
+
+
+def test_T7_numpy_bool_gate_values_are_accepted():
+    r = _rec(point="L1", inv=2048, method="M4", refinement_gate={"passed": np.bool_(True)},
+             green_refinement_gate={"passed": np.bool_(True)})
+    assert r.extras["X4_state_passed"] is True and r.extras["gates_passed"] is True
+
+
+@pytest.mark.parametrize("field,value", [("limit", 1e-9), ("limit", 1e-10 * (1 + 2.0 ** -52)), ("limit", True),
+                                         ("limit", "1e-10"), ("limit", None), ("classification", "B4"),
+                                         ("classification", None), ("limit", "DROP"),
+                                         ("classification", "DROP")])
+def test_T7_agreement_rows_with_altered_limit_or_classification_are_refused(field, value):
+    rows = [dict(r) for r in rr.agreement_rows(_full_set(), configs=["A"])]
+    if value == "DROP":
+        del rows[7][field]
+    else:
+        rows[7][field] = value
+    with pytest.raises(rr.PilotRecordError):
+        rr.agreement_summary(rows, configs=["A"])
+    with pytest.raises(rr.PilotRecordError):
+        rr.m4_required_keys(rows, configs=["A"])
+
+
+@pytest.mark.parametrize("col,value,msg", [("n_open", "0", "n_open"), ("n_open", "63", "n_open"),
+                                           ("n_closed", "61", "n_closed"), ("n_slices", "0", "n_slices"),
+                                           ("wall_time_s", "-0.5", "wall_time_s")])
+def test_T7_points_csv_structural_violations_are_refused(tmp_repo, tmp_path, col, value, msg):
+    st, p = _write_csv(tmp_repo, tmp_path, [_rec()])
+    try:
+        lines = open(p, encoding="utf-8").read().splitlines()
+        cols = lines[1].split(",")
+        row = lines[2].split(",")
+        row[cols.index(col)] = value
+        lines[2] = ",".join(row)
+        bad = tmp_path / "diagnostic_bad.csv"
+        bad.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        assert rr.parse_points_csv(p, _META)[0][col] != (float(value) if col == "wall_time_s" else int(value))
+        with pytest.raises(rr.PilotRecordError, match=msg):
+            rr.parse_points_csv(str(bad), _META)
+    finally:
+        st.discard()
+
+
+@pytest.mark.parametrize("platform", [_EVAL, _NOT_EVAL])
+@pytest.mark.parametrize("intruder", [{"method": "M4"}, None, "M4"], ids=["dict", "None", "str"])
+def test_T7_m4_adjudication_inputs_refuse_non_record_objects(platform, intruder):
+    recs = _full_set() + (_m4_set() if platform["evaluable"] else []) + [intruder]
+    with pytest.raises(rr.PilotRecordError, match="RGFRecord objects only"):
+        rr.m4_adjudication_inputs(recs, platform, required_keys=_M4_KEYS)
