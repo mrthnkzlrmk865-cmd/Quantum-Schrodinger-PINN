@@ -729,7 +729,7 @@ def _first_difference(a, b):
     a, b = np.asarray(a), np.asarray(b)
     if a.shape != b.shape or a.dtype != b.dtype:
         return f"shape/dtype differ: {a.shape} {a.dtype} vs {b.shape} {b.dtype}"
-    if a.dtype.kind not in "fc" or a.dtype in _PADDED:
+    if a.dtype.kind not in "fc" or a.dtype.itemsize > 16 or a.dtype in _PADDED:
         return f"unsupported dtype {a.dtype} for a bitwise comparison"
     if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
         return "non-finite values present"

@@ -3216,3 +3216,15 @@ def test_T6_greal_entry_passes_and_then_calls_dependencies(tmp_repo):
     calls = []
     rep = chk.run_greal(str(tmp_repo), _counting_greal_deps(calls), g0=_pass_g0(tmp_repo))
     assert rep.passed and calls.count("rgf") == 20 and calls.count("td_prod") == 4 and calls.count("td_var") == 20
+
+
+def test_T6_first_difference_rejects_float_or_complex_dtypes_wider_than_16_bytes(monkeypatch):
+    wide = sorted({np.dtype(d) for d in (np.longdouble, np.clongdouble, np.float64, np.complex128)
+                   if np.dtype(d).itemsize > 16}, key=str)
+    if not wide:
+        pytest.skip("no floating-point or complex dtype wider than 16 bytes on this platform")
+    monkeypatch.setattr(chk, "_PADDED", frozenset())                  # isolate the itemsize rule
+    for dt in wide:
+        a = np.ones(3, dtype=dt)
+        assert dt.kind in "fc" and dt.itemsize > 16
+        assert chk._first_difference(a, a.copy()) == f"unsupported dtype {dt} for a bitwise comparison"
