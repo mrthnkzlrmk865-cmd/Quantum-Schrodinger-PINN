@@ -720,17 +720,30 @@ def l1_identity(config, sources, records) -> CheckResult:
                        message=f"identity differs for {bad}" if bad else "")
 
 
+_PADDED = {np.dtype(np.longdouble), np.dtype(np.clongdouble)} - {np.dtype(np.float64), np.dtype(np.complex128)}
+
+
 def _first_difference(a, b):
+    """None if a and b are BITWISE identical (same shape, dtype and element bytes; +0.0 differs from -0.0), else a
+    diagnostic. Float and complex arrays only; padded extended types and other dtypes are refused (fail closed)."""
     a, b = np.asarray(a), np.asarray(b)
     if a.shape != b.shape or a.dtype != b.dtype:
         return f"shape/dtype differ: {a.shape} {a.dtype} vs {b.shape} {b.dtype}"
+    if a.dtype.kind not in "fc" or a.dtype in _PADDED:
+        return f"unsupported dtype {a.dtype} for a bitwise comparison"
     if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
         return "non-finite values present"
-    bad = np.argwhere(a != b)
+    shape = a.shape if a.ndim else (1,)
+    A = np.ascontiguousarray(a).reshape(shape)
+    B = np.ascontiguousarray(b).reshape(shape)
+    n = a.dtype.itemsize
+    mask = np.any(A.view(np.uint8).reshape(shape + (n,)) != B.view(np.uint8).reshape(shape + (n,)), axis=-1)
+    bad = np.argwhere(mask)
     if bad.size == 0:
         return None
     idx = tuple(int(i) for i in bad[0])
-    return f"{bad.shape[0]} differing entries; first at {idx}: {a[idx]!r} vs {b[idx]!r}"
+    return (f"{bad.shape[0]} differing entries; first at {idx}: {A[idx]!r} vs {B[idx]!r} "
+            f"(bytes {A[idx].tobytes().hex()} vs {B[idx].tobytes().hex()})")
 
 
 def array_sha(a) -> str:
@@ -884,7 +897,12 @@ def _require_passed(report, gate):
 def run_greal(repo, deps: GRealDeps, *, g0: GateReport) -> GateReport:
     """Gate G-REAL after a PASS G0 (refused otherwise): L1 -> L2 -> L3, fail closed; DX evidence always recorded."""
     _require_passed(g0, "G0")
-    head = pio.head_commit(repo)
+    # entry validation BEFORE any dependency is called: clean tree, protocol (working tree and HEAD) against the pinned
+    # reference, the same protocol hash and the same HEAD as the G0 report
+    head = pio.require_clean_tree(repo)
+    sha = pio.check_protocol(repo)
+    if sha != g0.protocol_sha256:
+        raise PilotCheckError(f"protocol hash differs from the G0 report: {sha} vs {g0.protocol_sha256}")
     if head != g0.head:
         raise PilotCheckError(f"HEAD changed since G0: {g0.head} -> {head}")
     parse_variant_table(deps.protocol_text(repo))        # §3.3.1 table must agree with VARIANTS (else refuse)
