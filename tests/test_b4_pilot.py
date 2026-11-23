@@ -3107,3 +3107,112 @@ def test_T6_new_modules_are_fingerprinted():
     fp = pio.code_fingerprint(REPO)["code_files"]
     assert all(fp[f].startswith("sha256:") for f in ("b4_pilot_checks.py", "b4_pilot_run_g0.py",
                                                      "b4_pilot_run_greal.py"))
+
+
+# ---- T6 review corrections: bitwise comparison and G-REAL entry validation -----------------------------------
+def test_T6_first_difference_is_bitwise_for_signed_zero():
+    a, b = np.array([1.0, 0.0, 2.0]), np.array([1.0, -0.0, 2.0])
+    assert np.array_equal(a, b)                                       # numerically equal ...
+    msg = chk._first_difference(a, b)                                 # ... but not bitwise
+    assert msg is not None and "first at (1,)" in msg and "0000000000000000" in msg and "0000000000000080" in msg
+
+
+@pytest.mark.parametrize("x,y", [(0j, complex(0.0, -0.0)), (complex(-0.0, 1.0), complex(0.0, 1.0))])
+def test_T6_first_difference_detects_signed_zero_in_complex_parts(x, y):
+    a, b = np.array([[1 + 1j, x]], dtype=np.complex128), np.array([[1 + 1j, y]], dtype=np.complex128)
+    assert np.array_equal(a, b)
+    msg = chk._first_difference(a, b)
+    assert msg is not None and "first at (0, 1)" in msg
+
+
+def test_T6_first_difference_handles_non_contiguous_arrays():
+    base = np.arange(40, dtype=np.float64).reshape(5, 8) * 0.5
+    a = base[:, ::2]                                                  # strided view
+    b = np.array(base, order="F")[:, ::2]                             # different memory layout, same values
+    assert not a.flags.c_contiguous and chk._first_difference(a, b) is None
+    assert chk._first_difference(base.T, np.ascontiguousarray(base.T)) is None
+    c = base.copy()
+    c[3, 4] = np.nextafter(c[3, 4], np.inf)                           # one ulp, inside the strided selection
+    msg = chk._first_difference(a, c[:, ::2])
+    assert msg is not None and "first at (3, 2)" in msg and "1 differing" in msg
+
+
+def test_T6_first_difference_keeps_ulp_nan_shape_and_dtype_rules():
+    a = np.linspace(-1.0, 1.0, 12).reshape(3, 4)
+    b = a.copy()
+    b[1, 2] = np.nextafter(b[1, 2], np.inf)
+    assert "first at (1, 2)" in chk._first_difference(a, b)
+    n = a.copy()
+    n[0, 0] = np.nan
+    assert chk._first_difference(n, n.copy()) == "non-finite values present"
+    assert "shape/dtype" in chk._first_difference(a, a[:2])
+    assert "shape/dtype" in chk._first_difference(a, a.astype(np.float32))
+    assert chk._first_difference(np.float64(-0.0), np.float64(0.0)) is not None          # 0-d
+    assert chk._first_difference(a.astype(np.complex64), a.astype(np.complex64)) is None
+    if np.dtype(np.longdouble) != np.dtype(np.float64):
+        assert "unsupported" in chk._first_difference(a.astype(np.longdouble), a.astype(np.longdouble))
+    assert "unsupported" in chk._first_difference(np.arange(3), np.arange(3))
+
+
+def test_T6_L2_fails_on_signed_zero_difference():
+    s = _fake_rgf("A", 512, 63, 127)
+    V = np.array(s.V_stored)
+    V[0, 0] = 0.0
+    W = V.copy()
+    W[0, 0] = -0.0
+    r = chk.l2_fidelity("t", dataclasses.replace(s, V_stored=V, V_direct=W))
+    assert r.status == chk.FAIL and "V:" in r.message
+
+
+def _counting_greal_deps(calls):
+    def count(name, fn):
+        def wrapped(*a, **k):
+            calls.append(name)
+            return fn(*a, **k)
+        return wrapped
+    return _greal_deps(rgf_device=count("rgf", _fake_rgf), td_production=count("td_prod", _fake_prod),
+                       td_variant=count("td_var", _fake_var), disorder_from_config=count("disorder", _fdis),
+                       case_disorder=count("case_disorder", lambda c: _fdis(b3.case_config(c), 0)),
+                       td_config=count("td_config", b3.case_config), protocol_text=count("protocol", lambda r:
+                                                                                         _protocol_text()))
+
+
+@pytest.mark.parametrize("change", ["protocol", "tracked_file"])
+def test_T6_greal_entry_refuses_a_modified_tree_before_any_dependency(tmp_repo, change):
+    g0 = _pass_g0(tmp_repo)
+    head = _git_tmp(tmp_repo, "rev-parse", "HEAD")
+    if change == "protocol":
+        p = tmp_repo / PROTOCOL
+        p.write_bytes(p.read_bytes() + b"\n")
+    else:
+        (tmp_repo / "results" / "rgf_b3_validation" / "summary.json").write_text('{"changed": 1}')
+    assert _git_tmp(tmp_repo, "rev-parse", "HEAD") == head                 # HEAD unchanged
+    calls = []
+    with pytest.raises((chk.PilotCheckError, pio.PilotGuardError), match="not clean"):
+        chk.run_greal(str(tmp_repo), _counting_greal_deps(calls), g0=g0)
+    assert calls == [] and not any(n in calls for n in ("rgf", "td_prod", "td_var"))
+
+
+def test_T6_greal_entry_refuses_a_protocol_hash_different_from_G0(tmp_repo):
+    g0 = dataclasses.replace(_pass_g0(tmp_repo), protocol_sha256="sha256:" + "2" * 64)
+    calls = []
+    with pytest.raises(chk.PilotCheckError, match="protocol hash differs"):
+        chk.run_greal(str(tmp_repo), _counting_greal_deps(calls), g0=g0)
+    assert calls == []
+
+
+def test_T6_greal_entry_refuses_a_committed_protocol_change(tmp_repo):
+    g0 = _pass_g0(tmp_repo)
+    p = tmp_repo / PROTOCOL
+    p.write_bytes(p.read_bytes() + b"\n")
+    _git_tmp(tmp_repo, "commit", "-q", "-am", "protocol changed")           # clean tree, HEAD moved
+    calls = []
+    with pytest.raises(pio.PilotGuardError, match="protocol SHA-256 mismatch"):
+        chk.run_greal(str(tmp_repo), _counting_greal_deps(calls), g0=g0)
+    assert calls == []
+
+
+def test_T6_greal_entry_passes_and_then_calls_dependencies(tmp_repo):
+    calls = []
+    rep = chk.run_greal(str(tmp_repo), _counting_greal_deps(calls), g0=_pass_g0(tmp_repo))
+    assert rep.passed and calls.count("rgf") == 20 and calls.count("td_prod") == 4 and calls.count("td_var") == 20
