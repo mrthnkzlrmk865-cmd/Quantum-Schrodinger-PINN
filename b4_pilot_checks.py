@@ -705,13 +705,39 @@ def record_fields(rec) -> dict:
                 edge=float(rec["disorder_edge"]), M=int(rec["disorder_n_modes"]), seed=int(rec["seed"]))
 
 
-def l1_identity(config, sources, records) -> CheckResult:
-    """L1 for one configuration. sources: {name: disorder object}; records: {name: committed record dict}."""
+L1_REFERENCE = "rgf_fresh"                      # fresh disorder_from_config(case_config(c), 0): the L1 reference
+L1_REQUIRED_RECORDS = ("B3_record", "B3X_record")   # committed records that must both be present (B3Y has no hash)
+
+
+def rgf_device_source(inv, n_y, n_q) -> str:
+    return f"rgf_device/{inv}/{n_y}x{n_q}"
+
+
+def l1_identity(config, sources, records, reference=L1_REFERENCE) -> CheckResult:
+    """L1 for one configuration. sources: {name: disorder object}; records: {name: committed record dict}. Every
+    source and record must equal the reference source in sha256('<f8' concat(qx, qy, phi)) and in
+    (W, zeta, region, edge, M, seed). A missing or unreadable source raises (fail closed)."""
     if not sources:
         raise PilotCheckError("no disorder sources")
+    if reference not in sources:
+        raise PilotCheckError(f"L1 reference source {reference!r} missing")
+    for n, d in sources.items():
+        if d is None:
+            raise PilotCheckError(f"L1 source {n!r} is missing")
+    if not isinstance(records, Mapping):
+        raise PilotCheckError("L1 committed records must be a mapping")
+    missing = [k for k in L1_REQUIRED_RECORDS if k not in records or records[k] is None]
+    if missing:
+        raise PilotCheckError(f"L1 committed records missing: {missing} (required {list(L1_REQUIRED_RECORDS)})")
+    unexpected = sorted(set(records) - set(L1_REQUIRED_RECORDS))
+    if unexpected:                              # never let another key stand in for, or overwrite, an identity entry
+        raise PilotCheckError(f"L1 unexpected record keys: {unexpected}")
+    collisions = sorted(set(sources) & set(records))
+    if collisions:                              # a source must never share a name with (and be overwritten by) a record
+        raise PilotCheckError(f"L1 source/record name collision: {collisions}")
     ids = {n: (disorder_params_hash(d), disorder_fields(d)) for n, d in sources.items()}
     ids.update({n: (r["disorder_params_hash"], record_fields(r)) for n, r in records.items()})
-    ref_name = next(iter(sources))
+    ref_name = reference
     ref = ids[ref_name]
     bad = sorted(n for n, v in ids.items() if v != ref)
     return CheckResult(f"L1/{config}", "L1", FAIL if bad else PASS,
@@ -877,12 +903,14 @@ def not_applicable(check_id, reason) -> CheckResult:
 @dataclass(frozen=True)
 class GRealDeps:
     protocol_text: object          # repo -> protocol text
-    case_disorder: object          # config -> disorder object used by the RGF devices (case_potential path)
+    case_disorder: object          # config -> disorder object of the case_potential path
+    rgf_device_potential: object   # (config, inv_dx, n_y, n_q) -> the exact Potential the device is built from
     case_config: object            # config -> B3 configuration
     td_config: object              # config -> committed TD production configuration (seed 0 present)
     disorder_from_config: object   # (cfg, seed) -> disorder object
     record_identities: object      # config -> {name: committed record dict with disorder_params_hash and fields}
-    rgf_device: object             # (config, inv_dx, n_y, n_q) -> GridSample  (may raise NotEvaluable)
+    rgf_device: object             # (config, inv_dx, n_y, n_q, potential) -> GridSample (may raise NotEvaluable);
+    #                                builds the device from THAT potential object (the one hashed in L1)
     td_production: object          # (config, cfg_td) -> (GridSample, solver_dx)        constructor only
     td_variant: object             # (config, cfg_td, VariantGeometry) -> (GridSample, solver_dx)  constructor only
 
@@ -918,14 +946,21 @@ def run_greal(repo, deps: GRealDeps, *, g0: GateReport) -> GateReport:
     def done():
         return seq.report(head, g0.protocol_sha256)
 
-    cfg_td, geos = {}, {}
+    cfg_td, geos, pots = {}, {}, {}
     for c in CONFIGS:                                                    # ---- L1
         def _l1(c=c):
             cfg_td[c] = deps.td_config(c)
             geos[c] = {v.name: variant_geometry(cfg_td[c], v) for v in VARIANTS}
-            src = {"rgf_case_potential": deps.case_disorder(c),
-                   "rgf_fresh": deps.disorder_from_config(deps.case_config(c), 0),
+            src = {L1_REFERENCE: deps.disorder_from_config(deps.case_config(c), 0),
+                   "rgf_case_potential": deps.case_disorder(c),
                    "td_production": deps.disorder_from_config(cfg_td[c], 0)}
+            for (inv, ny, nq) in RGF_DEVICES:                        # each device's own disorder, hashed
+                pot = deps.rgf_device_potential(c, inv, ny, nq)
+                d = getattr(pot, "disorder", None)
+                if pot is None or d is None:
+                    raise PilotCheckError(f"no disorder object for RGF device {c} 1/{inv} {ny}x{nq}")
+                pots[(c, inv, ny, nq)] = pot                         # the SAME object is passed to L2
+                src[rgf_device_source(inv, ny, nq)] = d
             src.update({f"td_{n}": deps.disorder_from_config(g.cfg, 0) for n, g in geos[c].items()})
             return l1_identity(c, src, deps.record_identities(c))
         if not seq.add(seq.guard(f"L1/{c}", "L1", _l1)):
@@ -936,7 +971,7 @@ def run_greal(repo, deps: GRealDeps, *, g0: GateReport) -> GateReport:
             cid = f"L2/{c}/RGF/{inv}/{ny}x{nq}"
 
             def _dev(c=c, inv=inv, ny=ny, nq=nq, cid=cid):
-                s = deps.rgf_device(c, inv, ny, nq)
+                s = deps.rgf_device(c, inv, ny, nq, pots[(c, inv, ny, nq)])
                 rgf[(c, inv, ny, nq)] = s
                 return l2_fidelity(cid, s)
             if not seq.add(seq.guard(cid, "L2", _dev)):

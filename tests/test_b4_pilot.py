@@ -2598,7 +2598,7 @@ def _psi(X, Y):
     return (X + 1j * Y) * 2.0
 
 
-def _fake_rgf(c, inv, ny, nq):
+def _fake_rgf(c, inv, ny, nq, potential=None):
     nb = 103 * inv // 512
     dx = 1.0 / inv
     x0 = 1.9 - nb * dx
@@ -2635,8 +2635,23 @@ def _records(c):
     return {"B3_record": dict(rec), "B3X_record": dict(rec)}
 
 
+class _FakeDevicePotential:
+    """Stands in for the Potential object one RGF device is built from (its .disorder is hashed in L1)."""
+
+    def __init__(self, disorder):
+        self.disorder = disorder
+
+    def numpy(self, X, Y):
+        return _field(np.asarray(X, float), np.asarray(Y, float))
+
+
+def _fake_device_potential(c, inv, ny, nq):
+    return _FakeDevicePotential(_fdis(b3.case_config(c), 0))
+
+
 def _greal_deps(**over):
     base = dict(protocol_text=lambda r: _protocol_text(), case_disorder=lambda c: _fdis(b3.case_config(c), 0),
+                rgf_device_potential=_fake_device_potential,
                 case_config=b3.case_config, td_config=b3.case_config, disorder_from_config=_fdis,
                 record_identities=_records, rgf_device=_fake_rgf, td_production=_fake_prod, td_variant=_fake_var)
     base.update(over)
@@ -2721,8 +2736,8 @@ def _bump(a, idx):
 
 @pytest.mark.parametrize("where", ["rgf_V", "rgf_x", "prod_V", "variant_V", "variant_shape", "variant_nan"])
 def test_T6_L2_detects_sampling_and_coordinate_defects(tmp_repo, where):
-    def rgf(c, inv, ny, nq):
-        s = _fake_rgf(c, inv, ny, nq)
+    def rgf(c, inv, ny, nq, potential=None):
+        s = _fake_rgf(c, inv, ny, nq, potential)
         if c == "B" and inv == 1024 and nq == 254:
             if where == "rgf_V":
                 s = dataclasses.replace(s, V_stored=_bump(s.V_stored, (3, 4)))
@@ -2755,10 +2770,10 @@ def test_T6_L2_detects_sampling_and_coordinate_defects(tmp_repo, where):
 
 
 def test_T6_lead_guard_makes_G_REAL_not_evaluable_and_blocks_clearance(tmp_repo):
-    def rgf(c, inv, ny, nq):
+    def rgf(c, inv, ny, nq, potential=None):
         if (c, inv) == ("D", 2048):
             raise chk.NotEvaluable("lead-tail guard")
-        return _fake_rgf(c, inv, ny, nq)
+        return _fake_rgf(c, inv, ny, nq, potential)
     rep = chk.run_greal(str(tmp_repo), _greal_deps(rgf_device=rgf), g0=_pass_g0(tmp_repo))
     assert rep.status == chk.NOT_EVALUABLE and not rep.passed and rep.stopped_at == "L2/D/RGF/2048/63x127"
     with pytest.raises(chk.PilotCheckError, match="NOT EVALUABLE"):
@@ -2884,7 +2899,7 @@ def test_T6_g0_failure_prevents_G_REAL_and_discards_staging(tmp_repo, tmp_path):
 def test_T6_greal_failure_blocks_later_stages_and_discards_staging(tmp_repo, tmp_path):
     st = pio.Staging(str(tmp_repo), scratch_root=_scratch(tmp_path))
 
-    def rgf(c, inv, ny, nq):
+    def rgf(c, inv, ny, nq, potential=None):
         raise chk.NotEvaluable("lead-tail guard")
     g0, greal = chk.run_gates(str(tmp_repo), st, _g0_deps([]), _greal_deps(rgf_device=rgf),
                               baseline=_git_tmp(tmp_repo, "rev-parse", "HEAD"), spec=_T6_SPEC)
@@ -3015,7 +3030,7 @@ def test_T6_rgf_runner_builds_devices_and_maps_the_lead_guard(monkeypatch):
     monkeypatch.setattr(rgr.b3, "case_potential", lambda c: (b3.case_config(c), _FakePotential(None)))
     monkeypatch.setattr(rgr.b3, "direct_reference_samples", fake_direct)
     for (inv, ny, nq) in chk.RGF_DEVICES:
-        s = rgr.rgf_device("A", inv, ny, nq)
+        s = rgr.rgf_device("A", inv, ny, nq, _FakePotential(None))
         assert chk.l2_fidelity("t", s).status == chk.PASS and s.V_stored.shape[1] == nq
     assert len(built) == 5 and [b[0] for b in built] == [1 / 512, 1 / 1024, 1 / 2048, 1 / 1024, 1 / 1024]
 
@@ -3023,7 +3038,7 @@ def test_T6_rgf_runner_builds_devices_and_maps_the_lead_guard(monkeypatch):
         raise ValueError("potential on the first lead slices is 1e-3 > lead_tol")
     monkeypatch.setattr(rgr, "build_device", guard)
     with pytest.raises(chk.NotEvaluable):
-        rgr.rgf_device("A", 512, 63, 127)
+        rgr.rgf_device("A", 512, 63, 127, _FakePotential(None))
 
 
 def test_T6_g0_runner_wires_exactly_one_M1_solve_per_control(monkeypatch):
@@ -3228,3 +3243,218 @@ def test_T6_first_difference_rejects_float_or_complex_dtypes_wider_than_16_bytes
         a = np.ones(3, dtype=dt)
         assert dt.kind in "fc" and dt.itemsize > 16
         assert chk._first_difference(a, a.copy()) == f"unsupported dtype {dt} for a bitwise comparison"
+
+
+# ---- Phase A: L1 per-device disorder identity ------------------------------------------------------------------
+def _l1_sources(rep, config):
+    return set(rep.result(f"L1/{config}").evidence["sources"])
+
+
+def test_T6_L1_hashes_every_rgf_device_against_the_fresh_reference(tmp_repo):
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(), g0=_pass_g0(tmp_repo))
+    assert rep.passed
+    expected_dev = {chk.rgf_device_source(i, y, q) for (i, y, q) in chk.RGF_DEVICES}
+    assert len(expected_dev) == 5
+    for c in chk.CONFIGS:
+        r = rep.result(f"L1/{c}")
+        assert r.evidence["reference"] == chk.L1_REFERENCE == "rgf_fresh"
+        assert _l1_sources(rep, c) == expected_dev | {"rgf_fresh", "rgf_case_potential", "td_production",
+                                                     "td_V0", "td_V1", "td_V2", "td_V3", "td_V4",
+                                                     "B3_record", "B3X_record"}        # 15 sources
+    assert sum(len(expected_dev & _l1_sources(rep, c)) for c in chk.CONFIGS) == 20
+
+
+@pytest.mark.parametrize("mutation", ["seed", "permute_qx"])
+@pytest.mark.parametrize("device", [(512, 63, 127), (1024, 127, 254), (2048, 63, 127)])
+def test_T6_L1_fails_for_a_single_inconsistent_device(tmp_repo, mutation, device):
+    def pot(c, inv, ny, nq):
+        p = _fake_device_potential(c, inv, ny, nq)
+        if c == "C" and (inv, ny, nq) == device:
+            if mutation == "seed":
+                p.disorder = _fdis(b3.case_config(c), 1)
+            else:
+                p.disorder.qx = p.disorder.qx[::-1].copy()
+        return p
+    calls = []
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(rgf_device_potential=pot,
+                                                   rgf_device=lambda *a: calls.append(a) or _fake_rgf(*a)),
+                        g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.FAIL and rep.stopped_at == "L1/C" and calls == []
+    assert rep.result("L1/C").evidence["mismatching"] == (chk.rgf_device_source(*device),)
+
+
+@pytest.mark.parametrize("bad", ["none", "no_disorder"])
+def test_T6_L1_fails_closed_for_a_missing_device_disorder(tmp_repo, bad):
+    def pot(c, inv, ny, nq):
+        if (c, inv, ny, nq) == ("B", 2048, 63, 127):
+            return None if bad == "none" else object()
+        return _fake_device_potential(c, inv, ny, nq)
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(rgf_device_potential=pot), g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.FAIL and rep.stopped_at == "L1/B" and "no disorder object" in rep.result("L1/B").message
+
+
+def test_T6_L1_reference_source_is_required():
+    d = _fdis(b3.case_config("A"), 0)
+    with pytest.raises(chk.PilotCheckError, match="reference"):
+        chk.l1_identity("A", {"td_production": d}, {})
+    with pytest.raises(chk.PilotCheckError, match="missing"):
+        chk.l1_identity("A", {"rgf_fresh": d, "rgf_device/512/63x127": None}, {})
+
+
+def test_T6_the_object_hashed_in_L1_is_the_object_passed_to_the_device_builder(tmp_repo):
+    issued, received = {}, {}
+
+    def pot(c, inv, ny, nq):
+        p = _fake_device_potential(c, inv, ny, nq)
+        issued[(c, inv, ny, nq)] = p
+        return p
+
+    def rgf(c, inv, ny, nq, potential):
+        received[(c, inv, ny, nq)] = potential
+        return _fake_rgf(c, inv, ny, nq, potential)
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(rgf_device_potential=pot, rgf_device=rgf), g0=_pass_g0(tmp_repo))
+    assert rep.passed and len(issued) == len(received) == 20 and set(issued) == set(received)
+    for k in issued:
+        assert received[k] is issued[k]
+    for c in chk.CONFIGS:                                   # and its disorder is the hashed one
+        hashed = rep.result(f"L1/{c}").evidence["hash"]
+        assert all(chk.disorder_params_hash(issued[k].disorder) == hashed for k in issued if k[0] == c)
+
+
+def test_T6_real_rgf_device_uses_exactly_the_supplied_potential(monkeypatch):
+    used = []
+
+    class _Basis:
+        def __init__(self, y):
+            self.y = y
+
+    class _Dev:
+        def __init__(self, xs, y):
+            self.xs, self.basis, self.n_slices, self.V_lead_max = xs, _Basis(y), xs.size, 0.0
+
+    def fake_build(rec, x0, x1, dx, Ly, ny, nq, lead_tol=1e-6):
+        used.append(rec.f)
+        n = int(round((x1 - x0) / dx))
+        xs = x0 + dx * np.arange(n + 1)
+        y = np.arange(1, nq + 1) * Ly / (nq + 1)
+        rec(*np.meshgrid(xs, y, indexing="ij"))
+        return _Dev(xs, y)
+
+    def fake_direct(case, x0, dx, n, Ly, nq):
+        xs = x0 + dx * np.arange(n)
+        y = np.arange(1, nq + 1) * Ly / (nq + 1)
+        return xs, y, _field(*np.meshgrid(xs, y, indexing="ij"))
+    monkeypatch.setattr(rgr, "build_device", fake_build)
+    monkeypatch.setattr(rgr.b3, "direct_reference_samples", fake_direct)
+    monkeypatch.setattr(rgr.b3, "case_potential", lambda c: pytest.fail("rgf_device must not build its own potential"))
+    p = _FakeDevicePotential(_fdis(b3.case_config("A"), 0))
+    s = rgr.rgf_device("A", 1024, 63, 127, p)
+    assert len(used) == 1 and used[0] == p.numpy and chk.l2_fidelity("t", s).status == chk.PASS
+    with pytest.raises(chk.PilotCheckError, match="no potential"):
+        rgr.rgf_device("A", 1024, 63, 127, None)
+    assert rgr.real_deps(REPO).rgf_device_potential is rgr.rgf_device_potential
+
+
+@pytest.mark.parametrize("config", ["A", "B", "C", "D"])
+def test_T6_real_td_config_reader_returns_seed0_production_configs(config):
+    cfg = rgr.make_td_config(REPO)(config)                           # reads committed config_json only
+    for k, v in chk.PRODUCTION.items():
+        assert getattr(cfg, k) == v, (config, k)
+    ref = b3.case_config(config)
+    assert (cfg.disorder_strength, cfg.disorder_corr_length) == (ref.disorder_strength, ref.disorder_corr_length)
+    assert all(chk.variant_geometry(cfg, v).cfg.nx == 249 + 2 * v.m for v in chk.VARIANTS)
+
+
+@pytest.mark.parametrize("config", ["A", "B", "C", "D"])
+def test_T6_real_record_reader_returns_the_required_identity_keys(config):
+    recs = rgr.make_record_identities(REPO)(config)                  # committed run_metadata.json only
+    assert set(recs) == {"B3_record", "B3X_record"}
+    for r in recs.values():
+        assert {"W", "zeta", "seed", "disorder_n_modes", "disorder_edge", "disorder_region",
+                "disorder_params_hash"} <= set(r) and r["seed"] == 0
+        assert re.fullmatch(r"sha256:[0-9a-f]{64}", r["disorder_params_hash"])
+        chk.record_fields(r)
+    assert recs["B3_record"]["disorder_params_hash"] == recs["B3X_record"]["disorder_params_hash"]
+
+
+# ---- Phase A: committed B3 / B3X records are required in L1 (fail closed) ------------------------------------
+def _l1_ok_sources():
+    d = _fdis(b3.case_config("A"), 0)
+    return {"rgf_fresh": d, "rgf_device/512/63x127": _fdis(b3.case_config("A"), 0)}
+
+
+@pytest.mark.parametrize("records", [{}, "drop_B3", "drop_B3X", "B3_none"],
+                         ids=["empty", "missing_B3_record", "missing_B3X_record", "B3_record_None"])
+def test_T6_L1_refuses_missing_committed_records(records):
+    full = _records("A")
+    if records == "drop_B3":
+        records = {"B3X_record": full["B3X_record"]}
+    elif records == "drop_B3X":
+        records = {"B3_record": full["B3_record"]}
+    elif records == "B3_none":
+        records = {"B3_record": None, "B3X_record": full["B3X_record"]}
+    with pytest.raises(chk.PilotCheckError, match="committed records missing"):
+        chk.l1_identity("A", _l1_ok_sources(), records)
+
+
+def test_T6_L1_complete_records_still_pass_and_are_compared():
+    r = chk.l1_identity("A", _l1_ok_sources(), _records("A"))
+    assert r.status == chk.PASS and {"B3_record", "B3X_record"} <= set(r.evidence["sources"])
+    bad = _records("A")
+    bad["B3_record"]["disorder_params_hash"] = "sha256:" + "0" * 64
+    r = chk.l1_identity("A", _l1_ok_sources(), bad)
+    assert r.status == chk.FAIL and r.evidence["mismatching"] == ("B3_record",)
+    bad = _records("A")
+    bad["B3X_record"]["seed"] = 1
+    assert chk.l1_identity("A", _l1_ok_sources(), bad).evidence["mismatching"] == ("B3X_record",)
+
+
+@pytest.mark.parametrize("extra", ["B3Y_record", "rgf_fresh", "b3_record"])
+def test_T6_L1_unexpected_record_keys_cannot_stand_in_for_required_records(extra):
+    full = _records("A")
+    with pytest.raises(chk.PilotCheckError, match="unexpected record keys"):
+        chk.l1_identity("A", _l1_ok_sources(), {**full, extra: full["B3_record"]})
+    with pytest.raises(chk.PilotCheckError, match="committed records missing"):    # cannot replace a required key
+        chk.l1_identity("A", _l1_ok_sources(), {"B3X_record": full["B3X_record"], extra: full["B3_record"]})
+
+
+def test_T6_greal_with_a_missing_committed_record_fails_L1_before_any_device(tmp_repo):
+    calls = []
+
+    def recs(c):
+        r = _records(c)
+        if c == "D":
+            del r["B3X_record"]
+        return r
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(record_identities=recs,
+                                                   rgf_device=lambda *a: calls.append(a) or _fake_rgf(*a)),
+                        g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.FAIL and rep.stopped_at == "L1/D" and calls == []
+    assert "committed records missing" in rep.result("L1/D").message
+
+
+# ---- Phase A: source names must not collide with the committed record names -----------------------------------
+@pytest.mark.parametrize("name", ["B3_record", "B3X_record"])
+def test_T6_L1_refuses_a_source_named_like_a_required_record(name):
+    sources = dict(_l1_ok_sources(), **{name: _fdis(b3.case_config("A"), 7)})     # would be silently overwritten
+    with pytest.raises(chk.PilotCheckError, match=f"source/record name collision: \\['{name}'\\]"):
+        chk.l1_identity("A", sources, _records("A"))
+
+
+def test_T6_L1_valid_sources_with_exactly_the_two_records_still_pass():
+    r = chk.l1_identity("A", _l1_ok_sources(), _records("A"))
+    assert r.status == chk.PASS
+    assert set(r.evidence["sources"]) == set(_l1_ok_sources()) | {"B3_record", "B3X_record"}
+
+
+def test_T6_greal_with_a_colliding_source_fails_L1_before_any_device(tmp_repo, monkeypatch):
+    calls = []
+    orig = chk.rgf_device_source
+
+    def colliding_source(inv, ny, nq):                  # one device source name collides with a record name
+        return "B3X_record" if (inv, ny, nq) == (1024, 63, 254) else orig(inv, ny, nq)
+    monkeypatch.setattr(chk, "rgf_device_source", colliding_source)
+    rep = chk.run_greal(str(tmp_repo), _greal_deps(rgf_device=lambda *a: calls.append(a) or _fake_rgf(*a)),
+                        g0=_pass_g0(tmp_repo))
+    assert rep.status == chk.FAIL and rep.stopped_at == "L1/A" and calls == []
+    assert "source/record name collision: ['B3X_record']" in rep.result("L1/A").message
