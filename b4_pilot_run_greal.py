@@ -54,8 +54,17 @@ def make_record_identities(repo):
     return record_identities
 
 
-def rgf_device(config, inv_dx, n_y, n_q):
-    cfg, pot = b3.case_potential(config)
+def rgf_device_potential(config, inv_dx, n_y, n_q):
+    """The Potential object one RGF device is built from (the existing B3 construction); hashed in L1."""
+    return b3.case_potential(config)[1]
+
+
+def rgf_device(config, inv_dx, n_y, n_q, pot):
+    """Device built from EXACTLY `pot` (the object hashed in L1); the direct reference stays independent
+    (validate_rgf_b3.direct_reference_samples: fresh Potential, independently built coordinates)."""
+    if pot is None or not callable(getattr(pot, "numpy", None)):
+        raise chk.PilotCheckError(f"RGF device {config} 1/{inv_dx}: no potential supplied")
+    cfg = b3.case_config(config)
     dx = 1.0 / inv_dx
     geo = b3.geometry(cfg, dx, b3.BASE["buffer"])
     rec = b3.Recorder(pot.numpy)
@@ -101,6 +110,7 @@ def td_variant(config, cfg, geo):
 
 def real_deps(repo) -> chk.GRealDeps:
     return chk.GRealDeps(protocol_text=read_protocol, case_disorder=lambda c: b3.case_potential(c)[1].disorder,
+                         rgf_device_potential=rgf_device_potential,
                          case_config=b3.case_config, td_config=make_td_config(repo),
                          disorder_from_config=lambda cfg, seed: disorder_from_config(cfg, seed=seed),
                          record_identities=make_record_identities(repo), rgf_device=rgf_device,
